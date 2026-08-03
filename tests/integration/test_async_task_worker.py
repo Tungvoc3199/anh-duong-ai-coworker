@@ -1,0 +1,291 @@
+from __future__ import annotations
+
+from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
+
+import pytest
+from sqlalchemy import Engine
+from sqlalchemy.orm import Session, sessionmaker
+
+from app.async_tasks import (
+    AsyncRunStatus,
+    AsyncTaskCreate,
+    AsyncTaskPolicyGate,
+    AsyncTaskRepository,
+    AsyncTaskService,
+    AsyncTaskWorker,
+)
+from app.audit import AuditWriter
+from app.db.base import Base
+from app.db.models import ProjectRow
+from app.db.session import create_db_engine
+from app.openclaw import (
+    OpenClawExecutionRequest,
+    OpenClawExecutionResult,
+    OpenClawTransportError,
+)
+from app.tasks import TaskRepository, TaskService, TaskStatus
+
+NOW = datetime.now(UTC) + timedelta(hours=1)
+
+
+class SequenceExecutor:
+    def __init__(self, outcomes: list[object]) -> None:
+        self.outcomes = outcomes
+        self.requests: list[OpenClawExecutionRequest] = []
+
+    async def execute(
+        self,
+        request: OpenClawExecutionRequest,
+    ) -> OpenClawExecutionResult:
+        self.requests.append(request)
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        assert isinstance(outcome, OpenClawExecutionResult)
+        return outcome
+
+
+@pytest.fixture
+def engine(tmp_path: Path) -> Iterator[Engine]:
+    database_url = (
+        "sqlite+pysqlite:///"
+        f"{tmp_path / 'async-worker.db'}"
+    )
+    runtime_engine = create_db_engine(database_url)
+    Base.metadata.create_all(runtime_engine)
+    try:
+        yield runtime_engine
+    finally:
+        runtime_engine.dispose()
+
+
+@pytest.fixture
+def session_factory(
+    engine: Engine,
+) -> sessionmaker[Session]:
+    return sessionmaker(
+        bind=engine,
+        class_=Session,
+        expire_on_commit=False,
+        autoflush=False,
+    )
+
+
+def _audit(tmp_path: Path) -> AuditWriter:
+    return AuditWriter(
+        tmp_path / "worker-audit.jsonl",
+        fsync=False,
+    )
+
+
+def _seed_run(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+    *,
+    key: str,
+) -> tuple[str, str]:
+    with session_factory() as session:
+        project = ProjectRow(
+            id=f"proj_{key}",
+            name=f"Project {key}",
+            slug=f"project-{key}",
+            status="active",
+        )
+        session.add(project)
+        session.flush()
+
+        service = AsyncTaskService(
+            task_service=TaskService(
+                TaskRepository(session),
+                _audit(tmp_path),
+            ),
+            repository=AsyncTaskRepository(session),
+            policy_gate=AsyncTaskPolicyGate((tmp_path,)),
+        )
+        accepted = service.create(
+            AsyncTaskCreate(
+                project_id=project.id,
+                title="Worker test",
+                goal="Complete a deterministic test task",
+                risk_level=0,
+                workspace=str(tmp_path / "workspace"),
+                source_channel="telegram",
+                source_chat_id="chat-test",
+                idempotency_key=f"telegram:{key}",
+            )
+        )
+        session.commit()
+        return accepted.task_id, accepted.run_id
+
+
+def _worker(
+    *,
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+    executor: Any,
+    clock: list[datetime],
+) -> AsyncTaskWorker:
+    return AsyncTaskWorker(
+        session_factory=session_factory,
+        audit_writer=_audit(tmp_path),
+        policy_gate=AsyncTaskPolicyGate((tmp_path,)),
+        executor=executor,
+        worker_id="worker-1",
+        lease_seconds=900,
+        clock=lambda: clock[0],
+    )
+
+
+@pytest.mark.asyncio
+async def test_worker_completes_run_and_task(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="success",
+    )
+    executor = SequenceExecutor(
+        [
+            OpenClawExecutionResult(
+                outcome="completed",
+                summary="Worker completed the task.",
+                artifacts=("artifact.zip",),
+                verification=("pytest passed",),
+                external_run_id="resp_1",
+            )
+        ]
+    )
+    worker = _worker(
+        session_factory=session_factory,
+        tmp_path=tmp_path,
+        executor=executor,
+        clock=[NOW],
+    )
+
+    processed = await worker.run_once()
+
+    with session_factory() as session:
+        run = AsyncTaskRepository(session).get(run_id)
+        task = TaskService(
+            TaskRepository(session),
+            _audit(tmp_path),
+        ).get(task_id)
+
+    assert processed is True
+    assert run.status is AsyncRunStatus.COMPLETED
+    assert run.notification_status.value == "pending"
+    assert task.status is TaskStatus.COMPLETED
+    assert task.result_summary == "Worker completed the task."
+    request = executor.requests[0]
+    assert request.idempotency_key == f"{run_id}:1"
+
+
+@pytest.mark.asyncio
+async def test_worker_uses_five_then_thirty_second_retries_and_fails_third(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="retry",
+    )
+    executor = SequenceExecutor(
+        [
+            OpenClawTransportError(
+                "connection_error",
+                "temporary connection failure",
+                retryable=True,
+            ),
+            OpenClawTransportError(
+                "connection_error",
+                "temporary connection failure",
+                retryable=True,
+            ),
+            OpenClawTransportError(
+                "connection_error",
+                "temporary connection failure",
+                retryable=True,
+            ),
+        ]
+    )
+    clock = [NOW]
+    worker = _worker(
+        session_factory=session_factory,
+        tmp_path=tmp_path,
+        executor=executor,
+        clock=clock,
+    )
+
+    await worker.run_once()
+    with session_factory() as session:
+        first = AsyncTaskRepository(session).get(run_id)
+    assert first.status is AsyncRunStatus.RETRY_WAIT
+    assert first.run_after == NOW + timedelta(seconds=5)
+
+    clock[0] = first.run_after
+    await worker.run_once()
+    with session_factory() as session:
+        second = AsyncTaskRepository(session).get(run_id)
+    assert second.status is AsyncRunStatus.RETRY_WAIT
+    assert second.run_after == clock[0] + timedelta(seconds=30)
+
+    clock[0] = second.run_after
+    await worker.run_once()
+    with session_factory() as session:
+        final = AsyncTaskRepository(session).get(run_id)
+        task = TaskService(
+            TaskRepository(session),
+            _audit(tmp_path),
+        ).get(task_id)
+
+    assert final.status is AsyncRunStatus.FAILED
+    assert final.attempt == 3
+    assert task.status is TaskStatus.FAILED
+
+
+@pytest.mark.asyncio
+async def test_uncertain_outcome_is_blocked_without_retry(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="uncertain",
+    )
+    executor = SequenceExecutor(
+        [
+            OpenClawTransportError(
+                "uncertain_outcome",
+                "outcome is uncertain",
+                retryable=False,
+                uncertain_side_effect=True,
+            )
+        ]
+    )
+    worker = _worker(
+        session_factory=session_factory,
+        tmp_path=tmp_path,
+        executor=executor,
+        clock=[NOW],
+    )
+
+    await worker.run_once()
+
+    with session_factory() as session:
+        run = AsyncTaskRepository(session).get(run_id)
+        task = TaskService(
+            TaskRepository(session),
+            _audit(tmp_path),
+        ).get(task_id)
+
+    assert run.status is AsyncRunStatus.BLOCKED
+    assert run.attempt == 1
+    assert task.status is TaskStatus.BLOCKED
+

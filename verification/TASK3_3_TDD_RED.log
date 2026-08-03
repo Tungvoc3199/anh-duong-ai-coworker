@@ -1,0 +1,417 @@
+Spreadsheet runtime warmup failed during python startup
+Traceback (most recent call last):
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/patches/warm_spreadsheet_runtime_on_startup.py", line 26, in warm_spreadsheet_runtime_on_startup
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 785, in warm_spreadsheet_runtime
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 720, in _warm_feature_flows
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 704, in _warm_collaboration_flows
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/generated/interface/models.py", line 30820, in hydrate_crdt_from_proto
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/rpc/remote.py", line 749, in __call__
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/rpc/client.py", line 150, in call
+artifact_tool.rpc.client.RemoteError: hydrateCrdtFromProto requires an empty collaborative document.
+[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31m                                                             [100%][0m
+=================================== FAILURES ===================================
+[31m[1m___________________________ test_create_and_get_task ___________________________[0m
+
+task_context = (<app.tasks.service.TaskService object at 0x7fb3e66a51a0>, 'proj_5c3a8951fe5a4b099a90047a32c795e8', PosixPath('/tmp/py...-oai/pytest-19/test_create_and_get_task0/task-audit.jsonl'), <sqlalchemy.orm.session.Session object at 0x7fb3e66203a0>)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_create_and_get_task[39;49;00m([90m[39;49;00m
+        task_context: [96mtuple[39;49;00m[TaskService, [96mstr[39;49;00m, Path, Session],[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        service, project_id, _, _ = task_context[90m[39;49;00m
+    [90m[39;49;00m
+>       created = service.create([90m[39;49;00m
+            TaskCreate([90m[39;49;00m
+                project_id=project_id,[90m[39;49;00m
+                title=[33m"[39;49;00m[33mBuild Task Registry[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                description=[33m"[39;49;00m[33mImplement deterministic task lifecycle.[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                priority=TaskPriority.HIGH,[90m[39;49;00m
+                risk_level=[94m1[39;49;00m,[90m[39;49;00m
+                source_channel=[33m"[39;49;00m[33mtelegram[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                approval_required=[94mFalse[39;49;00m,[90m[39;49;00m
+            )[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/integration/test_tasks.py[0m:72: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.tasks.service.TaskService object at 0x7fb3e66a51a0>
+data = TaskCreate(project_id='proj_5c3a8951fe5a4b099a90047a32c795e8', title='Build Task Registry', description='Implement deterministic task lifecycle.')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcreate[39;49;00m([96mself[39;49;00m, data):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/tasks/service.py[0m:23: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[31m[1m_____________________ test_create_rejects_unknown_project ______________________[0m
+
+task_context = (<app.tasks.service.TaskService object at 0x7fb3e6666ea0>, 'proj_045c95403844422e8930656aef4a9fc1', PosixPath('/tmp/py...ytest-19/test_create_rejects_unknown_pr0/task-audit.jsonl'), <sqlalchemy.orm.session.Session object at 0x7fb3e6621120>)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_create_rejects_unknown_project[39;49;00m([90m[39;49;00m
+        task_context: [96mtuple[39;49;00m[TaskService, [96mstr[39;49;00m, Path, Session],[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        service, _, _, _ = task_context[90m[39;49;00m
+    [90m[39;49;00m
+        [94mwith[39;49;00m pytest.raises([90m[39;49;00m
+            TaskProjectNotFound,[90m[39;49;00m
+            match=[33m"[39;49;00m[33mproj_missing[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+        ):[90m[39;49;00m
+>           service.create([90m[39;49;00m
+                TaskCreate([90m[39;49;00m
+                    project_id=[33m"[39;49;00m[33mproj_missing[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                    title=[33m"[39;49;00m[33mOrphan task[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                    description=[33m"[39;49;00m[33mMust not be persisted.[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                )[90m[39;49;00m
+            )[90m[39;49;00m
+
+[1m[31mtests/integration/test_tasks.py[0m:102: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.tasks.service.TaskService object at 0x7fb3e6666ea0>
+data = TaskCreate(project_id='proj_missing', title='Orphan task', description='Must not be persisted.')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcreate[39;49;00m([96mself[39;49;00m, data):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/tasks/service.py[0m:23: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[31m[1m_________________________ test_get_missing_task_raises _________________________[0m
+
+task_context = (<app.tasks.service.TaskService object at 0x7fb3e681b7e0>, 'proj_ec510a38ac6842e5beacba3fee323029', PosixPath('/tmp/py.../pytest-19/test_get_missing_task_raises0/task-audit.jsonl'), <sqlalchemy.orm.session.Session object at 0x7fb3e66a6b20>)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_get_missing_task_raises[39;49;00m([90m[39;49;00m
+        task_context: [96mtuple[39;49;00m[TaskService, [96mstr[39;49;00m, Path, Session],[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        service, _, _, _ = task_context[90m[39;49;00m
+    [90m[39;49;00m
+        [94mwith[39;49;00m pytest.raises(TaskNotFound, match=[33m"[39;49;00m[33mtask_missing[39;49;00m[33m"[39;49;00m):[90m[39;49;00m
+>           service.get([33m"[39;49;00m[33mtask_missing[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+
+[1m[31mtests/integration/test_tasks.py[0m:117: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.tasks.service.TaskService object at 0x7fb3e681b7e0>
+task_id = 'task_missing'
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mget[39;49;00m([96mself[39;49;00m, task_id):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/tasks/service.py[0m:26: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[31m[1m_________________ test_task_happy_path_requires_result_summary _________________[0m
+
+task_context = (<app.tasks.service.TaskService object at 0x7fb3e6864520>, 'proj_ce523b546f1a4e52aa0e60f56c98f9bb', PosixPath('/tmp/py...ytest-19/test_task_happy_path_requires_0/task-audit.jsonl'), <sqlalchemy.orm.session.Session object at 0x7fb3e66a72a0>)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_task_happy_path_requires_result_summary[39;49;00m([90m[39;49;00m
+        task_context: [96mtuple[39;49;00m[TaskService, [96mstr[39;49;00m, Path, Session],[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        service, project_id, _, _ = task_context[90m[39;49;00m
+>       task = service.create([90m[39;49;00m
+            TaskCreate([90m[39;49;00m
+                project_id=project_id,[90m[39;49;00m
+                title=[33m"[39;49;00m[33mBuild core[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                description=[33m"[39;49;00m[33mComplete registry lifecycle.[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            )[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/integration/test_tasks.py[0m:124: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.tasks.service.TaskService object at 0x7fb3e6864520>
+data = TaskCreate(project_id='proj_ce523b546f1a4e52aa0e60f56c98f9bb', title='Build core', description='Complete registry lifecycle.')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcreate[39;49;00m([96mself[39;49;00m, data):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/tasks/service.py[0m:23: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[31m[1m__________________ test_clarifying_and_approval_path_is_valid __________________[0m
+
+task_context = (<app.tasks.service.TaskService object at 0x7fb3e6866fa0>, 'proj_3f6d457fc25a4c8a9644606a9d011149', PosixPath('/tmp/py...ytest-19/test_clarifying_and_approval_p0/task-audit.jsonl'), <sqlalchemy.orm.session.Session object at 0x7fb3e66a7a20>)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_clarifying_and_approval_path_is_valid[39;49;00m([90m[39;49;00m
+        task_context: [96mtuple[39;49;00m[TaskService, [96mstr[39;49;00m, Path, Session],[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        service, project_id, _, _ = task_context[90m[39;49;00m
+>       task = service.create([90m[39;49;00m
+            TaskCreate([90m[39;49;00m
+                project_id=project_id,[90m[39;49;00m
+                title=[33m"[39;49;00m[33mSensitive task[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                description=[33m"[39;49;00m[33mNeeds approval before queueing.[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                approval_required=[94mTrue[39;49;00m,[90m[39;49;00m
+                risk_level=[94m2[39;49;00m,[90m[39;49;00m
+            )[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/integration/test_tasks.py[0m:161: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.tasks.service.TaskService object at 0x7fb3e6866fa0>
+data = TaskCreate(project_id='proj_3f6d457fc25a4c8a9644606a9d011149', title='Sensitive task', description='Needs approval before queueing.')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcreate[39;49;00m([96mself[39;49;00m, data):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/tasks/service.py[0m:23: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[31m[1m_____________ test_invalid_transition_is_rejected_without_mutation _____________[0m
+
+task_context = (<app.tasks.service.TaskService object at 0x7fb3e681dfe0>, 'proj_6d43fd3af4d2474b8f4a64a1eb6fe966', PosixPath('/tmp/py...ytest-19/test_invalid_transition_is_rej0/task-audit.jsonl'), <sqlalchemy.orm.session.Session object at 0x7fb3e66a7ba0>)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_invalid_transition_is_rejected_without_mutation[39;49;00m([90m[39;49;00m
+        task_context: [96mtuple[39;49;00m[TaskService, [96mstr[39;49;00m, Path, Session],[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        service, project_id, _, _ = task_context[90m[39;49;00m
+>       task = service.create([90m[39;49;00m
+            TaskCreate([90m[39;49;00m
+                project_id=project_id,[90m[39;49;00m
+                title=[33m"[39;49;00m[33mInvalid transition[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                description=[33m"[39;49;00m[33mCannot jump directly to completed.[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            )[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/integration/test_tasks.py[0m:187: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.tasks.service.TaskService object at 0x7fb3e681dfe0>
+data = TaskCreate(project_id='proj_6d43fd3af4d2474b8f4a64a1eb6fe966', title='Invalid transition', description='Cannot jump directly to completed.')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcreate[39;49;00m([96mself[39;49;00m, data):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/tasks/service.py[0m:23: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[31m[1m___________________ test_blocked_task_can_resume_to_planning ___________________[0m
+
+task_context = (<app.tasks.service.TaskService object at 0x7fb3e6936760>, 'proj_59d6f4481798431ea373f5d32bf2adee', PosixPath('/tmp/py...ytest-19/test_blocked_task_can_resume_t0/task-audit.jsonl'), <sqlalchemy.orm.session.Session object at 0x7fb3e6879920>)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_blocked_task_can_resume_to_planning[39;49;00m([90m[39;49;00m
+        task_context: [96mtuple[39;49;00m[TaskService, [96mstr[39;49;00m, Path, Session],[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        service, project_id, _, _ = task_context[90m[39;49;00m
+>       task = service.create([90m[39;49;00m
+            TaskCreate([90m[39;49;00m
+                project_id=project_id,[90m[39;49;00m
+                title=[33m"[39;49;00m[33mBlocked task[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                description=[33m"[39;49;00m[33mResume after blocker is resolved.[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            )[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/integration/test_tasks.py[0m:215: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.tasks.service.TaskService object at 0x7fb3e6936760>
+data = TaskCreate(project_id='proj_59d6f4481798431ea373f5d32bf2adee', title='Blocked task', description='Resume after blocker is resolved.')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcreate[39;49;00m([96mself[39;49;00m, data):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/tasks/service.py[0m:23: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[31m[1m_______________________ test_failed_task_can_be_requeued _______________________[0m
+
+task_context = (<app.tasks.service.TaskService object at 0x7fb3e69656a0>, 'proj_cc8996cee05146d2aa80e08828b28288', PosixPath('/tmp/py...ytest-19/test_failed_task_can_be_requeu0/task-audit.jsonl'), <sqlalchemy.orm.session.Session object at 0x7fb3e687a0a0>)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_failed_task_can_be_requeued[39;49;00m([90m[39;49;00m
+        task_context: [96mtuple[39;49;00m[TaskService, [96mstr[39;49;00m, Path, Session],[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        service, project_id, _, _ = task_context[90m[39;49;00m
+>       task = service.create([90m[39;49;00m
+            TaskCreate([90m[39;49;00m
+                project_id=project_id,[90m[39;49;00m
+                title=[33m"[39;49;00m[33mRetry task[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                description=[33m"[39;49;00m[33mRetry after a recoverable failure.[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            )[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/integration/test_tasks.py[0m:233: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.tasks.service.TaskService object at 0x7fb3e69656a0>
+data = TaskCreate(project_id='proj_cc8996cee05146d2aa80e08828b28288', title='Retry task', description='Retry after a recoverable failure.')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcreate[39;49;00m([96mself[39;49;00m, data):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/tasks/service.py[0m:23: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[31m[1m_________________ test_cancel_is_idempotent_for_cancelled_task _________________[0m
+
+task_context = (<app.tasks.service.TaskService object at 0x7fb3e6821920>, 'proj_288e3faeea694448b626222acc614dfa', PosixPath('/tmp/py...ytest-19/test_cancel_is_idempotent_for_0/task-audit.jsonl'), <sqlalchemy.orm.session.Session object at 0x7fb3e687a820>)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_cancel_is_idempotent_for_cancelled_task[39;49;00m([90m[39;49;00m
+        task_context: [96mtuple[39;49;00m[TaskService, [96mstr[39;49;00m, Path, Session],[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        service, project_id, _, _ = task_context[90m[39;49;00m
+>       task = service.create([90m[39;49;00m
+            TaskCreate([90m[39;49;00m
+                project_id=project_id,[90m[39;49;00m
+                title=[33m"[39;49;00m[33mCancel task[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                description=[33m"[39;49;00m[33mUser cancels before execution.[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            )[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/integration/test_tasks.py[0m:265: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.tasks.service.TaskService object at 0x7fb3e6821920>
+data = TaskCreate(project_id='proj_288e3faeea694448b626222acc614dfa', title='Cancel task', description='User cancels before execution.')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcreate[39;49;00m([96mself[39;49;00m, data):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/tasks/service.py[0m:23: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[31m[1m___________________ test_completed_task_cannot_be_cancelled ____________________[0m
+
+task_context = (<app.tasks.service.TaskService object at 0x7fb3e6719e20>, 'proj_5adf6ebd16dc49a492f4920acd995686', PosixPath('/tmp/py...ytest-19/test_completed_task_cannot_be_0/task-audit.jsonl'), <sqlalchemy.orm.session.Session object at 0x7fb3e65a31a0>)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_completed_task_cannot_be_cancelled[39;49;00m([90m[39;49;00m
+        task_context: [96mtuple[39;49;00m[TaskService, [96mstr[39;49;00m, Path, Session],[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        service, project_id, _, _ = task_context[90m[39;49;00m
+>       task = service.create([90m[39;49;00m
+            TaskCreate([90m[39;49;00m
+                project_id=project_id,[90m[39;49;00m
+                title=[33m"[39;49;00m[33mDone task[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                description=[33m"[39;49;00m[33mComplete before cancellation attempt.[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            )[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/integration/test_tasks.py[0m:288: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.tasks.service.TaskService object at 0x7fb3e6719e20>
+data = TaskCreate(project_id='proj_5adf6ebd16dc49a492f4920acd995686', title='Done task', description='Complete before cancellation attempt.')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcreate[39;49;00m([96mself[39;49;00m, data):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/tasks/service.py[0m:23: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[31m[1m___________________ test_list_filters_by_project_and_status ____________________[0m
+
+task_context = (<app.tasks.service.TaskService object at 0x7fb3e671bc20>, 'proj_c20ac5e72b9342a9965739fef4748c0d', PosixPath('/tmp/py...ytest-19/test_list_filters_by_project_a0/task-audit.jsonl'), <sqlalchemy.orm.session.Session object at 0x7fb3e6620ca0>)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_list_filters_by_project_and_status[39;49;00m([90m[39;49;00m
+        task_context: [96mtuple[39;49;00m[TaskService, [96mstr[39;49;00m, Path, Session],[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        service, project_id, _, session = task_context[90m[39;49;00m
+    [90m[39;49;00m
+        second_project = ProjectService([90m[39;49;00m
+            ProjectRepository(session),[90m[39;49;00m
+            AuditWriter([90m[39;49;00m
+                Path([33m"[39;49;00m[33m/tmp/anh-duong-task-test-audit.jsonl[39;49;00m[33m"[39;49;00m),[90m[39;49;00m
+                fsync=[94mFalse[39;49;00m,[90m[39;49;00m
+            ),[90m[39;49;00m
+        ).create([90m[39;49;00m
+            ProjectCreate(name=[33m"[39;49;00m[33mOther Project[39;49;00m[33m"[39;49;00m, slug=[33m"[39;49;00m[33mother-project[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        )[90m[39;49;00m
+    [90m[39;49;00m
+>       first = service.create([90m[39;49;00m
+            TaskCreate([90m[39;49;00m
+                project_id=project_id,[90m[39;49;00m
+                title=[33m"[39;49;00m[33mFirst[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                description=[33m"[39;49;00m[33mFirst project task.[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            )[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/integration/test_tasks.py[0m:331: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.tasks.service.TaskService object at 0x7fb3e671bc20>
+data = TaskCreate(project_id='proj_c20ac5e72b9342a9965739fef4748c0d', title='First', description='First project task.')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcreate[39;49;00m([96mself[39;49;00m, data):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/tasks/service.py[0m:23: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[31m[1m___________________ test_status_changes_are_written_to_audit ___________________[0m
+
+task_context = (<app.tasks.service.TaskService object at 0x7fb3e6839e20>, 'proj_abce52cf59084343be3b61af03c360ad', PosixPath('/tmp/py...ytest-19/test_status_changes_are_writte0/task-audit.jsonl'), <sqlalchemy.orm.session.Session object at 0x7fb3e66a57a0>)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_status_changes_are_written_to_audit[39;49;00m([90m[39;49;00m
+        task_context: [96mtuple[39;49;00m[TaskService, [96mstr[39;49;00m, Path, Session],[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        service, project_id, audit_path, _ = task_context[90m[39;49;00m
+>       task = service.create([90m[39;49;00m
+            TaskCreate([90m[39;49;00m
+                project_id=project_id,[90m[39;49;00m
+                title=[33m"[39;49;00m[33mAudit task[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                description=[33m"[39;49;00m[33mVerify append-only events.[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            )[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/integration/test_tasks.py[0m:368: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.tasks.service.TaskService object at 0x7fb3e6839e20>
+data = TaskCreate(project_id='proj_abce52cf59084343be3b61af03c360ad', title='Audit task', description='Verify append-only events.')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcreate[39;49;00m([96mself[39;49;00m, data):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/tasks/service.py[0m:23: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[36m[1m=========================== short test summary info ============================[0m
+[31mFAILED[0m tests/integration/test_tasks.py::[1mtest_create_and_get_task[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_tasks.py::[1mtest_create_rejects_unknown_project[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_tasks.py::[1mtest_get_missing_task_raises[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_tasks.py::[1mtest_task_happy_path_requires_result_summary[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_tasks.py::[1mtest_clarifying_and_approval_path_is_valid[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_tasks.py::[1mtest_invalid_transition_is_rejected_without_mutation[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_tasks.py::[1mtest_blocked_task_can_resume_to_planning[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_tasks.py::[1mtest_failed_task_can_be_requeued[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_tasks.py::[1mtest_cancel_is_idempotent_for_cancelled_task[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_tasks.py::[1mtest_completed_task_cannot_be_cancelled[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_tasks.py::[1mtest_list_filters_by_project_and_status[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_tasks.py::[1mtest_status_changes_are_written_to_audit[0m - NotImplementedError
+[31m[31m[1m12 failed[0m[31m in 0.54s[0m[0m

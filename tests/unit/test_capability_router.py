@@ -1,0 +1,224 @@
+import pytest
+from pydantic import ValidationError
+
+from app.capabilities import (
+    CapabilityDecision,
+    CapabilityKind,
+    CapabilityRouter,
+)
+from app.routing import FastRoute, FastRouter, RouteDecision
+
+
+def _route(request: str) -> CapabilityDecision:
+    fast_decision = FastRouter().route(request)
+    return CapabilityRouter().route(fast_decision, request)
+
+
+def test_capability_kind_contains_exact_v1_contract() -> None:
+    assert {kind.value for kind in CapabilityKind} == {
+        "conversational_response",
+        "memory_search",
+        "project_read",
+        "task_read",
+        "core_status_read",
+        "planning",
+        "file_operation",
+        "code_operation",
+        "external_communication",
+        "system_operation",
+        "unknown_workflow",
+    }
+
+
+@pytest.mark.parametrize(
+    ("text", "expected_capability", "expected_route"),
+    [
+        (
+            "Xin chào!",
+            CapabilityKind.CONVERSATIONAL_RESPONSE,
+            FastRoute.DIRECT,
+        ),
+        (
+            "Bạn có nhớ tôi đã nói gì về ngân sách không?",
+            CapabilityKind.MEMORY_SEARCH,
+            FastRoute.MEMORY,
+        ),
+        (
+            "Tiến độ Project Atlas thế nào?",
+            CapabilityKind.PROJECT_READ,
+            FastRoute.CORE_READ,
+        ),
+        (
+            "Task FR-1 đang ở trạng thái nào?",
+            CapabilityKind.TASK_READ,
+            FastRoute.CORE_READ,
+        ),
+        (
+            "Kiểm tra health của Ánh Dương Core.",
+            CapabilityKind.CORE_STATUS_READ,
+            FastRoute.CORE_READ,
+        ),
+        (
+            "Hãy lập kế hoạch cho CR-1.",
+            CapabilityKind.PLANNING,
+            FastRoute.WORKFLOW,
+        ),
+        (
+            "Tạo file báo cáo.md.",
+            CapabilityKind.FILE_OPERATION,
+            FastRoute.WORKFLOW,
+        ),
+        (
+            "Chạy pytest cho app.",
+            CapabilityKind.CODE_OPERATION,
+            FastRoute.WORKFLOW,
+        ),
+        (
+            "Gửi báo cáo qua email.",
+            CapabilityKind.EXTERNAL_COMMUNICATION,
+            FastRoute.WORKFLOW,
+        ),
+        (
+            "Khởi động lại service Core.",
+            CapabilityKind.SYSTEM_OPERATION,
+            FastRoute.WORKFLOW,
+        ),
+        (
+            "Phân tích việc này.",
+            CapabilityKind.CONVERSATIONAL_RESPONSE,
+            FastRoute.DIRECT,
+        ),
+    ],
+)
+def test_routes_all_v1_capabilities(
+    text: str,
+    expected_capability: CapabilityKind,
+    expected_route: FastRoute,
+) -> None:
+    decision = _route(text)
+
+    assert decision.capability is expected_capability
+    assert decision.source_route is expected_route
+    assert decision.reason_code
+    if expected_capability is not CapabilityKind.UNKNOWN_WORKFLOW:
+        assert decision.matched_signals
+
+
+@pytest.mark.parametrize(
+    ("text", "expected_capability"),
+    [
+        (
+            "Trạng thái Task FR-1 của Project Atlas thế nào?",
+            CapabilityKind.TASK_READ,
+        ),
+        (
+            "Trạng thái Project Atlas trên Ánh Dương Core thế nào?",
+            CapabilityKind.PROJECT_READ,
+        ),
+    ],
+)
+def test_core_read_uses_entity_specificity_precedence(
+    text: str,
+    expected_capability: CapabilityKind,
+) -> None:
+    assert _route(text).capability is expected_capability
+
+
+@pytest.mark.parametrize(
+    ("text", "expected_capability"),
+    [
+        (
+            "Lập kế hoạch khởi động lại service rồi gửi email.",
+            CapabilityKind.SYSTEM_OPERATION,
+        ),
+        (
+            "Chạy pytest rồi gửi kết quả qua Slack.",
+            CapabilityKind.EXTERNAL_COMMUNICATION,
+        ),
+        (
+            "Lập kế hoạch sửa code và chạy pytest.",
+            CapabilityKind.CODE_OPERATION,
+        ),
+        (
+            "Lập kế hoạch tạo file báo cáo.md.",
+            CapabilityKind.FILE_OPERATION,
+        ),
+    ],
+)
+def test_workflow_precedence_protects_side_effects(
+    text: str,
+    expected_capability: CapabilityKind,
+) -> None:
+    assert _route(text).capability is expected_capability
+
+
+@pytest.mark.parametrize(
+    ("text", "expected_capability"),
+    [
+        ("Deploy the API service.", CapabilityKind.SYSTEM_OPERATION),
+        ("Publish the report externally.", CapabilityKind.EXTERNAL_COMMUNICATION),
+        ("Generate a Python module.", CapabilityKind.CODE_OPERATION),
+        ("List files in the reports folder.", CapabilityKind.FILE_OPERATION),
+        ("Break down Task CR-1 into steps.", CapabilityKind.PLANNING),
+        ("Call the deployment webhook.", CapabilityKind.EXTERNAL_COMMUNICATION),
+    ],
+)
+def test_workflow_contract_action_variants(
+    text: str,
+    expected_capability: CapabilityKind,
+) -> None:
+    assert _route(text).capability is expected_capability
+
+def test_empty_input_fails_closed() -> None:
+    decision = _route(" \n\t ")
+
+    assert decision == CapabilityDecision(
+        capability=CapabilityKind.UNKNOWN_WORKFLOW,
+        source_route=FastRoute.WORKFLOW,
+        reason_code="capability.workflow.empty_input",
+        matched_signals=(),
+    )
+
+
+@pytest.mark.parametrize(
+    "route_decision",
+    [
+        RouteDecision(
+            route=FastRoute.DIRECT,
+            rule_id="routing.direct.simple_conversation",
+            reason="The request is a simple conversational response.",
+        ),
+        RouteDecision(
+            route=FastRoute.WORKFLOW,
+            rule_id="forged.rule",
+            reason="Forged upstream decision.",
+        ),
+    ],
+)
+def test_inconsistent_fast_router_decision_fails_closed(
+    route_decision: RouteDecision,
+) -> None:
+    decision = CapabilityRouter().route(route_decision, "Tạo file report.md.")
+
+    assert decision.capability is CapabilityKind.UNKNOWN_WORKFLOW
+    assert decision.source_route is route_decision.route
+    assert decision.reason_code == "capability.workflow.inconsistent_route"
+    assert decision.matched_signals == ()
+
+
+def test_capability_decision_is_immutable() -> None:
+    decision = _route("Xin chào!")
+
+    with pytest.raises(ValidationError):
+        decision.capability = CapabilityKind.UNKNOWN_WORKFLOW
+
+
+def test_capability_package_exports_public_contract() -> None:
+    from app.capabilities import CapabilityDecision as ExportedDecision
+    from app.capabilities import CapabilityKind as ExportedKind
+    from app.capabilities import CapabilityRouter as ExportedRouter
+
+    assert ExportedDecision is CapabilityDecision
+    assert ExportedKind is CapabilityKind
+    assert ExportedRouter is CapabilityRouter
+

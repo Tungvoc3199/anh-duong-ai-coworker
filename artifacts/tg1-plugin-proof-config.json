@@ -1,0 +1,21 @@
+{
+  "plugins": {
+    "allow": [
+      "anh-duong-core"
+    ],
+    "load": {
+      "paths": [
+        "/tmp/tg1-plugin-proof-20260801"
+      ]
+    },
+    "entries": {
+      "anh-duong-core": {
+        "enabled": true,
+        "hooks": {
+          "allowConversationAccess": true
+        },
+        "config": {}
+      }
+    }
+  }
+}

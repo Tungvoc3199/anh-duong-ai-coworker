@@ -1,0 +1,175 @@
+from __future__ import annotations
+
+from collections.abc import Generator
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+from sqlalchemy import Engine
+from sqlalchemy.orm import Session, sessionmaker
+
+from app.async_tasks import (
+    AsyncRunStatus,
+    AsyncTaskCreate,
+    AsyncTaskRepository,
+)
+from app.config import Settings
+from app.db.base import Base
+from app.db.models import ProjectRow, TaskRow
+from app.db.session import create_db_engine
+from app.main import create_app
+from app.openclaw import OpenClawExecutionResult
+from app.tasks import TaskPriority, TaskStatus
+
+
+class ClosingExecutor:
+    def __init__(self) -> None:
+        self.closed = False
+
+    async def execute(self, _request: object) -> OpenClawExecutionResult:
+        raise AssertionError("Blocked recovered run must not execute")
+
+    async def aclose(self) -> None:
+        self.closed = True
+
+
+class ClosingNotifier:
+    def __init__(self) -> None:
+        self.closed = False
+
+    async def send_final(self, _run: object) -> None:
+        raise AssertionError("No notification should be pending")
+
+    async def aclose(self) -> None:
+        self.closed = True
+
+
+def _engine(tmp_path: Path) -> Generator[Engine, None, None]:
+    runtime_engine = create_db_engine(
+        "sqlite+pysqlite:///"
+        f"{tmp_path / 'lifespan.db'}"
+    )
+    Base.metadata.create_all(runtime_engine)
+    try:
+        yield runtime_engine
+    finally:
+        runtime_engine.dispose()
+
+
+def _seed_unsafe_stale(
+    factory: sessionmaker[Session],
+) -> str:
+    now = datetime.now(UTC)
+    with factory() as session:
+        project = ProjectRow(
+            id="proj_lifespan",
+            name="Lifespan",
+            slug="lifespan",
+            status="active",
+        )
+        task = TaskRow(
+            id="task_lifespan",
+            project_id=project.id,
+            title="Stale",
+            description="Stale",
+            status=TaskStatus.RUNNING.value,
+            priority=TaskPriority.NORMAL.value,
+            risk_level=2,
+            requested_by="test",
+            source_channel="api",
+            approval_required=True,
+        )
+        session.add_all((project, task))
+        session.flush()
+        repository = AsyncTaskRepository(session)
+        run = repository.enqueue(
+            task_id=task.id,
+            request=AsyncTaskCreate(
+                project_id=project.id,
+                title="Stale",
+                goal="Do not replay",
+                risk_level=2,
+                approval_required=True,
+                workspace="/mnt/f/AIOS",
+                source_channel="api",
+            ),
+            idempotency_key="api:lifespan",
+            now=now - timedelta(hours=1),
+        )
+        claimed = repository.claim_next(
+            worker_id="dead-worker",
+            now=now - timedelta(hours=1),
+            lease_seconds=30,
+        )
+        assert claimed is not None
+        repository.transition(
+            run.id,
+            AsyncRunStatus.RUNNING,
+            now=now - timedelta(hours=1),
+        )
+        session.commit()
+        return run.id
+
+
+def test_lifespan_recovers_stale_starts_workers_and_closes_clients(
+    tmp_path: Path,
+) -> None:
+    engine_iterator = _engine(tmp_path)
+    engine = next(engine_iterator)
+    factory = sessionmaker(
+        bind=engine,
+        class_=Session,
+        expire_on_commit=False,
+        autoflush=False,
+    )
+    run_id = _seed_unsafe_stale(factory)
+    executor = ClosingExecutor()
+    notifier = ClosingNotifier()
+    settings = Settings(
+        database_url="sqlite+pysqlite:///:memory:",
+        audit_path=tmp_path / "lifespan-audit.jsonl",
+        internal_api_token="test",
+        async_worker_enabled=True,
+        async_worker_poll_seconds=60,
+        async_worker_shutdown_seconds=1,
+        async_worker_workspace_roots=(tmp_path,),
+    )
+
+    try:
+        app = create_app(
+            settings=settings,
+            engine=engine,
+            executor=executor,
+            notifier=notifier,
+        )
+        with TestClient(app):
+            with factory() as session:
+                recovered = AsyncTaskRepository(session).get(
+                    run_id
+                )
+            assert recovered.status is AsyncRunStatus.BLOCKED
+            assert len(app.state.background_tasks) == 2
+    finally:
+        engine_iterator.close()
+
+    assert executor.closed is True
+    assert notifier.closed is True
+
+
+def test_disabled_worker_creates_no_background_tasks(
+    tmp_path: Path,
+) -> None:
+    engine_iterator = _engine(tmp_path)
+    engine = next(engine_iterator)
+    settings = Settings(
+        database_url="sqlite+pysqlite:///:memory:",
+        audit_path=tmp_path / "disabled-audit.jsonl",
+        async_worker_enabled=False,
+    )
+    try:
+        app = create_app(settings=settings, engine=engine)
+        with TestClient(app):
+            assert app.state.background_tasks == []
+    finally:
+        engine_iterator.close()
+
