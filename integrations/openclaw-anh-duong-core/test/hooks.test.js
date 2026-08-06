@@ -601,3 +601,119 @@ test("[Image] marker preceded by a session preamble still reduces to the caption
   assert.deepEqual(prompts, ["ảnh này có gì"]);
   assert.deepEqual(await hooks.beforeAgentRun({}, ctx), { outcome: "pass" });
 });
+
+// AD-TXT-1: empty-response recovery must not reclassify the synthetic
+// visible-answer continuation as a brand-new user intent.
+const EMPTY_RESPONSE_RETRY_INSTRUCTION =
+  "The previous attempt did not produce a user-visible answer. " +
+  "Continue from the current state and produce the visible answer now. " +
+  "Do not restart from scratch.";
+
+test("synthetic empty-response continuation reuses the prepared direct state", async () => {
+  const routes = [];
+  let calls = 0;
+  const fetchImpl = async (url, init) => {
+    calls += 1;
+    const body = JSON.parse(init.body);
+    // Core would classify the appended continuation as a system operation.
+    const route = body.text.includes("Do not restart from scratch") ? "workflow" : "direct";
+    routes.push(route);
+    return new Response(JSON.stringify(responseFixture(body.request_id, { route })), {
+      status: 200,
+    });
+  };
+
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const ctx = telegramContext("273665db-92dd-4e22-a099-567e33708827");
+  const userText = "Sao đấy nhé";
+
+  await hooks.beforePromptBuild({ prompt: userText, messages: [] }, ctx);
+  assert.deepEqual(await hooks.beforeAgentRun({}, ctx), { outcome: "pass" });
+
+  // Provider returned an empty visible answer -> gateway retries on the SAME runId
+  // with the continuation appended to the original prompt.
+  await hooks.beforePromptBuild(
+    { prompt: `${userText}\n\n${EMPTY_RESPONSE_RETRY_INSTRUCTION}`, messages: [] },
+    ctx,
+  );
+
+  // The retry must not be re-prepared, must not become a workflow, must not block.
+  assert.equal(calls, 1, "continuation must not trigger a second Core prepare");
+  assert.ok(!routes.includes("workflow"), "continuation must not route to workflow");
+  assert.deepEqual(await hooks.beforeAgentRun({}, ctx), { outcome: "pass" });
+});
+
+// AD-TXT-1 regression (production shape): the observed failure required the
+// per-run state to be unreachable at retry time, which let Core re-classify the
+// synthetic continuation as system_operation and downgraded an approved
+// conversational turn into a blocked workflow.
+test("continuation recovers original intent when run state was torn down", async () => {
+  const routes = [];
+  const texts = [];
+  const fetchImpl = async (url, init) => {
+    const body = JSON.parse(init.body);
+    texts.push(body.text);
+    const route = body.text.includes("Do not restart from scratch") ? "workflow" : "direct";
+    routes.push(route);
+    return new Response(JSON.stringify(responseFixture(body.request_id, { route })), {
+      status: 200,
+    });
+  };
+
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const ctx = telegramContext("273665db-92dd-4e22-a099-567e33708827");
+  const userText = "Sao đấy nhé";
+
+  await hooks.beforePromptBuild({ prompt: userText, messages: [] }, ctx);
+  assert.deepEqual(await hooks.beforeAgentRun({}, ctx), { outcome: "pass" });
+
+  // Simulate the run teardown that made the prepared state unreachable.
+  await hooks.agentEnd({}, ctx);
+
+  await hooks.beforePromptBuild(
+    { prompt: `${userText}\n\n${EMPTY_RESPONSE_RETRY_INSTRUCTION}`, messages: [] },
+    ctx,
+  );
+
+  assert.ok(
+    !routes.includes("workflow"),
+    "synthetic continuation must never be classified as a workflow",
+  );
+  assert.ok(
+    !texts.some((text) => text.includes("Do not restart from scratch")),
+    "the retry control instruction must never be sent to Core as user intent",
+  );
+  assert.deepEqual(await hooks.beforeAgentRun({}, ctx), { outcome: "pass" });
+});
+
+// AD-TXT-1 guard: a genuine new system-operation request in the same session
+// must still route to workflow and still fail closed. The continuation handling
+// must not become a bypass for real execution requests.
+test("real system operation still routes workflow after a conversational turn", async () => {
+  const routes = [];
+  const fetchImpl = async (url, init) => {
+    const body = JSON.parse(init.body);
+    const route = body.text.includes("restart the service") ? "workflow" : "direct";
+    routes.push(route);
+    return new Response(JSON.stringify(responseFixture(body.request_id, { route })), {
+      status: 200,
+    });
+  };
+
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const ctx = telegramContext("run-conversational");
+
+  await hooks.beforePromptBuild({ prompt: "Sao đấy nhé", messages: [] }, ctx);
+  assert.deepEqual(await hooks.beforeAgentRun({}, ctx), { outcome: "pass" });
+
+  // A brand-new, genuinely imperative request on a fresh run.
+  const workflowCtx = telegramContext("run-real-workflow");
+  await hooks.beforePromptBuild({ prompt: "Please restart the service now", messages: [] }, workflowCtx);
+
+  assert.ok(routes.includes("workflow"), "a real system operation must route to workflow");
+  assert.equal(
+    (await hooks.beforeAgentRun({}, workflowCtx)).outcome,
+    "block",
+    "workflow routes must still fail closed at the run gate",
+  );
+});

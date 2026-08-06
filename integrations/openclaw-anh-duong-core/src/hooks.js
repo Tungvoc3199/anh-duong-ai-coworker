@@ -42,6 +42,43 @@ function resolveTurnRunId(ctx, prompt, currentTime) {
   return `compat-${digest}`;
 }
 
+// Runtime-emitted retry continuations that the harness APPENDS to the original
+// prompt when an attempt produced no user-visible answer. These are synthetic
+// control instructions, never user intent, so they must not be re-classified.
+const RETRY_CONTINUATION_MARKERS = [
+  "did not produce a user-visible answer",
+  "Do not restart from scratch",
+  "produce the visible answer now",
+];
+
+/**
+ * Detects a synthetic retry continuation and recovers the original user intent.
+ *
+ * The harness builds the retry prompt as `${basePrompt}\n\n${instruction}`, so
+ * the original request is preserved as a prefix. We split on that boundary and
+ * return the untouched user text, which keeps the Core classification stable
+ * across retries instead of re-routing an imperative control string.
+ */
+function splitRetryContinuation(prompt) {
+  if (typeof prompt !== "string" || prompt.length === 0) {
+    return undefined;
+  }
+  const markerIndexes = RETRY_CONTINUATION_MARKERS.map((marker) =>
+    prompt.indexOf(marker),
+  ).filter((index) => index !== -1);
+  if (markerIndexes.length === 0) {
+    return undefined;
+  }
+  const firstMarker = Math.min(...markerIndexes);
+  // The instruction starts at the paragraph boundary preceding the marker.
+  const boundary = prompt.lastIndexOf("\n\n", firstMarker);
+  if (boundary === -1) {
+    return { basePrompt: undefined };
+  }
+  const basePrompt = prompt.slice(0, boundary).trim();
+  return { basePrompt: basePrompt.length > 0 ? basePrompt : undefined };
+}
+
 function safeLog(logger, level, fields) {
   const method = logger?.[level];
   if (typeof method !== "function") {
@@ -151,6 +188,35 @@ export function createAnhDuongCoreHooks({
     return undefined;
   }
 
+  /**
+   * Finds the most recent prepared, non-workflow state belonging to the same
+   * Telegram session/actor, regardless of prompt text. Used only to recover the
+   * original intent of a synthetic retry continuation.
+   */
+  function findReusableDirectState(ctx) {
+    const sessionKey = ctx?.sessionKey ?? ctx?.sessionId;
+    const chatId = ctx?.chatId;
+    const senderId = ctx?.senderId;
+    let candidate;
+    for (const state of states.values()) {
+      const sameSession =
+        typeof sessionKey === "string" && sessionKey.length > 0 && state.sessionKey === sessionKey;
+      const sameTelegramActor =
+        typeof chatId === "string" &&
+        typeof senderId === "string" &&
+        state.chatId === chatId &&
+        state.senderId === senderId;
+      if (
+        state.status === "prepared" &&
+        state.prepared.route_decision.route !== "workflow" &&
+        (sameSession || sameTelegramActor)
+      ) {
+        candidate = state;
+      }
+    }
+    return candidate;
+  }
+
   async function beforePromptBuild(event, ctx) {
     sweep();
     if (explicitlyDisabled || !isTelegram(ctx)) {
@@ -158,7 +224,15 @@ export function createAnhDuongCoreHooks({
     }
 
     const rawPrompt = event?.prompt;
-    const corePrompt = corePromptForTelegramReply(rawPrompt);
+    const retrySplit = splitRetryContinuation(rawPrompt);
+    const isRetryContinuation = retrySplit !== undefined;
+    // A synthetic continuation carries the original request as its prefix, so
+    // Core must classify that original intent rather than the control text.
+    const promptForCore =
+      isRetryContinuation && retrySplit.basePrompt !== undefined
+        ? retrySplit.basePrompt
+        : rawPrompt;
+    const corePrompt = corePromptForTelegramReply(promptForCore);
     safeLog(logger, "info", {
       event: "anh_duong_core_prompt_shape",
       hook: "before_prompt_build",
@@ -169,6 +243,7 @@ export function createAnhDuongCoreHooks({
       user_text_index: typeof rawPrompt === "string" ? rawPrompt.indexOf("User text:") : -1,
       description_index: typeof rawPrompt === "string" ? rawPrompt.indexOf("Description:") : -1,
       parsed: corePrompt !== rawPrompt,
+      retry_continuation: isRetryContinuation,
     });
     const runId = resolveTurnRunId(ctx, corePrompt, now());
     if (typeof runId !== "string" || runId.length === 0) {
@@ -188,6 +263,28 @@ export function createAnhDuongCoreHooks({
     }
     if (existing) {
       return undefined;
+    }
+
+    // AD-TXT-1: a synthetic retry continuation is never a new user intent. If the
+    // per-run prepared state is no longer reachable (run teardown, distinct hook
+    // instance, or a compat-keyed first turn), re-preparing would let Core
+    // classify the imperative control text as a system operation and silently
+    // downgrade an already-approved conversational turn into a blocked workflow.
+    // Reuse the last prepared conversational state for this session instead.
+    if (isRetryContinuation) {
+      const matched = findPreparedDirectState(ctx, corePrompt);
+      const reusable = matched?.state ?? findReusableDirectState(ctx);
+      if (reusable) {
+        states.set(runId, { ...reusable, expiresAt: now() + STATE_TTL_MS });
+        safeLog(logger, "info", {
+          event: "anh_duong_core_prepare",
+          outcome: "reused",
+          reason: "retry_continuation",
+          ...(reusable.requestId ? { request_id: reusable.requestId } : {}),
+          route: reusable.prepared.route_decision.route,
+        });
+        return { prependContext: reusable.preparedContext };
+      }
     }
 
     states.set(runId, {
