@@ -58,6 +58,43 @@ function failureClassOf(error) {
   return error instanceof CoreIntegrationError ? error.failureClass : "internal";
 }
 
+function corePromptForTelegramReply(cleanedBody) {
+  if (typeof cleanedBody !== "string") {
+    return cleanedBody;
+  }
+  const understoodMarker = "[Image understood:";
+  const understoodIndex = cleanedBody.indexOf(understoodMarker);
+  if (understoodIndex !== -1) {
+    const caption = cleanedBody.slice(0, understoodIndex).trim();
+    return caption.length > 0 ? caption : cleanedBody;
+  }
+
+  const imageMarker = "[Image]";
+  const imageIndex = cleanedBody.indexOf(imageMarker);
+  if (imageIndex === -1) {
+    return cleanedBody;
+  }
+
+  // The runtime prompt may carry a session preamble before "[Image]", so the
+  // envelope must be located rather than anchored to the start of the string.
+  const envelopeBody = cleanedBody.slice(imageIndex + imageMarker.length);
+  const imageEnvelope = /^\s*User text:\s*([\s\S]*?)\s*(?:\.\s*)?Description:\s*[\s\S]*$/;
+  const envelopeMatch = envelopeBody.match(imageEnvelope);
+  if (envelopeMatch?.[1] !== undefined) {
+    let caption = envelopeMatch[1].trim();
+    const telegramMeta = /^\[Telegram[^\]]*\]\s*[^:\n]*:\s*([\s\S]*)$/;
+    const metaMatch = caption.match(telegramMeta);
+    if (metaMatch?.[1] !== undefined) {
+      caption = metaMatch[1].trim();
+    }
+    caption = caption.replace(/\.\s*$/, "").trim();
+    if (caption.length > 0) {
+      return caption;
+    }
+  }
+  return cleanedBody;
+}
+
 export function createAnhDuongCoreHooks({
   env = process.env,
   fetchImpl = fetch,
@@ -84,13 +121,56 @@ export function createAnhDuongCoreHooks({
     }
   }
 
+  function findPreparedDirectState(ctx, cleanedBody) {
+    const sessionKey = ctx?.sessionKey ?? ctx?.sessionId;
+    const chatId = ctx?.chatId;
+    const senderId = ctx?.senderId;
+    if (typeof cleanedBody !== "string" || cleanedBody.length === 0) {
+      return undefined;
+    }
+    for (const [runId, state] of states) {
+      const sameSession =
+        typeof sessionKey === "string" && sessionKey.length > 0 && state.sessionKey === sessionKey;
+      const sameTelegramActor =
+        typeof chatId === "string" &&
+        typeof senderId === "string" &&
+        state.chatId === chatId &&
+        state.senderId === senderId;
+      const samePrompt =
+        typeof state.prompt === "string" &&
+        (cleanedBody.includes(state.prompt) || state.prompt.includes(cleanedBody));
+      if (
+        state.status === "prepared" &&
+        state.prepared.route_decision.route !== "workflow" &&
+        samePrompt &&
+        (sameSession || sameTelegramActor)
+      ) {
+        return { runId, state };
+      }
+    }
+    return undefined;
+  }
+
   async function beforePromptBuild(event, ctx) {
     sweep();
     if (explicitlyDisabled || !isTelegram(ctx)) {
       return undefined;
     }
 
-    const runId = resolveTurnRunId(ctx, event?.prompt, now());
+    const rawPrompt = event?.prompt;
+    const corePrompt = corePromptForTelegramReply(rawPrompt);
+    safeLog(logger, "info", {
+      event: "anh_duong_core_prompt_shape",
+      hook: "before_prompt_build",
+      raw_length: typeof rawPrompt === "string" ? rawPrompt.length : -1,
+      parsed_length: typeof corePrompt === "string" ? corePrompt.length : -1,
+      image_prefix: typeof rawPrompt === "string" && rawPrompt.startsWith("[Image]"),
+      image_index: typeof rawPrompt === "string" ? rawPrompt.indexOf("[Image]") : -1,
+      user_text_index: typeof rawPrompt === "string" ? rawPrompt.indexOf("User text:") : -1,
+      description_index: typeof rawPrompt === "string" ? rawPrompt.indexOf("Description:") : -1,
+      parsed: corePrompt !== rawPrompt,
+    });
+    const runId = resolveTurnRunId(ctx, corePrompt, now());
     if (typeof runId !== "string" || runId.length === 0) {
       safeLog(logger, "warn", {
         event: "anh_duong_core_prepare",
@@ -121,7 +201,7 @@ export function createAnhDuongCoreHooks({
         throw configFailure ?? new CoreIntegrationError("configuration");
       }
       const request = buildCoreRequest({
-        prompt: event?.prompt,
+        prompt: corePrompt,
         runId,
         senderId: ctx?.senderId,
         chatId: ctx?.chatId,
@@ -135,6 +215,10 @@ export function createAnhDuongCoreHooks({
         requestId,
         prepared,
         preparedContext,
+        prompt: corePrompt,
+        sessionKey: ctx?.sessionKey ?? ctx?.sessionId,
+        chatId: ctx?.chatId,
+        senderId: ctx?.senderId,
         expiresAt: now() + STATE_TTL_MS,
       });
       safeLog(logger, "info", {
@@ -187,8 +271,14 @@ export function createAnhDuongCoreHooks({
       };
     }
 
+    const corePrompt = corePromptForTelegramReply(event?.cleanedBody);
+    const preparedDirect = findPreparedDirectState(ctx, corePrompt);
+    if (preparedDirect) {
+      return undefined;
+    }
+
     await beforePromptBuild(
-      { prompt: event?.cleanedBody, messages: [] },
+      { prompt: corePrompt, messages: [] },
       ctx?.runId === runId ? ctx : { ...ctx, runId },
     );
     const state = states.get(runId);
@@ -267,6 +357,25 @@ export function createAnhDuongCoreHooks({
     }
     const runId = ctx?.runId;
     const state = typeof runId === "string" ? states.get(runId) : undefined;
+    const stateKeyDigest =
+      typeof runId === "string"
+        ? createHash("sha256").update(runId).digest("hex").slice(0, 12)
+        : "none";
+    safeLog(logger, "info", {
+      event: "anh_duong_core_gate",
+      hook: "before_agent_run",
+      state_key: stateKeyDigest,
+      state_found: Boolean(state),
+      state_status: state?.status ?? "missing",
+      ...(state?.requestId ? { request_id: state.requestId } : {}),
+      ...(state?.status === "prepared"
+        ? {
+            route: state.prepared.route_decision.route,
+            capability: state.prepared.capability_decision.capability,
+            execution_required: state.prepared.execution_required,
+          }
+        : {}),
+    });
     if (
       state?.status === "prepared" &&
       state.prepared.route_decision.route !== "workflow"

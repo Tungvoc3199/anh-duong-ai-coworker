@@ -463,3 +463,141 @@ test("DR-1R official pre-run context uses the human workflow acknowledgment", as
     reason: "anh_duong_workflow_duplicate_hook",
   });
 });
+
+test("image caption fallback reuses prepared direct session state without a second prepare", async () => {
+  let calls = 0;
+  const fetchImpl = async (_url, init) => {
+    calls += 1;
+    const body = JSON.parse(init.body);
+    return new Response(JSON.stringify(responseFixture(body.request_id)), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const imageTurn = telegramContext("run-image-turn");
+  await hooks.beforePromptBuild({ prompt: "ảnh này có gì", messages: [] }, imageTurn);
+
+  const mediaReply = telegramContext("run-media-reply");
+  mediaReply.sessionKey = "media-derived-session";
+  const reply = await hooks.beforeAgentReply(
+    { cleanedBody: "ảnh này có gì\n[Image understood: a flower]" },
+    mediaReply,
+  );
+
+  assert.equal(reply, undefined);
+  assert.equal(calls, 1);
+  assert.deepEqual(await hooks.beforeAgentRun({}, imageTurn), { outcome: "pass" });
+});
+
+test("image understanding marker is excluded from Core routing", async () => {
+  const prompts = [];
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    prompts.push(body.text);
+    return new Response(JSON.stringify(responseFixture(body.request_id)), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+
+  const reply = await hooks.beforeAgentReply(
+    { cleanedBody: "ảnh này có gì\n[Image understood: a flower]" },
+    telegramContext("run-image-marker"),
+  );
+
+  assert.equal(reply, undefined);
+  assert.deepEqual(prompts, ["ảnh này có gì"]);
+});
+
+test("OpenClaw image summary envelope routes only its caption through Core", async () => {
+  const prompts = [];
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    prompts.push(body.text);
+    return new Response(JSON.stringify(responseFixture(body.request_id)), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+
+  const reply = await hooks.beforeAgentReply(
+    {
+      cleanedBody:
+        "[Image] User text: [Telegram user id:123] user: ảnh này có gì. Description: Ảnh chụp màn hình yêu cầu điều tra ai sửa file plugin.",
+    },
+    telegramContext("run-image-envelope"),
+  );
+
+  assert.equal(reply, undefined);
+  assert.deepEqual(prompts, ["ảnh này có gì"]);
+});
+
+test("before_prompt_build image envelope must route direct and pass the run gate", async () => {
+  const prompts = [];
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    prompts.push(body.text);
+    const route = body.text.includes("Description:") ? "workflow" : "direct";
+    return new Response(JSON.stringify(responseFixture(body.request_id, { route })), {
+      status: 200,
+    });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const ctx = telegramContext("96c5ae3f-2079-48fa-8a10-151e6429b9db");
+  const envelope =
+    "[Image] User text: [Telegram TungntT (@tungrichard) id:7535966424 +7m Wed 2026-08-05 17:29:55 UTC] TungntT (@tungrichard): ảnh này có gì. Description: Ảnh chụp màn hình yêu cầu điều tra ai sửa file plugin.";
+
+  await hooks.beforePromptBuild({ prompt: envelope, messages: [] }, ctx);
+
+  assert.deepEqual(prompts, ["ảnh này có gì"]);
+  assert.deepEqual(await hooks.beforeAgentRun({}, ctx), { outcome: "pass" });
+});
+
+test("image envelope variants all reduce to the original caption", () => {
+  const prompts = [];
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    prompts.push(body.text);
+    return new Response(JSON.stringify(responseFixture(body.request_id, { route: "direct" })), {
+      status: 200,
+    });
+  };
+  const variants = [
+    "[Image] User text: ảnh này có gì. Description: Ảnh chụp màn hình bảng log yêu cầu điều tra.",
+    "[Image] User text: ảnh này có gì Description: Ảnh chụp màn hình bảng log yêu cầu điều tra.",
+    "[Image] User text: [Telegram TungntT (@tungrichard) id:7535966424 +7m Wed 2026-08-05 19:21:40 UTC] TungntT (@tungrichard): ảnh này có gì.\nDescription: Ảnh chụp màn hình bảng log.",
+    "[Image]\nUser text: [Telegram TungntT id:7535966424] TungntT: ảnh này có gì\n\nDescription: Ảnh chụp màn hình bảng log yêu cầu xoá file.",
+  ];
+  for (const variant of variants) {
+    const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+    hooks.beforePromptBuild({ prompt: variant, messages: [] }, telegramContext("variant-run"));
+  }
+  return new Promise((resolve) => setImmediate(resolve)).then(() => {
+    assert.deepEqual(prompts, Array(variants.length).fill("ảnh này có gì"));
+  });
+});
+
+test("[Image] marker preceded by a session preamble still reduces to the caption", async () => {
+  const prompts = [];
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    prompts.push(body.text);
+    const route = body.text.includes("Description:") ? "workflow" : "direct";
+    return new Response(JSON.stringify(responseFixture(body.request_id, { route })), {
+      status: 200,
+    });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const ctx = telegramContext("ff970219-5009-46a4-bb17-6aa2aa48335a");
+  // Runtime shape observed at 19:34:23Z: image_prefix=false, image_index=318,
+  // user_text_index=326, description_index=456 -> "[Image]" is NOT at position 0.
+  const preamble =
+    "[Telegram TungntT (@tungrichard) id:7535966424 +7m Wed 2026-08-05 19:34:17 UTC]\n" +
+    "You are talking with TungntT (@tungrichard) in a direct chat on Telegram.\n" +
+    "Recent conversation context has been summarised for you above this line.\n" +
+    "Answer in Vietnamese and keep the reply short and natural for a chat client.\n";
+  const envelope =
+    `${preamble}[Image] User text: [Telegram TungntT (@tungrichard) id:7535966424 +7m Wed 2026-08-05 19:34:17 UTC] TungntT (@tungrichard): ảnh này có gì. ` +
+    "Description: Ảnh chụp màn hình một bảng điều khiển nền tối hiển thị nhật ký hệ thống.";
+
+  assert.notEqual(envelope.indexOf("[Image]"), 0);
+
+  await hooks.beforePromptBuild({ prompt: envelope, messages: [] }, ctx);
+
+  assert.deepEqual(prompts, ["ảnh này có gì"]);
+  assert.deepEqual(await hooks.beforeAgentRun({}, ctx), { outcome: "pass" });
+});
