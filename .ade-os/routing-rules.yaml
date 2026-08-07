@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "agents": {
+    "project-status": "ad-project",
+    "diagnostic": "ad-diagnose",
+    "standard-fix": "ad-fix",
+    "deep-debug": "ad-deep-debug",
+    "review": "ad-review",
+    "closure": "ad-orchestrator"
+  },
+  "combos": {
+    "default": "vscode-debug",
+    "deep-debug": "vscode-debug-deep",
+    "review": "vscode-review"
+  },
+  "manual_combo_selection": true
+}

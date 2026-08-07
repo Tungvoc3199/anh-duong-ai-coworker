@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "evidence_priority": [
+    "runtime_verification",
+    "real_e2e_request",
+    "timestamped_closure_report_log",
+    "db_runtime_state",
+    "source_git_diff",
+    "roadmap_spec",
+    "memory",
+    "inference"
+  ]
+}
