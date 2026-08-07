@@ -5,7 +5,7 @@ of Core runtime code, the runtime database, provider routing, and dependencies.
 
 ## Commands
 
-Run `python scripts/ade_os.py --help` from the repository root.
+Run `/home/thadc/AIOS/anh-duong-core/.venv/bin/python scripts/ade_os.py --help` from the repository root.
 
 - `index` creates a deterministic project file/hash index.
 - `memory -- <read-only-cli> ...` runs an explicitly supplied external runtime-memory

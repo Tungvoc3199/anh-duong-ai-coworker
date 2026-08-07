@@ -63,3 +63,22 @@ def test_cli_close_gate_blocks(tmp_path: Path, capsys: pytest.CaptureFixture[str
     evidence = tmp_path / "evidence.json"; evidence.write_text(json.dumps({"review": "PASS"}))
     assert CLI.main(["--root", str(ROOT), "checkpoint", "close", "--evidence", str(evidence)]) == 0
     assert json.loads(capsys.readouterr().out)["status"] == "BLOCKED"
+
+def test_ade_route_invocation_without_python_alias(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """ADE route must not exit 127 when shell lacks a `python` alias (only python3/venv)."""
+    monkeypatch.chdir(ROOT)
+    import subprocess, sys
+    result = subprocess.run([sys.executable, "scripts/ade_os.py", "route", "test request"], capture_output=True, text=True)
+    assert result.returncode == 0, f"route exit {result.returncode}, stderr: {result.stderr}"
+    data = json.loads(result.stdout)
+    assert "classification" in data
+
+def test_bare_python_launcher_rejected_by_validator(tmp_path: Path) -> None:
+    """validate_customizations must reject bare `python` invocations (RC=127 without venv)."""
+    import sys; sys.path.insert(0, str(ROOT / "scripts/agent"))
+    from validate_customizations import validate_interpreter_paths
+    bad = tmp_path / "bad.prompt.md"
+    bad.write_text('---\ndescription: "test"\n---\nRun `python scripts/test.py`.\n')
+    errors = validate_interpreter_paths(bad, bad.read_text())
+    assert len(errors) == 1
+    assert "bare 'python'" in errors[0] and "127" in errors[0]
