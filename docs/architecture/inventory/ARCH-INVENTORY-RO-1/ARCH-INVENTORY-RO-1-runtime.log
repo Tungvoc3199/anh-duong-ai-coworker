@@ -1,0 +1,209 @@
+ARCH-INVENTORY-RO-1 runtime log
+UTC: 2026-08-09T15:00:12Z
+Mode: read-only architecture inventory. Filesystem writes limited to /mnt/f/AIOS/anh-duong-checkpoints/ARCH-INVENTORY-RO-1/ for this log/report/conclusion.
+Secret policy: token/API key/password/private key values redacted or represented only as PRESENT/MISSING.
+
+COMMAND: pwd; git status --short --branch; git rev-parse HEAD; git branch --show-current
+OUTPUT:
+/home/thadc/AIOS/anh-duong-core
+## master
+~ Modified: 9 files
+   app/async_tasks/worker.py
+   app/config.py
+   app/context_builder/wiring.py
+   app/main.py
+   app/memory/retrieval.py
+   app/openclaw/executor.py
+   app/orchestration/wiring.py
+   tests/integration/test_async_task_worker.py
+   tests/unit/test_openclaw_executor.py
+? Untracked: 6 files
+   app/cache/
+   app/memory/cached_retrieval.py
+   app/persona/cached_loader.py
+   integrations/openclaw-anh-duong-core/src/hooks.js.AD-TXT-1.bak-20260806T113204Z
+   integrations/openclaw-anh-duong-core/test/hooks.test.js.AD-TXT-1.MIDWORK-20260806T113204Z
+   integrations/openclaw-anh-duong-core/test/hooks.test.js.AD-TXT-1.baseline-HEAD-da062af
+HEAD: 42be6ac
+branch: master
+
+COMMAND: git log --oneline -5 --decorate
+OUTPUT:
+42be6ac (HEAD -> master, cache-2t-v1, agents/headless-dev-agent-bridge-implementation) feat(ade-os): final handoff — launcher fix, validator guard, tests
+56595cd feat: add Anh Duong Engineering OS v1
+a13eaa7 fix: preserve direct intent during empty-response retry
+da062af fix: restore Telegram image analysis routing
+74c76dc (ce-1-execution-result-contract) Local recovered baseline before FS-1 runtime switchover
+
+COMMAND: ss -ltnp filtered ports
+OUTPUT:
+127.0.0.1:8790 users: uvicorn pid=123703
+127.0.0.1:20128 listening
+*:3978 listening
+*:18790 listening
+*:18789 listening
+
+COMMAND: ps filtered processes
+OUTPUT:
+uvicorn pid=123703: /home/thadc/AIOS/anh-duong-core/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8790
+aios-dashboard uvicorn pid=173 on port 8787 also present, unrelated.
+
+COMMAND: curl -fsS --max-time 5 http://127.0.0.1:8790/health; curl -fsS --max-time 5 http://127.0.0.1:8790/ready
+OUTPUT:
+{"status":"ok","service":"Ánh Dương Core","version":"0.1.0"}
+{"status":"ready","database":"ok"}
+
+COMMAND: systemctl status anh-duong-core --no-pager
+OUTPUT:
+anh-duong-core.service loaded from /etc/systemd/system/anh-duong-core.service; enabled.
+Active: active (running) since 2026-08-09 04:37:52 UTC.
+Main PID: 123703 (uvicorn).
+Exec: /home/thadc/AIOS/anh-duong-core/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8790.
+Recent log lines include GET /health 200 and GET /ready 200.
+
+COMMAND: systemctl cat anh-duong-core --no-pager redacted
+OUTPUT:
+WorkingDirectory=/home/thadc/AIOS/anh-duong-core
+EnvironmentFile=/home/thadc/.config/anh-duong-core/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/thadc/AIOS/anh-duong-core/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8790
+Restart=always
+Drop-in EnvironmentFile=/etc/anh-duong-core/checkpoint-4.2-g0-safe.env
+
+COMMAND: read /proc/123703/environ and print ANH_DUONG_* with secrets as PRESENT/MISSING
+OUTPUT:
+ANH_DUONG_APP_NAME=Ánh Dương Core
+ANH_DUONG_DATABASE_URL=sqlite+pysqlite:////home/thadc/.local/state/anh-duong-core/anh_duong.db
+ANH_DUONG_AUDIT_PATH=/home/thadc/.local/state/anh-duong-core/audit.jsonl
+ANH_DUONG_DATA_ROOT=/mnt/f/AIOS/anh-duong-data
+ANH_DUONG_OPENCLAW_BASE_URL=http://127.0.0.1:18789
+ANH_DUONG_OPENCLAW_TIMEOUT_SECONDS=600
+ANH_DUONG_LOG_LEVEL=INFO
+ANH_DUONG_APPROVAL_HMAC_SECRET=PRESENT
+ANH_DUONG_OPENCLAW_EXECUTION_PATH=/v1/responses
+ANH_DUONG_OPENCLAW_NOTIFICATION_PATH=/tools/invoke
+ANH_DUONG_OPENCLAW_AUTH_TOKEN=PRESENT
+ANH_DUONG_ASYNC_WORKER_ENABLED=true
+ANH_DUONG_ASYNC_WORKER_WORKSPACE_ROOTS=["/mnt/f/AIOS"]
+ANH_DUONG_INTERNAL_API_TOKEN=PRESENT
+ANH_DUONG_CACHE_ENABLED=true
+ANH_DUONG_CACHE_L1_ENABLED=true
+ANH_DUONG_CACHE_L2_ENABLED=false
+
+COMMAND: .venv python importlib.metadata versions
+OUTPUT:
+fastapi 0.139.2
+uvicorn 0.51.0
+pydantic 2.13.4
+pydantic-settings 2.14.2
+sqlalchemy 2.0.51
+alembic 1.18.5
+httpx 0.28.1
+tenacity 9.1.4
+structlog 25.5.0
+pytest 9.1.1
+pytest-asyncio 1.4.0
+ruff 0.16.0
+mypy 1.20.2
+
+COMMAND: python sqlite3 mode=ro/query_only sqlite_master inventory
+OUTPUT:
+Indexes include ix_projects_slug/status, ix_tasks_status/project_id, ix_memories_scope_id/type, ix_async_task_runs_status/run_after/lease_expires_at/notification_status, audit/persona/policy/workflow indexes.
+Tables: alembic_version, approvals, async_task_runs, audit_events, memories, memories_fts, memories_fts_config, memories_fts_data, memories_fts_docsize, memories_fts_idx, memory_consolidation_jobs, memory_links, persona_versions, policy_versions, project_phases, projects, skill_executions, skills, tasks, workflow_steps, workflows.
+Triggers: memories_fts_ai, memories_fts_ad, memories_fts_au.
+
+COMMAND: python sqlite3 mode=ro/query_only DB metadata/counts
+OUTPUT:
+database_list: /home/thadc/.local/state/anh-duong-core/anh_duong.db
+alembic_version: 0003
+table_counts: projects=1, tasks=38, workflows=0, memories=0, async_task_runs=38, approvals=0, skills=0
+
+COMMAND: stat DB files
+OUTPUT:
+/home/thadc/.local/state/anh-duong-core/anh_duong.db size=454656 mode=644 mtime=2026-08-09 04:37:51 UTC
+/home/thadc/.local/state/anh-duong-core/anh_duong.db-wal size=107152 mode=644 mtime=2026-08-09 14:00:40 UTC
+/home/thadc/.local/state/anh-duong-core/anh_duong.db-shm size=32768 mode=644 mtime=2026-08-09 14:00:40 UTC
+
+COMMAND: docker ps and inspect selected containers
+OUTPUT:
+openclaw-openclaw-cli-1 Up 28 hours healthy
+openclaw-openclaw-gateway-1 Up 28 hours healthy, ports 3978,18789,18790 exposed
+9router-docker Up 28 hours, 127.0.0.1:20128->20128/tcp
+openclaw-openclaw-gateway-1 image=openclaw:2026.7.1-codex-runtime-verified-local
+9router-docker image=decolua/9router@sha256:9c1f509f0045ee604657f96093a20154e811674f005b75bb37639a543cd5e10d
+
+COMMAND: find app -maxdepth 3 -type f
+OUTPUT SUMMARY:
+app/api: health.py, async_tasks.py, prepared_requests.py
+app/async_tasks: audit.py, models.py, notification.py, policy.py, recovery.py, repository.py, service.py, worker.py
+app/audit: models.py, redaction.py, writer.py
+app/cache: keys.py, l1.py, l2_sqlite.py, models.py, service.py (untracked production files)
+app/capabilities: models.py, router.py
+app/context_builder: builder.py, _builder_impl.py, models.py, tokens.py, wiring.py
+app/db: base.py, models.py, session.py
+app/memory: models.py, repository.py, retrieval.py, cached_retrieval.py (cached_retrieval untracked production file)
+app/openclaw: models.py, executor.py, notifier.py
+app/orchestration: errors.py, models.py, pipeline.py, wiring.py, workflow.py
+app/persona: loader.py, models.py, cached_loader.py (cached_loader untracked production file)
+app/policy: engine.py, models.py, path_scope.py
+app/projects, app/routing, app/tasks packages present.
+
+COMMAND: read key source files with sed/rg
+OUTPUT SUMMARY:
+app/main.py creates FastAPI app, DB engine/session factory, optional CacheService, CoreRequestPipeline factory, AsyncTaskWorker and NotificationWorker background tasks when async_worker_enabled and schema exists.
+app/config.py defines Settings with env_prefix ANH_DUONG_, DB path, OpenClaw URLs/tokens, async worker knobs, and cache flags.
+app/api/health.py exposes /health and /ready.
+app/api/prepared_requests.py exposes POST /api/internal/requests/prepare behind internal bearer.
+app/api/async_tasks.py exposes POST/GET/list/retry/cancel under /api/async-tasks behind internal bearer.
+app/orchestration/pipeline.py sequences persona -> FastRouter -> CapabilityRouter -> context builder -> optional workflow envelope -> audit.
+app/orchestration/workflow.py maps workflow requests to durable AsyncTaskCreate shape and policy decision.
+app/routing/fast_router.py is deterministic phrase router: direct, memory, core_read, workflow.
+app/capabilities/router.py maps route+text into typed capability kinds and fail-closed unknown workflow when inconsistent.
+app/context_builder/_builder_impl.py builds sections, retrieves memory, estimates/truncates context by token budget, redacts source refs.
+app/memory/repository.py implements SQLite memory persistence with FTS5 external-content search and redaction.
+app/memory/retrieval.py ranks FTS candidates using lexical/importance/confidence/recency hybrid score.
+app/cache/service.py coordinates L1 and L2; cache disabled short-circuits; L2 SQLite is fail-open.
+app/openclaw/executor.py sends /v1/responses payload model openclaw/default with idempotency key and parses output_text into OpenClawExecutionResult.
+app/openclaw/notifier.py sends final Telegram message through /tools/invoke.
+app/policy/engine.py defines risk catalog and approval/deny semantics; app/policy/path_scope.py restricts paths to allowed WSL roots.
+app/audit/redaction.py redacts secret-like keys, bearer tokens, query secrets, and provider token shapes; app/audit/writer.py appends JSONL with fsync.
+
+COMMAND: find tests -type f -name test_*.py inventory
+OUTPUT:
+e2e=1, integration=24, security=9, unit=22. Test files cover health, schema, projects/tasks, memory FTS, routing/capability determinism, context builder, core request API/pipeline, async task API/service/repository/worker/recovery/notification, OpenClaw executor/notifier, policy, path scope, secret redaction, and ADE-OS.
+
+COMMAND: docs headings inventory
+OUTPUT SUMMARY:
+README.md runtime paths/setup/run/health.
+PROJECT.md goal/current scope.
+STATE.md current state.
+docs/ASYNC_TASK_RUNNER_V1.md API, cancel safety, audit, retry/recovery, rollback.
+docs/TASK_FR1_FAST_ROUTER.md Fast Router contract/verifications.
+docs/TASK_CR1_CAPABILITY_ROUTER.md capability contract/precedence/security.
+docs/TASK_OR1_CORE_REQUEST_PIPELINE.md architecture/input/output/error/API/test/runtime/limitations.
+docs/MEMORY_FTS5.md memory types/interface/FTS/search/safety.
+docs/TASK_4_2_HYBRID_MEMORY_RETRIEVAL.md retrieval/ranking/stable sorting/edge cases/out-of-scope.
+docs/RUNBOOK_SYSTEMD.md systemd operations.
+docs/AUDIT_SYSTEM.md audit path, redaction, integrity.
+
+COMMAND: checkpoint artifact listing/read
+OUTPUT SUMMARY:
+CE-2 local worktree closed artifact: /home/thadc/AIOS/anh-duong-core.worktrees/ce-2/artifacts/ce2-final/CE-2-CLOSED-report-20260809T143820Z.md says CE-2 outcome PASS/CLOSED, gateway/model/regression/security/production_unchanged all PASS, patch limited to app/openclaw/models.py and two tests. CE-2 result JSON outcome=completed, model=cx/gpt-5.5, provider=9Router, profile=router9.
+CE-2 checkpoint artifacts under /mnt/f include older final/failure/probe files; latest observed /mnt/f CE-2 failure directory includes 20260809T142822Z failure before the local worktree closed artifact.
+CACHE-2T-L1-FINAL-report-20260809T043708Z says AUTOMATED_PASS_PENDING_TELEGRAM_E2E and strict CACHE-2T CLOSED still requires real user-origin Telegram E2E checks.
+CACHE-2T-L1-final-report-20260808T155134Z says Verdict BLOCKED for activation attempt.
+CACHE-2T-VERDICT.txt says CACHE-2T READY_FOR_REVIEW as of 2026-08-07T16:52:49Z, cache_enabled=False production default at that time, 389/389 tests passed.
+
+COMMAND: OpenClaw integration files inventory
+OUTPUT SUMMARY:
+integrations/openclaw-anh-duong-core contains package.json, openclaw.plugin.json, index.js, src/config.js, src/core-client.js, src/hooks.js, src/prompt.js, tests.
+package @anh-duong/openclaw-core-gate version 1.0.0, peer openclaw >=2026.7.1 <2026.8.0, compat minGatewayVersion 2026.7.1.
+hooks.js scopes to Telegram, prepares Core request, blocks model run on Core failures, maps workflow to async task, and uses safe user message on failure. Test placeholders for tokens were redacted in this inventory.
+
+COMMAND: rg model/provider/router/9router/OpenClaw evidence redacted
+OUTPUT SUMMARY:
+Core source uses OpenClaw base URL/path and model openclaw/default for execution. Docs state OR-1 imports no OpenClaw/Telegram/9Router/provider SDKs. TG-1 design preserves model/provider/9Router config and scopes Telegram plugin. ADE-OS docs treat provider/model routing as protected. Runtime Docker exposes 9router-docker at 127.0.0.1:20128.
+
+COMMAND: final git status --short --branch
+OUTPUT:
+Same as initial dirty tree: 9 modified files and 6 untracked paths listed above. No source/config/runtime/DB/service changes were made by this inventory.
