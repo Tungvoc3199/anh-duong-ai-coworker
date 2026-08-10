@@ -84,6 +84,81 @@ def test_action_requests_route_workflow(text: str) -> None:
 @pytest.mark.parametrize(
     "text",
     [
+        "E đưa ra chỉ dẫn để a sửa nào",
+        "Hướng dẫn anh sửa lỗi này",
+        "Cho anh lệnh để sửa",
+        "Lỗi này sửa thế nào",
+        "Em nghĩ nên sửa như nào",
+        "Phân tích và nói anh cách sửa",
+        "Tại sao lỗi này xảy ra",
+        "Nên làm gì tiếp theo",
+        "Hướng dẫn anh chạy test",
+        "Cho anh biết cách tạo file report.md",
+        "Hướng dẫn anh restart service",
+        "Cho anh lệnh deploy để anh tự chạy",
+    ],
+)
+def test_advisory_action_mentions_route_direct(text: str) -> None:
+    decision = FastRouter().route(text)
+
+    assert decision.route is FastRoute.DIRECT
+    assert decision.rule_id == "routing.direct.advisory_action_mention"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Hướng dẫn anh tạo workflow",
+        "Workflow này chạy test như nào",
+    ],
+)
+def test_advisory_workflow_mentions_route_direct(text: str) -> None:
+    decision = FastRouter().route(text)
+
+    assert decision.route is FastRoute.DIRECT
+    assert decision.rule_id == "routing.direct.advisory_action_mention"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Em sửa lỗi này đi",
+        "Sửa worker.py cho anh",
+        "Chạy test đi",
+        "Tạo file report.md",
+        "Restart service",
+        "Deploy bản này",
+        "Xóa file tạm đi",
+        "Commit thay đổi này",
+        "Gửi báo cáo này đi",
+        "Chạy lệnh ls đi",
+    ],
+)
+def test_explicit_execution_requests_route_workflow(text: str) -> None:
+    decision = FastRouter().route(text)
+
+    assert decision.route is FastRoute.WORKFLOW
+    assert decision.rule_id == "routing.workflow.explicit_action"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Hướng dẫn anh chạy test, rồi chạy test đi",
+        "Cho anh lệnh deploy, rồi deploy bản này",
+        "Hướng dẫn anh chạy test, sau đó chạy test đi",
+    ],
+)
+def test_mixed_advisory_then_execution_routes_workflow(text: str) -> None:
+    decision = FastRouter().route(text)
+
+    assert decision.route is FastRoute.WORKFLOW
+    assert decision.rule_id == "routing.workflow.explicit_action"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
         "",
         "   \t\n",
     ],

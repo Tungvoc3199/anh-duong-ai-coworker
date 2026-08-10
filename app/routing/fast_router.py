@@ -57,6 +57,14 @@ _WORKFLOW_PHRASES = (
     "store this",
     "remember this",
 )
+_WORKFLOW_DIRECTIVE_PHRASES = (
+    "soan checklist",
+)
+_SEQUENTIAL_EXECUTION_MARKERS = (
+    "roi",
+    "sau do",
+    "then",
+)
 
 _MEMORY_INHERENT_PHRASES = (
     "nho lai",
@@ -143,6 +151,32 @@ _DIRECT_UTTERANCES = frozenset(
         "how are you",
     }
 )
+_ADVISORY_PHRASES = (
+    "chi dan",
+    "huong dan",
+    "cach",
+    "the nao",
+    "nhu nao",
+    "nen",
+    "tai sao",
+    "cho anh lenh",
+    "cho toi lenh",
+    "noi anh cach",
+    "noi toi cach",
+    "cho anh biet cach",
+    "cho toi biet cach",
+    "em nghi",
+    "tu chay",
+    "anh tu chay",
+    "toi tu chay",
+    "how to",
+    "instructions",
+    "guide me",
+    "tell me how",
+    "what should",
+    "why",
+    "advice",
+)
 _GREETING_PATTERN = re.compile(
     r"^(?:xin chao|chao|chao buoi sang|hello|hi|hey|good morning|"
     r"good afternoon|good evening)"
@@ -168,7 +202,21 @@ class FastRouter:
                 reason="Empty input is routed to workflow for safe handling.",
             )
 
-        if self._contains_any(normalized, _WORKFLOW_PHRASES):
+        if self._contains_any(normalized, _WORKFLOW_DIRECTIVE_PHRASES):
+            return RouteDecision(
+                route=FastRoute.WORKFLOW,
+                rule_id="routing.workflow.explicit_action",
+                reason="An explicit action or side effect requires workflow handling.",
+            )
+
+        advisory_request = self._is_advisory_request(normalized)
+        if (
+            self._contains_any(normalized, _WORKFLOW_PHRASES)
+            and (
+                not advisory_request
+                or self._has_sequential_execution_intent(normalized)
+            )
+        ):
             return RouteDecision(
                 route=FastRoute.WORKFLOW,
                 rule_id="routing.workflow.explicit_action",
@@ -187,6 +235,16 @@ class FastRouter:
                 route=FastRoute.CORE_READ,
                 rule_id="routing.core_read.status_query",
                 reason="The request asks for read-only Core, Project, or Task status.",
+            )
+
+        if advisory_request:
+            return RouteDecision(
+                route=FastRoute.DIRECT,
+                rule_id="routing.direct.advisory_action_mention",
+                reason=(
+                    "The request asks for guidance or explanation rather than "
+                    "bot-executed side effects."
+                ),
             )
 
         if self._is_direct_request(normalized):
@@ -219,6 +277,20 @@ class FastRouter:
             normalized,
             _CORE_STATUS_PHRASES,
         ) or cls._contains_any(normalized, _CORE_READ_PHRASES)
+
+    @classmethod
+    def _is_advisory_request(cls, normalized: str) -> bool:
+        return cls._contains_any(normalized, _ADVISORY_PHRASES)
+
+    @classmethod
+    def _has_sequential_execution_intent(cls, normalized: str) -> bool:
+        for marker in _SEQUENTIAL_EXECUTION_MARKERS:
+            segments = normalized.split(f" {marker} ")
+            if len(segments) < 2:
+                continue
+            if any(cls._contains_any(segment, _WORKFLOW_PHRASES) for segment in segments[1:]):
+                return True
+        return False
 
     @staticmethod
     def _is_direct_request(normalized: str) -> bool:
