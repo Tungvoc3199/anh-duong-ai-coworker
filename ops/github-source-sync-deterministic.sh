@@ -2,23 +2,25 @@
 set -Eeuo pipefail
 
 # Deterministic one-shot source sync. No LLM/Codex calls.
-# Goal: publish the already-verified local Ánh Dương source lineage to
-# Tungvoc3199/anh-duong-ai-coworker while preserving the existing GitHub docs history.
+# Handles a moved local HEAD by replaying the exact already-verified workflow-fix
+# patch onto the CURRENT committed local lineage in a clean clone, then verifies
+# that clean tree before publishing it to GitHub.
 
 SOURCE_REPO="/home/thadc/AIOS/anh-duong-core"
 REMOTE_URL="https://github.com/Tungvoc3199/anh-duong-ai-coworker.git"
 FIX_SHA="9c03450c9fee5a819573915680c05045b0c38f79"
+EXPECTED_FIX_FILES=15
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 WORK="$(mktemp -d /tmp/anh-duong-source-sync.XXXXXX)"
-INTEGRATION="$WORK/repo"
+LOCAL_STAGE="$WORK/local-stage"
+INTEGRATION="$WORK/integration"
+PATCH="$WORK/verified-fix.patch"
 REPORT="$WORK/result.txt"
 SYNC_BRANCH="sync/source-${STAMP}"
 BACKUP_BRANCH="backup/pre-source-sync-${STAMP}"
 
 log(){ printf '[source-sync] %s\n' "$*" | tee -a "$REPORT"; }
 die(){ printf '[source-sync] ERROR: %s\n' "$*" | tee -a "$REPORT" >&2; exit 1; }
-cleanup(){ :; }
-trap cleanup EXIT
 
 [[ -d "$SOURCE_REPO/.git" ]] || die "missing local repo: $SOURCE_REPO"
 command -v git >/dev/null 2>&1 || die "git not found"
@@ -28,17 +30,14 @@ LOCAL_HEAD="$(git -C "$SOURCE_REPO" rev-parse HEAD)"
 BEFORE_STATUS="$WORK/production-status.before"
 AFTER_STATUS="$WORK/production-status.after"
 git -C "$SOURCE_REPO" status --porcelain=v1 -uall >"$BEFORE_STATUS"
-
 log "local_head=$LOCAL_HEAD"
 log "work=$WORK"
 
-# Production runtime must already be healthy; this script never restarts it.
+# Production is source-of-truth runtime; this script never restarts or modifies it.
 curl -fsS --max-time 5 http://127.0.0.1:8790/health >/dev/null || die "production /health failed before sync"
 curl -fsS --max-time 5 http://127.0.0.1:8790/ready  >/dev/null || die "production /ready failed before sync"
-log "production precheck=PASS"
+log "production_precheck=PASS"
 
-# Find the exact clean, previously verified workflow-fix commit. Never reconstruct
-# from the dirty production tree and never ask a model to guess the scope.
 find_fix_repo(){
   local d
   for d in \
@@ -56,15 +55,62 @@ find_fix_repo(){
 }
 
 FIX_REPO="$(find_fix_repo || true)"
-[[ -n "$FIX_REPO" ]] || die "verified commit $FIX_SHA not found locally; refusing to guess/rebuild its scope"
+[[ -n "$FIX_REPO" ]] || die "verified commit $FIX_SHA not found locally; refusing to reconstruct from dirty production"
+FIX_PARENT="$(git -C "$FIX_REPO" rev-parse "$FIX_SHA^")"
 log "verified_fix_repo=$FIX_REPO"
+log "verified_fix_parent=$FIX_PARENT"
 
-# The clean verified fix should be a descendant of the current committed local lineage.
-# If local HEAD moved, fail instead of silently publishing the wrong history.
-if ! git -C "$FIX_REPO" merge-base --is-ancestor "$LOCAL_HEAD" "$FIX_SHA" 2>/dev/null; then
-  die "local HEAD $LOCAL_HEAD is not an ancestor of verified fix $FIX_SHA; source lineage changed"
+# Prove the verified commit is exactly the scoped workflow fix we expect.
+mapfile -t FIX_FILES < <(git -C "$FIX_REPO" diff-tree --no-commit-id --name-only -r "$FIX_SHA" | sed '/^$/d')
+[[ "${#FIX_FILES[@]}" -eq "$EXPECTED_FIX_FILES" ]] || die "verified fix file count changed: expected $EXPECTED_FIX_FILES, got ${#FIX_FILES[@]}"
+for p in "${FIX_FILES[@]}"; do
+  case "$p" in
+    app/*|tests/*|integrations/openclaw-anh-duong-core/*) ;;
+    *) die "verified fix contains out-of-scope path: $p" ;;
+  esac
+done
+log "verified_fix_scope=PASS files=${#FIX_FILES[@]}"
+
+git -C "$FIX_REPO" diff --binary "$FIX_PARENT" "$FIX_SHA" -- "${FIX_FILES[@]}" >"$PATCH"
+[[ -s "$PATCH" ]] || die "verified fix patch is empty"
+
+# Build a clean candidate from CURRENT committed local HEAD. Dirty production files
+# are never read into this candidate.
+git clone --no-hardlinks --no-tags "$SOURCE_REPO" "$LOCAL_STAGE" >>"$REPORT" 2>&1 || die "clean local clone failed"
+git -C "$LOCAL_STAGE" checkout --detach "$LOCAL_HEAD" >>"$REPORT" 2>&1 || die "cannot checkout current local HEAD in clean clone"
+
+# Configure identity only inside disposable clone if missing.
+git -C "$LOCAL_STAGE" config user.name  >/dev/null 2>&1 || git -C "$LOCAL_STAGE" config user.name "Anh Duong Source Sync"
+git -C "$LOCAL_STAGE" config user.email >/dev/null 2>&1 || git -C "$LOCAL_STAGE" config user.email "source-sync@localhost"
+
+# Replay the EXACT verified fix onto the moved current lineage. If it is already
+# present, accept only when the patch can be cleanly reversed; otherwise fail closed.
+set +e
+git -C "$LOCAL_STAGE" apply --3way --index "$PATCH" >>"$REPORT" 2>&1
+APPLY_RC=$?
+set -e
+if (( APPLY_RC == 0 )); then
+  git -C "$LOCAL_STAGE" diff --cached --check || die "replayed fix failed diff --check"
+  git -C "$LOCAL_STAGE" commit -m "Fix Telegram workflow completion contract" >>"$REPORT" 2>&1 || die "cannot commit replayed verified fix"
+  CANDIDATE_SHA="$(git -C "$LOCAL_STAGE" rev-parse HEAD)"
+  log "verified_fix_replay=APPLIED candidate_sha=$CANDIDATE_SHA"
+else
+  git -C "$LOCAL_STAGE" reset --hard "$LOCAL_HEAD" >/dev/null 2>&1
+  if git -C "$LOCAL_STAGE" apply --reverse --check "$PATCH" >/dev/null 2>&1; then
+    CANDIDATE_SHA="$LOCAL_HEAD"
+    log "verified_fix_replay=ALREADY_PRESENT candidate_sha=$CANDIDATE_SHA"
+  else
+    die "verified fix does not apply cleanly to current HEAD and is not already present; manual semantic conflict review required"
+  fi
 fi
-log "verified_fix_lineage=PASS"
+
+# Exact fix paths in candidate must at minimum contain the verified change. A reverse
+# check proves the complete verified patch is represented even if later committed edits
+# exist around it.
+if ! git -C "$LOCAL_STAGE" apply --reverse --check "$PATCH" >/dev/null 2>&1; then
+  die "candidate does not contain the complete verified workflow fix"
+fi
+log "candidate_contains_verified_fix=PASS"
 
 # Optional GitHub CLI credential helper setup when already authenticated.
 if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
@@ -74,65 +120,59 @@ else
   log "github_auth=using-existing-git-credential-helper"
 fi
 
-# Clone the current GitHub main history into a disposable integration repo.
-git clone --no-tags "$REMOTE_URL" "$INTEGRATION" >>"$REPORT" 2>&1 || die "GitHub clone failed; check GitHub credentials/network"
-cd "$INTEGRATION"
-git fetch origin main >>"$REPORT" 2>&1 || die "cannot fetch origin/main"
-REMOTE_MAIN_SHA="$(git rev-parse origin/main)"
+# Clone existing GitHub history and fetch the clean current-source candidate.
+git clone --no-tags "$REMOTE_URL" "$INTEGRATION" >>"$REPORT" 2>&1 || die "GitHub clone failed; check credentials/network"
+git -C "$INTEGRATION" fetch origin main >>"$REPORT" 2>&1 || die "cannot fetch origin/main"
+REMOTE_MAIN_SHA="$(git -C "$INTEGRATION" rev-parse origin/main)"
 log "github_main_before=$REMOTE_MAIN_SHA"
 
-# Fetch the exact verified source commit from its local clean repo.
-git remote add verified-fix "$FIX_REPO"
-git fetch --no-tags verified-fix "$FIX_SHA" >>"$REPORT" 2>&1 || die "cannot fetch verified fix commit"
-git cat-file -e "$FIX_SHA^{commit}" || die "verified fix object unavailable after fetch"
+git -C "$INTEGRATION" remote add local-source "$LOCAL_STAGE"
+git -C "$INTEGRATION" fetch --no-tags local-source "$CANDIDATE_SHA" >>"$REPORT" 2>&1 || die "cannot fetch clean current-source candidate"
+git -C "$INTEGRATION" switch -c "$SYNC_BRANCH" origin/main >>"$REPORT" 2>&1
 
-git switch -c "$SYNC_BRANCH" origin/main >>"$REPORT" 2>&1
-
-# Merge unrelated histories. Existing GitHub docs win only on docs/* conflicts;
-# verified local source wins everywhere else. No model is involved.
+# Unify unrelated histories deterministically: preserve GitHub docs on docs/* conflicts;
+# clean verified local source wins everywhere else.
 set +e
-git merge --allow-unrelated-histories --no-ff "$FIX_SHA" -m "chore: sync canonical Ánh Dương source" >>"$REPORT" 2>&1
+git -C "$INTEGRATION" merge --allow-unrelated-histories --no-ff "$CANDIDATE_SHA" -m "chore: sync canonical Ánh Dương source" >>"$REPORT" 2>&1
 MERGE_RC=$?
 set -e
-
 if (( MERGE_RC != 0 )); then
-  mapfile -t CONFLICTS < <(git diff --name-only --diff-filter=U)
+  mapfile -t CONFLICTS < <(git -C "$INTEGRATION" diff --name-only --diff-filter=U)
   ((${#CONFLICTS[@]} > 0)) || die "merge failed without resolvable file conflicts"
-  log "merge_conflicts=${#CONFLICTS[@]} (resolving deterministically)"
+  log "merge_conflicts=${#CONFLICTS[@]}"
   for p in "${CONFLICTS[@]}"; do
     if [[ "$p" == docs/* ]]; then
-      git checkout --ours -- "$p" 2>/dev/null || git rm -f --ignore-unmatch -- "$p" >/dev/null
-      log "conflict $p -> preserve GitHub docs side"
+      git -C "$INTEGRATION" checkout --ours -- "$p" 2>/dev/null || git -C "$INTEGRATION" rm -f --ignore-unmatch -- "$p" >/dev/null
+      log "conflict $p -> preserve GitHub docs"
     else
-      git checkout --theirs -- "$p" 2>/dev/null || git rm -f --ignore-unmatch -- "$p" >/dev/null
-      log "conflict $p -> verified local source side"
+      git -C "$INTEGRATION" checkout --theirs -- "$p" 2>/dev/null || git -C "$INTEGRATION" rm -f --ignore-unmatch -- "$p" >/dev/null
+      log "conflict $p -> clean local source"
     fi
-    git add -A -- "$p"
+    git -C "$INTEGRATION" add -A -- "$p"
   done
-  [[ -z "$(git diff --name-only --diff-filter=U)" ]] || die "unresolved merge conflicts remain"
-  git commit --no-edit >>"$REPORT" 2>&1 || die "merge commit failed"
+  [[ -z "$(git -C "$INTEGRATION" diff --name-only --diff-filter=U)" ]] || die "unresolved merge conflicts remain"
+  git -C "$INTEGRATION" commit --no-edit >>"$REPORT" 2>&1 || die "merge commit failed"
 fi
-
-SYNC_SHA="$(git rev-parse HEAD)"
+SYNC_SHA="$(git -C "$INTEGRATION" rev-parse HEAD)"
 log "integration_sha=$SYNC_SHA"
 
-# Source paths must remain byte-for-byte equivalent to the verified fix after merge.
+# Integration source must match the clean current-source candidate byte-for-byte.
 SOURCE_PATHS=(app tests integrations scripts alembic alembic.ini pyproject.toml README.md)
 EXISTING_SOURCE_PATHS=()
 for p in "${SOURCE_PATHS[@]}"; do
-  if git cat-file -e "$FIX_SHA:$p" 2>/dev/null || [[ -e "$p" ]]; then
+  if git -C "$LOCAL_STAGE" cat-file -e "$CANDIDATE_SHA:$p" 2>/dev/null; then
     EXISTING_SOURCE_PATHS+=("$p")
   fi
 done
 if ((${#EXISTING_SOURCE_PATHS[@]})); then
-  git diff --quiet "$FIX_SHA" HEAD -- "${EXISTING_SOURCE_PATHS[@]}" || die "integration changed verified source paths"
+  git -C "$INTEGRATION" diff --quiet "$CANDIDATE_SHA" HEAD -- "${EXISTING_SOURCE_PATHS[@]}" || die "integration changed clean local source paths"
 fi
-log "verified_source_tree=PASS"
+log "clean_source_tree=PASS"
 
-# Reject common secret/runtime/checkpoint material. .env.example is explicitly allowed.
+# Reject secrets/runtime/checkpoints. .env.example is explicitly allowed.
 TRACKED="$WORK/tracked.txt"
-git ls-files >"$TRACKED"
 BAD_TRACKED="$WORK/bad-tracked.txt"
+git -C "$INTEGRATION" ls-files >"$TRACKED"
 {
   grep -E '(^|/)\.env($|\.)' "$TRACKED" | grep -vE '(^|/)\.env\.example$' || true
   grep -E '(^|/)(auth\.json|\.venv/|__pycache__/|.*\.pyc$|anh_duong\.db$)' "$TRACKED" || true
@@ -141,66 +181,74 @@ BAD_TRACKED="$WORK/bad-tracked.txt"
 [[ ! -s "$BAD_TRACKED" ]] || { cat "$BAD_TRACKED" >&2; die "secret/runtime/checkpoint-like files would be published"; }
 log "tracked_secret_runtime_guard=PASS"
 
-git diff --check || die "git diff --check failed"
+git -C "$INTEGRATION" diff --check || die "git diff --check failed"
 log "git_diff_check=PASS"
 
-# Verification is local and deterministic; no API/model calls.
+# Deterministic verification in clean integration tree, using existing local venv.
 PY="$SOURCE_REPO/.venv/bin/python"
 [[ -x "$PY" ]] || die "missing production venv python: $PY"
-
-"$PY" -m pytest -q >>"$REPORT" 2>&1 || die "full pytest failed"
+(
+  cd "$INTEGRATION"
+  "$PY" -m pytest -q
+) >>"$REPORT" 2>&1 || die "full pytest failed"
 log "pytest=PASS"
-"$PY" -m ruff check app tests >>"$REPORT" 2>&1 || die "Ruff failed"
+(
+  cd "$INTEGRATION"
+  "$PY" -m ruff check app tests
+) >>"$REPORT" 2>&1 || die "Ruff failed"
 log "ruff=PASS"
-"$PY" -m mypy app >>"$REPORT" 2>&1 || die "Mypy failed"
+(
+  cd "$INTEGRATION"
+  "$PY" -m mypy app
+) >>"$REPORT" 2>&1 || die "Mypy failed"
 log "mypy=PASS"
-PYTHONPYCACHEPREFIX="$WORK/pycache" "$PY" -m compileall -q app || die "Compileall failed"
+(
+  cd "$INTEGRATION"
+  PYTHONPYCACHEPREFIX="$WORK/pycache" "$PY" -m compileall -q app
+) || die "Compileall failed"
 log "compileall=PASS"
-if [[ -f integrations/openclaw-anh-duong-core/package.json ]]; then
-  (cd integrations/openclaw-anh-duong-core && npm test) >>"$REPORT" 2>&1 || die "plugin tests failed"
+if [[ -f "$INTEGRATION/integrations/openclaw-anh-duong-core/package.json" ]]; then
+  (cd "$INTEGRATION/integrations/openclaw-anh-duong-core" && npm test) >>"$REPORT" 2>&1 || die "plugin tests failed"
   log "plugin_tests=PASS"
 fi
 
-# Create remote backup first. If main changed concurrently, stop safely.
-git fetch origin main >>"$REPORT" 2>&1
-[[ "$(git rev-parse origin/main)" == "$REMOTE_MAIN_SHA" ]] || die "GitHub main changed during verification; refusing concurrent update"
-git branch "$BACKUP_BRANCH" "$REMOTE_MAIN_SHA"
-git push origin "$BACKUP_BRANCH:refs/heads/$BACKUP_BRANCH" >>"$REPORT" 2>&1 || die "backup branch push failed"
-[[ "$(git ls-remote origin "refs/heads/$BACKUP_BRANCH" | awk '{print $1}')" == "$REMOTE_MAIN_SHA" ]] || die "backup branch remote verification failed"
+# Ensure GitHub main did not move during verification, then publish safely.
+git -C "$INTEGRATION" fetch origin main >>"$REPORT" 2>&1
+[[ "$(git -C "$INTEGRATION" rev-parse origin/main)" == "$REMOTE_MAIN_SHA" ]] || die "GitHub main changed during verification; refusing concurrent update"
+
+git -C "$INTEGRATION" branch "$BACKUP_BRANCH" "$REMOTE_MAIN_SHA"
+git -C "$INTEGRATION" push origin "$BACKUP_BRANCH:refs/heads/$BACKUP_BRANCH" >>"$REPORT" 2>&1 || die "backup branch push failed"
+[[ "$(git -C "$INTEGRATION" ls-remote origin "refs/heads/$BACKUP_BRANCH" | awk '{print $1}')" == "$REMOTE_MAIN_SHA" ]] || die "backup branch remote verification failed"
 log "backup_branch=$BACKUP_BRANCH"
 
-# Publish sync branch and verify exact SHA.
-git push origin "HEAD:refs/heads/$SYNC_BRANCH" >>"$REPORT" 2>&1 || die "sync branch push failed"
-[[ "$(git ls-remote origin "refs/heads/$SYNC_BRANCH" | awk '{print $1}')" == "$SYNC_SHA" ]] || die "sync branch remote verification failed"
+git -C "$INTEGRATION" push origin "$SYNC_SHA:refs/heads/$SYNC_BRANCH" >>"$REPORT" 2>&1 || die "sync branch push failed"
+[[ "$(git -C "$INTEGRATION" ls-remote origin "refs/heads/$SYNC_BRANCH" | awk '{print $1}')" == "$SYNC_SHA" ]] || die "sync branch remote verification failed"
 log "sync_branch=$SYNC_BRANCH"
 
-# Main update is non-force and must be a fast-forward because origin/main is a parent
-# of the merge commit. Any concurrent change makes this fail safely.
-git merge-base --is-ancestor "$REMOTE_MAIN_SHA" "$SYNC_SHA" || die "sync commit is not descendant of prior GitHub main"
-git push origin "HEAD:refs/heads/main" >>"$REPORT" 2>&1 || die "main fast-forward push failed"
-REMOTE_FINAL_SHA="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
+git -C "$INTEGRATION" merge-base --is-ancestor "$REMOTE_MAIN_SHA" "$SYNC_SHA" || die "sync commit is not descendant of prior GitHub main"
+git -C "$INTEGRATION" push origin "$SYNC_SHA:refs/heads/main" >>"$REPORT" 2>&1 || die "main fast-forward push failed"
+REMOTE_FINAL_SHA="$(git -C "$INTEGRATION" ls-remote origin refs/heads/main | awk '{print $1}')"
 [[ "$REMOTE_FINAL_SHA" == "$SYNC_SHA" ]] || die "remote main SHA mismatch after push"
 log "github_main_after=$REMOTE_FINAL_SHA"
 
-# Remote tree proof: source + prior docs must all exist.
-git fetch origin main >>"$REPORT" 2>&1
+git -C "$INTEGRATION" fetch origin main >>"$REPORT" 2>&1
 for p in app tests integrations/openclaw-anh-duong-core docs; do
-  git cat-file -e "origin/main:$p" 2>/dev/null || die "remote main missing required path: $p"
+  git -C "$INTEGRATION" cat-file -e "origin/main:$p" 2>/dev/null || die "remote main missing required path: $p"
 done
 log "remote_tree_required_paths=PASS"
 
-# Connect production repo to canonical GitHub remote without touching working files.
+# Point local repo at canonical GitHub without touching working files.
 OLD_ORIGIN="$(git -C "$SOURCE_REPO" remote get-url origin 2>/dev/null || true)"
 if git -C "$SOURCE_REPO" remote get-url origin >/dev/null 2>&1; then
   git -C "$SOURCE_REPO" remote set-url origin "$REMOTE_URL"
 else
   git -C "$SOURCE_REPO" remote add origin "$REMOTE_URL"
 fi
-git -C "$SOURCE_REPO" fetch origin main >>"$REPORT" 2>&1 || die "local origin fetch failed after remote publish"
+git -C "$SOURCE_REPO" fetch origin main >>"$REPORT" 2>&1 || die "local origin fetch failed after publish"
 log "local_origin_before=${OLD_ORIGIN:-NONE}"
 log "local_origin_after=$REMOTE_URL"
 
-# Prove production working tree and runtime were not disturbed.
+# Final production invariants: dirty tree identical, runtime still healthy.
 git -C "$SOURCE_REPO" status --porcelain=v1 -uall >"$AFTER_STATUS"
 cmp -s "$BEFORE_STATUS" "$AFTER_STATUS" || die "production working tree changed during source sync"
 curl -fsS --max-time 5 http://127.0.0.1:8790/health >/dev/null || die "production /health failed after sync"
