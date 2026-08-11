@@ -730,6 +730,34 @@ class AsyncTaskRepository:
             ).scalars()
         ]
 
+    def list_legacy_approval_blocked_runs(
+        self,
+        *,
+        limit: int = 500,
+    ) -> list[AsyncTaskRun]:
+        if not 1 <= limit <= 500:
+            raise ValueError(
+                "limit must be between 1 and 500"
+            )
+        statement: Select[tuple[AsyncTaskRunRow]] = (
+            select(AsyncTaskRunRow)
+            .where(
+                AsyncTaskRunRow.status == AsyncRunStatus.BLOCKED.value,
+                AsyncTaskRunRow.last_error_code == "approval_required",
+            )
+            .order_by(
+                AsyncTaskRunRow.updated_at,
+                AsyncTaskRunRow.id,
+            )
+            .limit(limit)
+        )
+        return [
+            self._to_model(row)
+            for row in self.session.execute(
+                statement
+            ).scalars()
+        ]
+
     def _require_row(self, run_id: str) -> AsyncTaskRunRow:
         row = self.session.get(AsyncTaskRunRow, run_id)
         if row is None:

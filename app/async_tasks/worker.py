@@ -13,7 +13,10 @@ from app.async_tasks.models import (
     AsyncTaskCreate,
     NotificationStatus,
 )
-from app.async_tasks.policy import AsyncTaskPolicyGate
+from app.async_tasks.policy import (
+    STEP_LEVEL_EXECUTION_CONSTRAINTS,
+    AsyncTaskPolicyGate,
+)
 from app.async_tasks.repository import AsyncTaskRepository
 from app.audit import AuditWriter
 from app.openclaw import (
@@ -144,7 +147,7 @@ class AsyncTaskWorker:
             goal=request.goal,
             mode=request.mode.value,
             workspace=request.workspace,
-            constraints=request.constraints,
+            constraints=self._execution_constraints(request),
         )
 
         try:
@@ -165,6 +168,19 @@ class AsyncTaskWorker:
             result,
         )
         return True
+
+    @staticmethod
+    def _execution_constraints(
+        request: AsyncTaskCreate,
+    ) -> tuple[str, ...]:
+        if request.approval_required or request.risk_level >= 2:
+            return tuple(
+                dict.fromkeys(
+                    request.constraints
+                    + STEP_LEVEL_EXECUTION_CONSTRAINTS
+                )
+            )
+        return request.constraints
 
     @staticmethod
     def _is_core_health_ready_workflow(

@@ -5,6 +5,11 @@ from typing import Protocol, cast
 
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.async_tasks.policy import (
+    HARD_APPROVAL_GATED_STEPS,
+    SAFE_STEPS_WITHOUT_APPROVAL,
+    STEP_LEVEL_EXECUTION_CONSTRAINTS,
+)
 from app.audit.redaction import SecretRedactor
 from app.context_builder.models import (
     ContextBudgetExceededError,
@@ -454,6 +459,48 @@ class ContextBuilder:
                 f"- reason_code: {self._text(capability.reason_code)}",
                 f"- matched_signals: {signals or 'none'}",
             )
+            + self._render_runtime_policy_lines(request)
+        )
+
+    def _render_runtime_policy_lines(
+        self,
+        request: ContextBuildRequest,
+    ) -> tuple[str, ...]:
+        runtime_policy = request.runtime_policy
+        if (
+            request.fast_router_decision.route.value != "workflow"
+            or runtime_policy is None
+        ):
+            return ()
+        folded = request.current_request.casefold()
+        if not runtime_policy.approval_required and not any(
+            marker in folded
+            for marker in (
+                "approval",
+                "duyệt",
+                "publish",
+                "send external",
+                "facebook",
+                "web research",
+                "web search",
+                "capability",
+                "quyền",
+                "có thể",
+            )
+        ):
+            return ()
+        return (
+            "Runtime Policy:",
+            f"- effective_risk_level: {int(runtime_policy.risk_level)}",
+            f"- approval_required: {str(runtime_policy.approval_required).lower()}",
+            f"- policy_decision: {runtime_policy.policy_decision.value}",
+            f"- policy_rule_id: {self._text(runtime_policy.policy_rule_id)}",
+            f"- policy_reason: {self._text(runtime_policy.policy_reason)}",
+            "- safe_without_approval: "
+            + ", ".join(SAFE_STEPS_WITHOUT_APPROVAL),
+            "- step_gate: " + ", ".join(HARD_APPROVAL_GATED_STEPS),
+            "- execution_constraint: "
+            + ", ".join(STEP_LEVEL_EXECUTION_CONSTRAINTS),
         )
 
     def _render_project(
@@ -595,4 +642,3 @@ class ContextBuilder:
             self._render_chunk(section.kind, section.content)
             for section in sections
         )
-

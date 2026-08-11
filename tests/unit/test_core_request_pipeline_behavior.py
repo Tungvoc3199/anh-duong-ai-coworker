@@ -227,6 +227,60 @@ def test_direct_request_produces_complete_prepared_request() -> None:
     assert prepared.workflow is None
     assert prepared.created_at == NOW
 
+def test_workflow_context_includes_effective_runtime_policy() -> None:
+    project = _project()
+    prepared = _pipeline(
+        project_reader=ProjectReader((project,)),
+    ).prepare(
+        CoreRequest(
+            text=(
+                "Research trang Facebook công khai của dự án, đọc và tóm "
+                "tắt nội dung. Nếu cần publish ra ngoài thì dừng lại xin "
+                "approval sau khi xong phần đọc web an toàn."
+            ),
+            request_id="facebook-policy-context",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id="message-facebook-policy-context",
+        )
+    )
+
+    assert prepared.workflow is not None
+    context = prepared.context.rendered_context
+    assert "Runtime Policy:" in context
+    assert "- safe_without_approval: web_search_read" in context
+    assert "- step_gate: destructive" in context
+    assert "complete_safe_steps_before_approval_gate" in context
+
+
+def test_workflow_context_uses_effective_policy_for_approval_task() -> None:
+    project = _project()
+    prepared = _pipeline(
+        project_reader=ProjectReader((project,)),
+    ).prepare(
+        CoreRequest(
+            text="Deploy bản này",
+            request_id="deploy-policy-context",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id="message-deploy-policy-context",
+        )
+    )
+
+    assert prepared.workflow is not None
+    assert prepared.workflow.approval_required is True
+    context = prepared.context.rendered_context
+    assert "Runtime Policy:" in context
+    assert "- effective_risk_level: 0" in context
+    assert "- approval_required: true" in context
+    assert "- policy_rule_id: action.unknown" in context
+    assert "- policy_decision: escalate" in context
+
+
 @pytest.mark.parametrize(
     "text",
     [
@@ -394,6 +448,147 @@ def test_dr1r_exact_telegram_gate_is_risk_zero_without_approval() -> None:
     assert prepared.workflow.approval_required is False
     assert prepared.workflow.policy_decision is DecisionKind.ALLOW
     assert prepared.workflow.policy_rule_id == "risk.read_only.allow"
+
+
+def test_read_only_health_ready_workflow_is_allowed_without_approval() -> None:
+    project = _project()
+    prepared = _pipeline(
+        project_reader=ProjectReader((project,)),
+    ).prepare(
+        CoreRequest(
+            text=(
+                "Thực hiện một workflow read-only: kiểm tra trạng thái "
+                "/health và /ready của Ánh Dương Core, không sửa file, "
+                "không restart service, không thay đổi cấu hình, rồi báo "
+                "lại kết quả cho anh."
+            ),
+            request_id="tg-readonly-health-ready",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id="message-readonly-health-ready",
+        )
+    )
+
+    assert prepared.route_decision.route is FastRoute.WORKFLOW
+    assert prepared.execution_required is True
+    assert prepared.workflow is not None
+    assert prepared.workflow.risk_level is RiskLevel.READ_ONLY
+    assert prepared.workflow.approval_required is False
+    assert prepared.workflow.policy_decision is DecisionKind.ALLOW
+    assert prepared.workflow.policy_rule_id == "risk.read_only.allow"
+    assert "no_service_restart" in prepared.workflow.constraints
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "E đưa ra chỉ dẫn để a sửa nào",
+        "Hướng dẫn anh sửa lỗi này",
+        "Cho anh lệnh để sửa",
+        "Lỗi này sửa thế nào",
+        "Em nghĩ nên sửa như nào",
+        "Phân tích và nói anh cách sửa",
+        "Tại sao lỗi này xảy ra",
+        "Nên làm gì tiếp theo",
+        "Hướng dẫn anh chạy test",
+        "Cho anh biết cách tạo file report.md",
+        "Hướng dẫn anh restart service",
+        "Cho anh lệnh deploy để anh tự chạy",
+    ],
+)
+def test_advisory_action_mentions_do_not_create_workflow(text: str) -> None:
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+    ).prepare(
+        CoreRequest(
+            text=text,
+            request_id="advisory-direct",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id="message-advisory-direct",
+        )
+    )
+
+    assert prepared.route_decision.route is FastRoute.DIRECT
+    assert prepared.route_decision.rule_id == "routing.direct.advisory_action_mention"
+    assert (
+        prepared.capability_decision.capability
+        is CapabilityKind.CONVERSATIONAL_RESPONSE
+    )
+    assert prepared.execution_required is False
+    assert prepared.workflow is None
+    assert prepared.project_id is None
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Hướng dẫn anh tạo workflow",
+        "Workflow này chạy test như nào",
+    ],
+)
+def test_advisory_workflow_mentions_do_not_create_workflow(text: str) -> None:
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+    ).prepare(CoreRequest(text=text, request_id="advisory-workflow-direct"))
+
+    assert prepared.route_decision.route is FastRoute.DIRECT
+    assert prepared.route_decision.rule_id == "routing.direct.advisory_action_mention"
+    assert (
+        prepared.capability_decision.capability
+        is CapabilityKind.CONVERSATIONAL_RESPONSE
+    )
+    assert prepared.execution_required is False
+    assert prepared.workflow is None
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Em sửa lỗi này đi",
+        "Sửa worker.py cho anh",
+        "Chạy test đi",
+        "Tạo file report.md",
+        "Restart service",
+        "Deploy bản này",
+        "Xóa file tạm đi",
+        "Commit thay đổi này",
+        "Gửi báo cáo này đi",
+        "Chạy lệnh ls đi",
+    ],
+)
+def test_explicit_execution_requests_create_workflow(text: str) -> None:
+    project = _project()
+    prepared = _pipeline(
+        project_reader=ProjectReader((project,)),
+    ).prepare(CoreRequest(text=text, request_id="execution-workflow"))
+
+    assert prepared.route_decision.route is FastRoute.WORKFLOW
+    assert prepared.execution_required is True
+    assert prepared.workflow is not None
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Hướng dẫn anh chạy test, rồi chạy test đi",
+        "Cho anh lệnh deploy, rồi deploy bản này",
+        "Hướng dẫn anh chạy test, sau đó chạy test đi",
+    ],
+)
+def test_mixed_advisory_then_execution_creates_workflow(text: str) -> None:
+    project = _project()
+    prepared = _pipeline(
+        project_reader=ProjectReader((project,)),
+    ).prepare(CoreRequest(text=text, request_id="mixed-execution-workflow"))
+
+    assert prepared.route_decision.route is FastRoute.WORKFLOW
+    assert prepared.execution_required is True
+    assert prepared.workflow is not None
 
 
 def test_unknown_non_action_uses_direct_conversation_without_workflow() -> None:

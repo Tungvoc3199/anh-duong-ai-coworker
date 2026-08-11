@@ -107,6 +107,7 @@ def create_app(
                     recover_stale_runs(
                         factory,
                         audit_writer=audit_writer,
+                        policy_gate=policy_gate,
                     )
                     runtime_executor = executor or OpenClawExecutor(
                         base_url=runtime_settings.openclaw_base_url,

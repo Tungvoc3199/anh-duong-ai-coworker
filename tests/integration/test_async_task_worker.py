@@ -88,6 +88,8 @@ def _seed_run(
     *,
     key: str,
     goal: str = "Complete a deterministic test task",
+    risk_level: int = 0,
+    approval_required: bool = False,
 ) -> tuple[str, str]:
     with session_factory() as session:
         project = ProjectRow(
@@ -112,7 +114,8 @@ def _seed_run(
                 project_id=project.id,
                 title="Worker test",
                 goal=goal,
-                risk_level=0,
+                risk_level=risk_level,
+                approval_required=approval_required,
                 workspace=str(tmp_path / "workspace"),
                 source_channel="telegram",
                 source_chat_id="chat-test",
@@ -268,6 +271,79 @@ async def test_worker_completes_core_health_ready_workflow_locally(
     assert result_json["artifacts"]["ready"]["status"] == "ready"
     assert result_json["commands_run"] == []
     assert result_json["files_changed"] == []
+
+
+@pytest.mark.asyncio
+async def test_worker_executes_safe_prefix_for_approval_required_facebook_task(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="facebook-safe-prefix",
+        goal=(
+            "Research trang Facebook công khai của dự án, đọc và tóm tắt "
+            "các bài viết liên quan. Nếu cần đăng/publish/send external "
+            "thì dừng lại xin approval sau khi hoàn thành phần web read "
+            "và summarize an toàn."
+        ),
+        risk_level=2,
+        approval_required=True,
+    )
+    executor = SequenceExecutor(
+        [
+            OpenClawExecutionResult(
+                outcome="blocked",
+                summary=(
+                    "Đã hoàn thành web read và summarize công khai; dừng "
+                    "trước bước publish cần approval."
+                ),
+                artifacts={
+                    "safe_steps_completed": [
+                        "web_search_read",
+                        "summarize",
+                    ],
+                    "blocked_step": "publish",
+                },
+                verification={"policy": "step_level_gate"},
+            )
+        ]
+    )
+    worker = _worker(
+        session_factory=session_factory,
+        tmp_path=tmp_path,
+        executor=executor,
+        clock=[NOW],
+    )
+
+    processed = await worker.run_once()
+
+    with session_factory() as session:
+        run = AsyncTaskRepository(session).get(run_id)
+        task = TaskService(
+            TaskRepository(session),
+            _audit(tmp_path),
+        ).get(task_id)
+
+    assert processed is True
+    assert run.status is AsyncRunStatus.BLOCKED
+    assert task.status is TaskStatus.BLOCKED
+    assert executor.requests
+    execution_request = executor.requests[0]
+    assert "complete_safe_steps_before_approval_gate" in execution_request.constraints
+    assert (
+        "hard_gate_publish_send_external_destructive_secret_cost"
+        in execution_request.constraints
+    )
+    result_json = json.loads(run.result_json or "{}")
+    assert result_json["artifacts"]["safe_steps_completed"] == [
+        "web_search_read",
+        "summarize",
+    ]
+    assert task.result_summary is not None
+    assert "This action requires approval" not in task.result_summary
+
 
 @pytest.mark.asyncio
 async def test_worker_persists_structured_workflow_result(

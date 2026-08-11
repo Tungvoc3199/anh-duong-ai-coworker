@@ -12,6 +12,7 @@ from app.context_builder import (
     ContextBuilder,
     ContextBuildRequest,
     ProjectContextSnapshot,
+    RuntimePolicySnapshot,
     TaskContextSnapshot,
 )
 from app.orchestration.errors import (
@@ -107,6 +108,21 @@ class CoreRequestPipeline:
         )
         self._validate_task_project(request, task)
 
+        request_id = request.request_id or self._id_factory()
+        normalized_text = self._redacted_text(request.text)
+        workflow = (
+            self._workflow_resolver.resolve(
+                request=request,
+                request_id=request_id,
+                normalized_text=normalized_text,
+                capability=capability_decision.capability,
+                project=project,
+            )
+            if route_decision.route is FastRoute.WORKFLOW
+            and project is not None
+            else None
+        )
+
         context = self._context_builder.build(
             ContextBuildRequest(
                 current_request=request.text,
@@ -121,22 +137,19 @@ class CoreRequestPipeline:
                 task_context=(
                     self._task_snapshot(task) if task is not None else None
                 ),
+                runtime_policy=(
+                    RuntimePolicySnapshot(
+                        risk_level=workflow.risk_level,
+                        approval_required=workflow.approval_required,
+                        policy_decision=workflow.policy_decision,
+                        policy_rule_id=workflow.policy_rule_id,
+                        policy_reason=workflow.policy_reason,
+                    )
+                    if workflow is not None
+                    else None
+                ),
                 memory_scope_id=request.memory_scope_id,
             )
-        )
-        request_id = request.request_id or self._id_factory()
-        normalized_text = self._redacted_text(request.text)
-        workflow = (
-            self._workflow_resolver.resolve(
-                request=request,
-                request_id=request_id,
-                normalized_text=normalized_text,
-                capability=capability_decision.capability,
-                project=project,
-            )
-            if route_decision.route is FastRoute.WORKFLOW
-            and project is not None
-            else None
         )
         context_source_refs = tuple(
             source_ref
