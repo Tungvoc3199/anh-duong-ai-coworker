@@ -5,6 +5,7 @@ from pathlib import PurePosixPath
 from typing import Any
 
 import httpx
+from pydantic import ValidationError
 
 from app.audit import SecretRedactor
 from app.openclaw.models import (
@@ -114,13 +115,22 @@ class OpenClawExecutor:
 
         output_text = self._extract_output_text(body)
         result_payload = self._parse_result_payload(output_text)
+        if result_payload.get("outcome") == "success":
+            result_payload["outcome"] = "completed"
         external_run_id = body.get("id")
         if isinstance(external_run_id, str):
             result_payload["external_run_id"] = external_run_id
 
-        return OpenClawExecutionResult.model_validate(
-            result_payload
-        )
+        try:
+            return OpenClawExecutionResult.model_validate(result_payload)
+        except ValidationError as error:
+            raise OpenClawTransportError(
+                "invalid_response_contract",
+                "OpenClaw returned an invalid execution result contract.",
+                retryable=False,
+                uncertain_side_effect=False,
+                status_code=response.status_code,
+            ) from error
 
     @classmethod
     def _gateway_workspace(cls, workspace: str | None) -> str | None:

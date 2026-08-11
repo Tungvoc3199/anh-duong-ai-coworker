@@ -13,6 +13,7 @@ from app.async_tasks import (
     AsyncTaskPolicyGate,
     AsyncTaskRepository,
     AsyncTaskService,
+    NotificationStatus,
 )
 from app.audit import AuditWriter
 from app.db.base import Base
@@ -148,3 +149,32 @@ def test_create_blocks_risk_two_before_execution(
     assert task.status == TaskStatus.BLOCKED.value
     assert run is not None
     assert run.status == AsyncRunStatus.BLOCKED.value
+
+
+def test_blocked_telegram_task_requires_final_notification(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    with session_factory() as session:
+        project_id = _seed_project(session)
+        service = _service(session, tmp_path)
+
+        accepted = service.create(
+            _request(
+                project_id,
+                tmp_path,
+                risk_level=2,
+            )
+        )
+        session.commit()
+
+        run = session.get(AsyncTaskRunRow, accepted.run_id)
+
+    assert accepted.status is AsyncRunStatus.BLOCKED
+    assert run is not None
+    assert run.status == AsyncRunStatus.BLOCKED.value
+    assert run.source_chat_id == "7535966424"
+    assert run.notification_status == NotificationStatus.PENDING.value
+    assert run.last_error_code == "approval_required"
+    assert run.last_error_message
+    assert "requires approval" in run.last_error_message

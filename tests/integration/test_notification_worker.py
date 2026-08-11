@@ -29,9 +29,11 @@ class SequenceNotifier:
     def __init__(self, outcomes: Sequence[Exception | None]) -> None:
         self.outcomes = list(outcomes)
         self.calls = 0
+        self.runs: list[object] = []
 
-    async def send_final(self, _run: object) -> None:
+    async def send_final(self, run: object) -> None:
         self.calls += 1
+        self.runs.append(run)
         outcome = self.outcomes.pop(0)
         if outcome is not None:
             raise outcome
@@ -173,3 +175,69 @@ async def test_notification_fails_after_five_independent_attempts(
     assert task.status == TaskStatus.COMPLETED.value
     assert await worker.run_once() is False
 
+
+@pytest.mark.asyncio
+async def test_notification_worker_sends_blocked_telegram_run(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_factory() as session:
+        project = ProjectRow(
+            id="proj_notify_blocked",
+            name="Notify Blocked Project",
+            slug="notify-blocked-project",
+            status="active",
+        )
+        task = TaskRow(
+            id="task_notify_blocked",
+            project_id=project.id,
+            title="Blocked",
+            description="Blocked",
+            status=TaskStatus.BLOCKED.value,
+            priority=TaskPriority.NORMAL.value,
+            risk_level=2,
+            requested_by="test",
+            source_channel="telegram",
+            approval_required=True,
+            result_summary="approval_required: blocked",
+        )
+        session.add_all((project, task))
+        session.flush()
+        repository = AsyncTaskRepository(session)
+        run = repository.enqueue(
+            task_id=task.id,
+            request=AsyncTaskCreate(
+                project_id=project.id,
+                title="Blocked",
+                goal="Blocked final result",
+                mode=AsyncTaskMode.QUICK,
+                risk_level=2,
+                source_channel="telegram",
+                source_chat_id="chat-test",
+                idempotency_key="telegram:blocked",
+            ),
+            idempotency_key="telegram:blocked",
+            now=NOW,
+            status=AsyncRunStatus.BLOCKED,
+            error_code="approval_required",
+            error_message="This action requires approval.",
+        )
+        session.commit()
+
+    notifier = SequenceNotifier([None])
+    worker = NotificationWorker(
+        session_factory=session_factory,
+        notifier=notifier,
+        clock=lambda: NOW,
+    )
+
+    processed = await worker.run_once()
+
+    with session_factory() as session:
+        current = AsyncTaskRepository(session).get(run.id)
+
+    assert processed is True
+    assert notifier.calls == 1
+    assert notifier.runs[0].status is AsyncRunStatus.BLOCKED
+    assert notifier.runs[0].last_error_code == "approval_required"
+    assert "requires approval" in notifier.runs[0].last_error_message
+    assert current.notification_status is NotificationStatus.SENT

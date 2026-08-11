@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from typing import Protocol
+from typing import Any, Literal, Protocol
 
+import httpx
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.async_tasks.models import (
@@ -32,6 +33,8 @@ class AsyncTaskExecutor(Protocol):
     ) -> OpenClawExecutionResult: ...
 
 
+CoreStatusProbe = Callable[[], Awaitable[dict[str, Any]]]
+
 class AsyncTaskWorker:
     def __init__(
         self,
@@ -43,6 +46,7 @@ class AsyncTaskWorker:
         worker_id: str,
         lease_seconds: int,
         clock: Callable[[], datetime] | None = None,
+        core_status_probe: CoreStatusProbe | None = None,
     ) -> None:
         self.session_factory = session_factory
         self.audit_writer = audit_writer
@@ -51,6 +55,9 @@ class AsyncTaskWorker:
         self.worker_id = worker_id
         self.lease_seconds = lease_seconds
         self.clock = clock or (lambda: datetime.now(UTC))
+        self.core_status_probe = (
+            core_status_probe or self._probe_local_core_status
+        )
 
     async def run_once(self) -> bool:
         now = self._now()
@@ -119,6 +126,15 @@ class AsyncTaskWorker:
                 )
             session.commit()
 
+        if self._is_core_health_ready_workflow(request):
+            result = await self._execute_core_health_ready_workflow()
+            self._persist_result(
+                run.id,
+                run.task_id,
+                result,
+            )
+            return True
+
         execution_request = OpenClawExecutionRequest(
             task_id=run.task_id,
             run_id=run.id,
@@ -150,6 +166,95 @@ class AsyncTaskWorker:
         )
         return True
 
+    @staticmethod
+    def _is_core_health_ready_workflow(
+        request: AsyncTaskCreate,
+    ) -> bool:
+        goal = request.goal.casefold()
+        return (
+            "/health" in goal
+            and "/ready" in goal
+            and (
+                "core" in goal
+                or "ánh dương" in goal
+                or "anh duong" in goal
+            )
+        )
+
+    async def _execute_core_health_ready_workflow(
+        self,
+    ) -> OpenClawExecutionResult:
+        statuses = await self.core_status_probe()
+        health = statuses.get("health", {})
+        ready = statuses.get("ready", {})
+        health_ok = (
+            isinstance(health, dict)
+            and health.get("http_status") == 200
+            and health.get("status") == "ok"
+        )
+        ready_ok = (
+            isinstance(ready, dict)
+            and ready.get("http_status") == 200
+            and ready.get("status") == "ready"
+        )
+        outcome: Literal["completed", "blocked"] = (
+            "completed" if health_ok and ready_ok else "blocked"
+        )
+        summary = (
+            "Đã kiểm tra read-only /health và /ready của Ánh Dương Core: "
+            f"/health={health.get('status')!s}, /ready={ready.get('status')!s}."
+            if outcome == "completed"
+            else (
+                "Không xác minh được đầy đủ /health và /ready của "
+                "Ánh Dương Core bằng kiểm tra read-only nội bộ."
+            )
+        )
+        return OpenClawExecutionResult(
+            outcome=outcome,
+            summary=summary,
+            artifacts={
+                "health": health,
+                "ready": ready,
+                "changes_made": "none",
+                "file_changes": "none",
+                "config_changes": "none",
+                "service_restarts": "none",
+            },
+            verification={
+                "method": "core_internal_http_get",
+                "constraints_respected": [
+                    "no_file_changes",
+                    "no_config_changes",
+                    "no_service_restart",
+                    "no_model_provider_change",
+                ],
+            },
+            files_changed=(),
+            commands_run=(),
+            tests=(),
+            profile="CE-2",
+        )
+
+    @staticmethod
+    async def _probe_local_core_status() -> dict[str, Any]:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            health_response = await client.get(
+                "http://127.0.0.1:8790/health"
+            )
+            ready_response = await client.get(
+                "http://127.0.0.1:8790/ready"
+            )
+        return {
+            "health": {
+                "http_status": health_response.status_code,
+                **health_response.json(),
+            },
+            "ready": {
+                "http_status": ready_response.status_code,
+                **ready_response.json(),
+            },
+        }
+
     def _handle_transport_error(
         self,
         run_id: str,
@@ -157,6 +262,11 @@ class AsyncTaskWorker:
         error: OpenClawTransportError,
     ) -> None:
         now = self._now()
+        safe_error_message = (
+            "OpenClaw returned an invalid execution result contract."
+            if error.code == "invalid_response_contract"
+            else str(error)
+        )
         with self.session_factory() as session:
             repository = AsyncTaskRepository(
                 session,
@@ -183,7 +293,7 @@ class AsyncTaskWorker:
                     now=now,
                     delay_seconds=delay,
                     error_code=error.code,
-                    error_message=str(error),
+                    error_message=safe_error_message,
                 )
                 session.commit()
                 return
@@ -198,17 +308,24 @@ class AsyncTaskWorker:
                 if error.uncertain_side_effect
                 else TaskStatus.FAILED
             )
+            terminal_checkpoint = AsyncExecutionCheckpoint(
+                stage="terminal",
+                message=safe_error_message,
+                uncertain_side_effect=error.uncertain_side_effect,
+                updated_at=now,
+            )
             terminal = repository.transition(
                 run_id,
                 target_run,
                 now=now,
+                checkpoint_json=terminal_checkpoint.model_dump_json(),
                 error_code=error.code,
-                error_message=str(error),
+                error_message=safe_error_message,
             )
             task_service.transition(
                 task_id,
                 target_task,
-                result_summary=str(error),
+                result_summary=safe_error_message,
             )
             self._mark_terminal_notification(
                 repository,
@@ -309,4 +426,3 @@ class AsyncTaskWorker:
         if value.tzinfo is None:
             return value.replace(tzinfo=UTC)
         return value.astimezone(UTC)
-

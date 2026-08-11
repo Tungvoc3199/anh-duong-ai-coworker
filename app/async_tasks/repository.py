@@ -56,6 +56,8 @@ class AsyncTaskRepository:
         idempotency_key: str,
         now: datetime | None = None,
         status: AsyncRunStatus = AsyncRunStatus.PENDING,
+        error_code: str | None = None,
+        error_message: str | None = None,
     ) -> AsyncTaskRun:
         normalized_key = idempotency_key.strip()
         if not normalized_key:
@@ -91,11 +93,30 @@ class AsyncTaskRepository:
             lease_expires_at=None,
             idempotency_key=normalized_key,
             external_run_id=None,
-            last_error_code=None,
-            last_error_message=None,
+            last_error_code=(
+                error_code[:128]
+                if error_code is not None
+                else None
+            ),
+            last_error_message=(
+                str(self.redactor.redact(error_message))[:4000]
+                if error_message is not None
+                else None
+            ),
             source_chat_id=request.source_chat_id,
             notification_status=(
-                NotificationStatus.NOT_REQUIRED.value
+                NotificationStatus.PENDING.value
+                if (
+                    request.source_chat_id
+                    and status
+                    in {
+                        AsyncRunStatus.COMPLETED,
+                        AsyncRunStatus.FAILED,
+                        AsyncRunStatus.BLOCKED,
+                        AsyncRunStatus.CANCELLED,
+                    }
+                )
+                else NotificationStatus.NOT_REQUIRED.value
             ),
             notification_attempts=0,
             created_at=self._sqlite_time(timestamp),

@@ -20,6 +20,16 @@ const MODES = new Set(["quick", "build"]);
 const PRIORITIES = new Set(["low", "normal", "high", "critical"]);
 const POLICY_DECISIONS = new Set(["allow", "require_approval", "deny", "escalate"]);
 const ASYNC_STATUSES = new Set(["pending", "blocked"]);
+const ASYNC_RUN_STATUSES = new Set([
+  "pending",
+  "running",
+  "retry_scheduled",
+  "verifying",
+  "completed",
+  "failed",
+  "blocked",
+  "cancelled",
+]);
 
 function sha256(value) {
   return createHash("sha256").update(value, "utf8").digest("hex");
@@ -243,6 +253,15 @@ export function validateAsyncTaskAccepted(value, requestId) {
   return root;
 }
 
+export function validateAsyncTaskRun(value, requestId) {
+  const root = requireObject(value, requestId);
+  const status = requireString(root.status, requestId);
+  if (!ASYNC_RUN_STATUSES.has(status)) {
+    throw validationError(requestId);
+  }
+  return root;
+}
+
 export async function prepareCoreRequest({ config, request, fetchImpl = fetch }) {
   const requestId = request?.request_id;
   const controller = new AbortController();
@@ -326,6 +345,47 @@ export async function submitAsyncTask({ config, payload, fetchImpl = fetch }) {
       throw validationError(requestId);
     }
     return validateAsyncTaskAccepted(value, requestId);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function getAsyncTaskRun({ config, runId, requestId, fetchImpl = fetch }) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+
+  try {
+    let response;
+    try {
+      response = await fetchImpl(`${config.baseUrl}/api/async-tasks/${encodeURIComponent(runId)}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${config.token}`,
+        },
+        signal: controller.signal,
+      });
+    } catch {
+      if (controller.signal.aborted) {
+        throw new CoreIntegrationError("timeout", { requestId });
+      }
+      throw new CoreIntegrationError("connection", { requestId });
+    }
+
+    if (!response || typeof response.status !== "number" || typeof response.json !== "function") {
+      throw validationError(requestId);
+    }
+    if (!response.ok) {
+      const failureClass = response.status === 401 || response.status === 403 ? "authentication" : "http";
+      throw new CoreIntegrationError(failureClass, { status: response.status, requestId });
+    }
+
+    let value;
+    try {
+      value = await response.json();
+    } catch {
+      throw validationError(requestId);
+    }
+    return validateAsyncTaskRun(value, requestId);
   } finally {
     clearTimeout(timer);
   }

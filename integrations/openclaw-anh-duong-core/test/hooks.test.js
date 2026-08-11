@@ -176,12 +176,15 @@ test("DR-1R workflow acknowledges once without exposing IDs and blocks the model
   let submitted;
   const fetchImpl = async (url, init) => {
     calls.push(url);
-    const body = JSON.parse(init.body);
+    const body = init?.body ? JSON.parse(init.body) : undefined;
     if (url.endsWith("/prepare")) {
       return new Response(
         JSON.stringify(responseFixture(body.request_id, { route: "workflow" })),
         { status: 200 },
       );
+    }
+    if (url.endsWith("/api/async-tasks/run_wr1")) {
+      return new Response(JSON.stringify({ status: "running" }), { status: 200 });
     }
     submitted = body;
     return new Response(
@@ -195,7 +198,12 @@ test("DR-1R workflow acknowledges once without exposing IDs and blocks the model
       { status: 202 },
     );
   };
-  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl, logger });
+  const hooks = createAnhDuongCoreHooks({
+    env: ENV,
+    fetchImpl,
+    logger,
+    workflowProgressDelayMs: 0,
+  });
   const ctx = telegramContext("run-workflow");
 
   const first = await hooks.beforeAgentReply({ cleanedBody: "create task" }, ctx);
@@ -204,6 +212,7 @@ test("DR-1R workflow acknowledges once without exposing IDs and blocks the model
   assert.deepEqual(calls, [
     "http://core.local:8790/api/internal/requests/prepare",
     "http://core.local:8790/api/async-tasks",
+    "http://core.local:8790/api/async-tasks/run_wr1",
   ]);
   assert.equal(submitted.risk_level, 0);
   assert.equal(submitted.approval_required, false);
@@ -214,7 +223,7 @@ test("DR-1R workflow acknowledges once without exposing IDs and blocks the model
   assert.deepEqual(first, {
     handled: true,
     reply: { text: WORKFLOW_ACKNOWLEDGMENT },
-    reason: "anh_duong_workflow_accepted",
+    reason: "anh_duong_workflow_progress_after_threshold",
   });
   for (const forbidden of ["task_", "run_", "task_wr1", "run_wr1"]) {
     assert.equal(first.reply.text.includes(forbidden), false);
@@ -236,9 +245,115 @@ test("DR-1R workflow acknowledges once without exposing IDs and blocks the model
   assert.equal((await hooks.beforeAgentRun({}, ctx)).outcome, "block");
 });
 
-test("DR-1R replay preserves internal IDs without duplicate task, run, or acknowledgment", async () => {
+test("workflow that reaches terminal status before progress threshold sends no progress reply", async () => {
   const calls = [];
-  const logger = collectingLogger();
+  const fetchImpl = async (url, init) => {
+    calls.push(url);
+    const body = init?.body ? JSON.parse(init.body) : undefined;
+    if (url.endsWith("/prepare")) {
+      return new Response(
+        JSON.stringify(responseFixture(body.request_id, { route: "workflow" })),
+        { status: 200 },
+      );
+    }
+    if (url.endsWith("/api/async-tasks")) {
+      return new Response(
+        JSON.stringify({
+          task_id: "task_fast",
+          run_id: "run_fast",
+          status: "pending",
+          message: "ACCEPTED",
+          replayed: false,
+        }),
+        { status: 202 },
+      );
+    }
+    if (url.endsWith("/api/async-tasks/run_fast")) {
+      return new Response(JSON.stringify({ status: "completed" }), { status: 200 });
+    }
+    throw new Error(`unexpected URL ${url}`);
+  };
+  const hooks = createAnhDuongCoreHooks({
+    env: ENV,
+    fetchImpl,
+    workflowProgressDelayMs: 10,
+    sleep: async () => {},
+  });
+
+  const result = await hooks.beforeAgentReply(
+    { cleanedBody: "create task" },
+    telegramContext("run-fast-workflow"),
+  );
+
+  assert.deepEqual(result, {
+    handled: true,
+    reason: "anh_duong_workflow_completed_before_progress",
+  });
+  assert.deepEqual(calls, [
+    "http://core.local:8790/api/internal/requests/prepare",
+    "http://core.local:8790/api/async-tasks",
+    "http://core.local:8790/api/async-tasks/run_fast",
+  ]);
+});
+
+test("workflow still pending after progress threshold sends progress reply", async () => {
+  const calls = [];
+  let slept = 0;
+  const fetchImpl = async (url, init) => {
+    calls.push(url);
+    const body = init?.body ? JSON.parse(init.body) : undefined;
+    if (url.endsWith("/prepare")) {
+      return new Response(
+        JSON.stringify(responseFixture(body.request_id, { route: "workflow" })),
+        { status: 200 },
+      );
+    }
+    if (url.endsWith("/api/async-tasks")) {
+      return new Response(
+        JSON.stringify({
+          task_id: "task_slow",
+          run_id: "run_slow",
+          status: "pending",
+          message: "ACCEPTED",
+          replayed: false,
+        }),
+        { status: 202 },
+      );
+    }
+    if (url.endsWith("/api/async-tasks/run_slow")) {
+      return new Response(JSON.stringify({ status: "running" }), { status: 200 });
+    }
+    throw new Error(`unexpected URL ${url}`);
+  };
+  const hooks = createAnhDuongCoreHooks({
+    env: ENV,
+    fetchImpl,
+    workflowProgressDelayMs: 25,
+    sleep: async (ms) => {
+      slept += ms;
+    },
+  });
+
+  const result = await hooks.beforeAgentReply(
+    { cleanedBody: "create task" },
+    telegramContext("run-slow-workflow"),
+  );
+
+  assert.equal(slept, 25);
+  assert.deepEqual(result, {
+    handled: true,
+    reply: { text: WORKFLOW_ACKNOWLEDGMENT },
+    reason: "anh_duong_workflow_progress_after_threshold",
+  });
+  assert.deepEqual(calls, [
+    "http://core.local:8790/api/internal/requests/prepare",
+    "http://core.local:8790/api/async-tasks",
+    "http://core.local:8790/api/async-tasks/run_slow",
+  ]);
+});
+
+test("blocked async submit is handled without workflow acknowledgment", async () => {
+  const calls = [];
   const fetchImpl = async (url, init) => {
     calls.push(url);
     const body = JSON.parse(init.body);
@@ -247,6 +362,49 @@ test("DR-1R replay preserves internal IDs without duplicate task, run, or acknow
         JSON.stringify(responseFixture(body.request_id, { route: "workflow" })),
         { status: 200 },
       );
+    }
+    return new Response(
+      JSON.stringify({
+        task_id: "task_blocked",
+        run_id: "run_blocked",
+        status: "blocked",
+        message: "approval_required: This action requires approval.",
+        replayed: false,
+      }),
+      { status: 202 },
+    );
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const result = await hooks.beforeAgentReply(
+    { cleanedBody: "create task" },
+    telegramContext("run-blocked-workflow"),
+  );
+
+  assert.deepEqual(calls, [
+    "http://core.local:8790/api/internal/requests/prepare",
+    "http://core.local:8790/api/async-tasks",
+  ]);
+  assert.deepEqual(result, {
+    handled: true,
+    reason: "anh_duong_workflow_blocked",
+  });
+  assert.equal(result.reply, undefined);
+});
+
+test("DR-1R replay preserves internal IDs without duplicate task, run, or acknowledgment", async () => {
+  const calls = [];
+  const logger = collectingLogger();
+  const fetchImpl = async (url, init) => {
+    calls.push(url);
+    const body = init?.body ? JSON.parse(init.body) : undefined;
+    if (url.endsWith("/prepare")) {
+      return new Response(
+        JSON.stringify(responseFixture(body.request_id, { route: "workflow" })),
+        { status: 200 },
+      );
+    }
+    if (url.endsWith("/api/async-tasks/run_wr1")) {
+      return new Response(JSON.stringify({ status: "running" }), { status: 200 });
     }
     return new Response(
       JSON.stringify({
@@ -316,7 +474,11 @@ test("core-read preparation never enqueues an async task", async () => {
       { status: 200 },
     );
   };
-  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const hooks = createAnhDuongCoreHooks({
+    env: ENV,
+    fetchImpl,
+    workflowProgressDelayMs: 0,
+  });
   const ctx = telegramContext("run-core-read");
 
   assert.equal(await hooks.beforeAgentReply({ cleanedBody: "status" }, ctx), undefined);
@@ -420,12 +582,15 @@ test("DR-1R official pre-run context uses the human workflow acknowledgment", as
   const calls = [];
   const fetchImpl = async (url, init) => {
     calls.push(url);
-    const body = JSON.parse(init.body);
+    const body = init?.body ? JSON.parse(init.body) : undefined;
     if (url.endsWith("/prepare")) {
       return new Response(
         JSON.stringify(responseFixture(body.request_id, { route: "workflow" })),
         { status: 200 },
       );
+    }
+    if (url.endsWith("/api/async-tasks/run_wr1")) {
+      return new Response(JSON.stringify({ status: "running" }), { status: 200 });
     }
     return new Response(
       JSON.stringify({
@@ -438,7 +603,11 @@ test("DR-1R official pre-run context uses the human workflow acknowledgment", as
       { status: 202 },
     );
   };
-  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const hooks = createAnhDuongCoreHooks({
+    env: ENV,
+    fetchImpl,
+    workflowProgressDelayMs: 0,
+  });
   const ctx = telegramContext(undefined);
   delete ctx.runId;
   ctx.sessionId = "official-session-id";
@@ -452,9 +621,10 @@ test("DR-1R official pre-run context uses the human workflow acknowledgment", as
   assert.deepEqual(calls, [
     "http://core.local:8790/api/internal/requests/prepare",
     "http://core.local:8790/api/async-tasks",
+    "http://core.local:8790/api/async-tasks/run_wr1",
   ]);
   assert.equal(first.handled, true);
-  assert.equal(first.reason, "anh_duong_workflow_accepted");
+  assert.equal(first.reason, "anh_duong_workflow_progress_after_threshold");
   assert.equal(first.reply.text, WORKFLOW_ACKNOWLEDGMENT);
   assert.equal(first.reply.text.includes("task_"), false);
   assert.equal(first.reply.text.includes("run_"), false);

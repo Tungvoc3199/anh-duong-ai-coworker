@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildAsyncTaskCreate,
   buildCoreRequest,
+  getAsyncTaskRun,
   prepareCoreRequest,
   submitAsyncTask,
   validateAsyncTaskAccepted,
@@ -232,6 +233,26 @@ test("async submit performs one authenticated POST and validates replay metadata
     message: "ACCEPTED",
     replayed: false,
   });
+});
+
+test("async run status lookup performs authenticated GET and validates status", async () => {
+  const calls = [];
+  const run = await getAsyncTaskRun({
+    config: CONFIG,
+    runId: "run_wr1",
+    requestId: "tg-run-workflow",
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      return new Response(JSON.stringify({ status: "completed" }), { status: 200 });
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "http://core.local:8790/api/async-tasks/run_wr1");
+  assert.equal(calls[0].init.method, "GET");
+  assert.equal(calls[0].init.headers.Authorization, `Bearer ${TOKEN}`);
+  assert.equal(calls[0].init.body, undefined);
+  assert.equal(run.status, "completed");
 });
 
 for (const status of [401, 409, 422]) {

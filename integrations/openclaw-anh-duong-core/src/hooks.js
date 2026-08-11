@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { CoreIntegrationError, readCoreConfig } from "./config.js";
 import {
   buildAsyncTaskCreate,
+  getAsyncTaskRun,
   buildCoreRequest,
   prepareCoreRequest,
   submitAsyncTask,
@@ -15,6 +16,13 @@ export const WORKFLOW_ACKNOWLEDGMENT =
   "Em đã nhận việc và đang xử lý. Em sẽ báo lại ngay khi hoàn tất.";
 
 const STATE_TTL_MS = 5 * 60 * 1_000;
+const WORKFLOW_PROGRESS_DELAY_MS = 1_500;
+const TERMINAL_RUN_STATUSES = new Set([
+  "completed",
+  "failed",
+  "blocked",
+  "cancelled",
+]);
 
 function isTelegram(ctx) {
   return ctx?.messageProvider === "telegram" || ctx?.channel === "telegram";
@@ -137,6 +145,8 @@ export function createAnhDuongCoreHooks({
   fetchImpl = fetch,
   logger,
   now = () => Date.now(),
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  workflowProgressDelayMs = WORKFLOW_PROGRESS_DELAY_MS,
 } = {}) {
   let config;
   let configFailure;
@@ -417,10 +427,26 @@ export function createAnhDuongCoreHooks({
           reason: "anh_duong_workflow_replayed",
         };
       }
+      if (accepted.status === "blocked") {
+        return {
+          handled: true,
+          reason: "anh_duong_workflow_blocked",
+        };
+      }
+      const progressDecision = await waitForWorkflowProgressDecision({
+        accepted,
+        requestId: state.requestId,
+      });
+      if (progressDecision.terminal) {
+        return {
+          handled: true,
+          reason: "anh_duong_workflow_completed_before_progress",
+        };
+      }
       return {
         handled: true,
         reply: { text: WORKFLOW_ACKNOWLEDGMENT },
-        reason: "anh_duong_workflow_accepted",
+        reason: "anh_duong_workflow_progress_after_threshold",
       };
     } catch (error) {
       const failureClass = failureClassOf(error);
@@ -444,6 +470,31 @@ export function createAnhDuongCoreHooks({
         reply: { text: SAFE_MESSAGE },
         reason: "anh_duong_workflow_failed",
       };
+    }
+  }
+
+  async function waitForWorkflowProgressDecision({ accepted, requestId }) {
+    const delayMs = Math.max(0, Number(workflowProgressDelayMs) || 0);
+    if (delayMs > 0) {
+      await sleep(delayMs);
+    }
+    try {
+      const run = await getAsyncTaskRun({
+        config,
+        runId: accepted.run_id,
+        requestId,
+        fetchImpl,
+      });
+      return { terminal: TERMINAL_RUN_STATUSES.has(run.status) };
+    } catch (error) {
+      safeLog(logger, "warn", {
+        event: "anh_duong_core_workflow_progress_probe",
+        outcome: "failure",
+        request_id: requestId,
+        failure_class: failureClassOf(error),
+        ...(Number.isInteger(error?.status) ? { http_status: error.status } : {}),
+      });
+      return { terminal: false };
     }
   }
 

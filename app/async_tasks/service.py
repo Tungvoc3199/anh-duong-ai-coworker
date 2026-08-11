@@ -85,6 +85,14 @@ class AsyncTaskService:
             request=request,
             idempotency_key=idempotency_key,
             status=run_status,
+            error_code=(
+                decision.reason_code
+                if not decision.allowed
+                else None
+            ),
+            error_message=(
+                decision.message if not decision.allowed else None
+            ),
         )
         return AsyncTaskAccepted(
             task_id=task.id,

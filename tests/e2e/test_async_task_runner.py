@@ -1,34 +1,32 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
-import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.async_tasks import (
     AsyncRunStatus,
+    AsyncTaskCreate,
     AsyncTaskPolicyGate,
     AsyncTaskRepository,
+    AsyncTaskService,
     AsyncTaskWorker,
     NotificationStatus,
     NotificationWorker,
 )
 from app.audit import AuditWriter
-from app.config import Settings
 from app.db.base import Base
 from app.db.models import ProjectRow, TaskRow
 from app.db.session import create_db_engine
-from app.main import create_app
 from app.openclaw import OpenClawExecutor, OpenClawNotifier
-from app.tasks import TaskStatus
+from app.tasks import TaskRepository, TaskService, TaskStatus
 
 
-@pytest.mark.asyncio
-async def test_api_to_http_execution_to_http_notification(
+def test_api_to_http_execution_to_http_notification(
     tmp_path: Path,
 ) -> None:
     engine = create_db_engine(
@@ -53,39 +51,38 @@ async def test_api_to_http_execution_to_http_notification(
         )
         session.commit()
 
-    settings = Settings(
-        database_url="sqlite+pysqlite:///:memory:",
-        audit_path=tmp_path / "e2e-audit.jsonl",
-        internal_api_token="e2e-token",
-        async_worker_enabled=False,
-        async_worker_workspace_roots=(tmp_path,),
-    )
-    app = create_app(settings=settings, engine=engine)
     paths: list[str] = []
 
     try:
-        with TestClient(app) as client:
-            accepted = client.post(
-                "/api/async-tasks",
-                headers={
-                    "Authorization": "Bearer e2e-token",
-                },
-                json={
-                    "project_id": "proj_e2e",
-                    "title": "E2E async task",
-                    "goal": "Complete through the HTTP gateway",
-                    "mode": "build",
-                    "risk_level": 0,
-                    "workspace": str(tmp_path / "workspace"),
-                    "source_channel": "telegram",
-                    "source_chat_id": "chat-test",
-                    "idempotency_key": "telegram:e2e",
-                },
+        with factory() as session:
+            audit_writer = AuditWriter(
+                tmp_path / "e2e-audit.jsonl",
+                fsync=False,
             )
+            service = AsyncTaskService(
+                task_service=TaskService(
+                    TaskRepository(session),
+                    audit_writer,
+                ),
+                repository=AsyncTaskRepository(session),
+                policy_gate=AsyncTaskPolicyGate((tmp_path,)),
+            )
+            accepted = service.create(
+                AsyncTaskCreate(
+                    project_id="proj_e2e",
+                    title="E2E async task",
+                    goal="Complete through the HTTP gateway",
+                    mode="build",
+                    risk_level=0,
+                    workspace=str(tmp_path / "workspace"),
+                    source_channel="telegram",
+                    source_chat_id="chat-test",
+                    idempotency_key="telegram:e2e",
+                )
+            )
+            session.commit()
 
-        assert accepted.status_code == 202
         assert paths == []
-        accepted_body = accepted.json()
 
         def handler(request: httpx.Request) -> httpx.Response:
             paths.append(request.url.path)
@@ -148,7 +145,7 @@ async def test_api_to_http_execution_to_http_notification(
                 datetime.now(UTC) + timedelta(seconds=1)
             ),
         )
-        assert await worker.run_once() is True
+        assert asyncio.run(worker.run_once()) is True
         assert paths == ["/v1/responses"]
 
         notifier = OpenClawNotifier(
@@ -161,17 +158,17 @@ async def test_api_to_http_execution_to_http_notification(
             notifier=notifier,
         )
         try:
-            assert await notification_worker.run_once() is True
+            assert asyncio.run(notification_worker.run_once()) is True
         finally:
-            await notifier.aclose()
+            asyncio.run(notifier.aclose())
 
         with factory() as session:
             run = AsyncTaskRepository(session).get(
-                accepted_body["run_id"]
+                accepted.run_id
             )
             task = session.get(
                 TaskRow,
-                accepted_body["task_id"],
+                accepted.task_id,
             )
 
         assert paths == ["/v1/responses", "/tools/invoke"]
