@@ -21,6 +21,13 @@
 4. Obtain read-only Review before closure.
 5. Do not claim PASS from file creation alone.
 
+## Automatic commit for verified fixes
+- For every bug/error repair, once the scoped fix is verified PASS, commit it automatically without asking the user for separate commit approval.
+- Stage and commit only the exact files belonging to the verified fix plus its closure/evidence artifacts; never include unrelated dirty files.
+- Do not re-run an already-passed verification solely because commit mechanics failed; fix the Git/permission/worktree issue and continue the same commit operation.
+- If the normal working tree cannot safely commit because of locks, permissions, divergence, or unrelated dirty state, use a safe isolated worktree or other non-destructive Git path rather than mixing or discarding existing work.
+- This standing approval covers Git commit of verified fixes. It does not by itself authorize destructive operations, production deploy/restart, provider/token/model changes, DB migration, or other protected actions.
+
 ## User-facing prompt minimization
 - One checkpoint = one complete objective.
 - Give the user only one concise command or prompt per checkpoint.
