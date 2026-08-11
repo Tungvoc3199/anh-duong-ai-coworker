@@ -1,0 +1,18 @@
+ONE-SHOT: make GitHub repo Tungvoc3199/anh-duong-ai-coworker the canonical remote for the verified Ánh Dương source, without disturbing production.
+
+Local authoritative repo: /home/thadc/AIOS/anh-duong-core
+GitHub default branch currently has independent docs history. Preserve it.
+
+Do everything autonomously to DONE in this single run. Start with read-only git/runtime/conflict checks. Never modify/restart production service, DB, CACHE/TOKEN work, provider/model/9Router, or unrelated dirty files.
+
+Use a clean temp clone/integration repo. Import the LOCAL COMMITTED history as the source lineage. Also include the already production-E2E-verified Telegram workflow fix: prefer the existing clean commit 9c03450c9fee5a819573915680c05045b0c38f79 if its temp clone/object is still available and verify its 15-file scope; otherwise reconstruct exactly that final-reviewed scoped patch from the live production tree into a clean descendant of local HEAD and re-run the same focused/plugin/full/static gates before committing. Do not include unrelated dirty production changes.
+
+Unify histories safely: start a sync branch from GitHub main, merge the local authoritative lineage with --allow-unrelated-histories, preserving existing GitHub docs. Resolve conflicts by treating local app/tests/integrations/scripts/alembic/runtime project config as authoritative source and preserving GitHub-only docs; never silently discard either side. No force push.
+
+Before publishing, verify the resulting clean tree: git diff --check, scoped/full tests that are runnable with the existing local venv, plugin tests, Ruff, Mypy, Compileall, and confirm no secrets/checkpoint artifacts/.env/.venv/cache runtime data are added. Confirm the verified Telegram workflow fix is present and unrelated dirty production work is absent.
+
+Create a remote backup branch pointing to the pre-sync GitHub main. Push the verified sync branch. Re-fetch and compare the remote tree/commit. If all gates pass, fast-forward GitHub main to that verified sync commit (no force), then verify main remotely contains app/, tests/, integrations/openclaw-anh-duong-core/, existing docs/, and the expected merge ancestry from both prior GitHub main and local source history.
+
+Finally add/update local origin to the GitHub repo and fetch it, but do NOT reset/checkout/clean/stash the dirty production working tree. Create a non-checked-out local tracking ref/branch for the new origin/main if safe. Leave production runtime untouched.
+
+Definition of DONE: GitHub main contains the verified authoritative source + preserved prior docs, backup branch exists, histories are unified, no force push, no secrets/unrelated dirty work, production unchanged/healthy, and report the final GitHub main SHA plus backup branch and verification summary. If an actual external credential is the only blocker, stop once and report exactly that single hard blocker; otherwise keep fixing/retrying until DONE.
