@@ -25,7 +25,6 @@ from app.async_tasks import (
     recover_stale_runs,
 )
 from app.audit import AuditWriter
-from app.cache.service import CacheService, CacheSettings
 from app.config import Settings, get_settings
 from app.context_builder import create_context_builder
 from app.db.session import create_db_engine
@@ -81,8 +80,6 @@ def create_app(
                 autoflush=False,
             )
             app.state.session_factory = factory
-            if app.state.cache_service is not None:
-                app.state.cache_service.start()
             app.state.background_tasks = []
             app.state.accepting_async_tasks = True
             app.state.async_runtime_ready = False
@@ -197,34 +194,10 @@ def create_app(
     application.state.engine = engine
     application.state.session_factory = None
     application.state.context_builder_factory = create_context_builder
-    # Build cache settings from config
-    cache_settings = CacheSettings(
-        enabled=runtime_settings.cache_enabled,
-        l1_enabled=runtime_settings.cache_l1_enabled,
-        l2_enabled=runtime_settings.cache_l2_enabled,
-        l1_max_entries=runtime_settings.cache_l1_max_entries_per_namespace,
-        l1_max_bytes=runtime_settings.cache_l1_max_bytes_per_namespace,
-        l2_max_payload_bytes=runtime_settings.cache_l2_max_payload_bytes,
-        default_ttl_seconds=runtime_settings.cache_default_ttl_seconds,
-        cache_db_path=runtime_settings.cache_db_path,
-        persona_ttl_seconds=runtime_settings.cache_persona_ttl_seconds,
-        memory_retrieval_ttl_seconds=runtime_settings.cache_memory_retrieval_ttl_seconds,
-        l2_max_entries=runtime_settings.cache_l2_max_entries,
-    )
-    cache_service = (
-        CacheService(cache_settings, runtime_settings.cache_db_path)
-        if cache_settings.enabled
-        else None
-    )
-
-    application.state.cache_service = cache_service
     application.state.core_request_pipeline_factory = partial(
         create_core_request_pipeline,
         audit_writer=audit_writer,
         persona_root=Path("data/persona"),
-        cache_service=cache_service,
-        persona_ttl_seconds=cache_settings.persona_ttl_seconds,
-        memory_retrieval_ttl_seconds=cache_settings.memory_retrieval_ttl_seconds,
     )
     application.state.background_tasks = []
     application.state.accepting_async_tasks = False
