@@ -1,0 +1,3065 @@
+{
+  "files": [
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/AGENTS.md",
+      "role": "source",
+      "sha256": "9513246999de09204eb89cbf5df0a9f921d6999cd2f3b49b95a7dfd5b62ae2ed",
+      "timestamp": "2026-08-06T06:40:11.653137+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/CHANGELOG-PATCH-TASK-2.1.md",
+      "role": "changelog",
+      "sha256": "1a9740bb16d951fc765aed1550bac9eec5de1924587a86291b07510146768798",
+      "timestamp": "2026-07-24T08:55:59.735155+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/CHANGELOG-PATCH-TASK-2.2.md",
+      "role": "changelog",
+      "sha256": "4c4221c9e3c852967c465ac3aef85b488942a74d8dbdb8f529edf5f0f02d7320",
+      "timestamp": "2026-07-24T09:43:14.003481+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/CHANGELOG-PATCH-TASK-2.3.md",
+      "role": "changelog",
+      "sha256": "f726a20641f3e48c579b59dba477d66a81253e68405948843ae110b9405d087d",
+      "timestamp": "2026-07-24T10:04:34.343251+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/CHANGELOG-PATCH-TASK-3.1.md",
+      "role": "changelog",
+      "sha256": "bb00bde64c3c84623d98efae333997dce7179a5b000aac86dadd3d43260d72e2",
+      "timestamp": "2026-07-24T10:23:15.842896+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/CHANGELOG-PATCH-TASK-3.2.md",
+      "role": "changelog",
+      "sha256": "b6e215adf2d19e3da2859816c319a5426e8d1622d31c9377667aff7d9ee1369b",
+      "timestamp": "2026-07-24T10:36:34.147530+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/CHANGELOG-PATCH-TASK-3.3.md",
+      "role": "changelog",
+      "sha256": "a9034ab2f9ac0c05e914a73401c64d1c2970d161356a69e401eab26618c9ec2a",
+      "timestamp": "2026-07-24T10:53:28.829536+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/CHANGELOG-PATCH-TASK-4.1.md",
+      "role": "changelog",
+      "sha256": "da005df7bfbfcff12e67894287b88ce2270be4b14824f7b5c2f24ca8e607f86d",
+      "timestamp": "2026-07-24T12:10:43.788017+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/CHANGELOG.md",
+      "role": "changelog",
+      "sha256": "b8eb673e15994d523cffa995b2b6a000ab582d74c2fd37cae19aa14dd92faf93",
+      "timestamp": "2026-07-24T06:35:38.477476+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/PROJECT.md",
+      "role": "roadmap",
+      "sha256": "84b755c9f519d29b5d035394f0b237636b2480edc2f7da01f2f9bf3df2be83ad",
+      "timestamp": "2026-07-24T06:35:38.488749+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/README.md",
+      "role": "source",
+      "sha256": "4a8325befd827b32b00b52ec62ac9c25e8d62f8d20b241387bb33552099551b6",
+      "timestamp": "2026-07-24T06:35:38.499746+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/SHA256SUMS",
+      "role": "source",
+      "sha256": "86951fb34b1d723c22d72343b734fb3951d56a027d3ffbbc28acb0430528fe9b",
+      "timestamp": "2026-07-24T08:55:59.775461+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/SHA256SUMS-TASK2.2",
+      "role": "source",
+      "sha256": "fb552f629149293c73d790202106a81430252be2b0de06a1cbb6030292134a33",
+      "timestamp": "2026-07-24T09:43:14.013285+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/SHA256SUMS-TASK2.3",
+      "role": "source",
+      "sha256": "a4003cd1e7d72fb97ff8fc12bc42d077a2de16394f3c46b75b92a2c2c99121aa",
+      "timestamp": "2026-07-24T10:04:34.347501+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/SHA256SUMS-TASK3.1",
+      "role": "source",
+      "sha256": "51c6cba30128581eddbd05d9bf6dbb988933a9ff39010b767b2849777cb3f7c4",
+      "timestamp": "2026-07-24T10:23:15.847897+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/SHA256SUMS-TASK3.2",
+      "role": "source",
+      "sha256": "d3f6f5cb68e79f29961603a6c08f9596467a9910288058847af472b92894c2b1",
+      "timestamp": "2026-07-24T10:36:34.150531+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/SHA256SUMS-TASK3.3",
+      "role": "source",
+      "sha256": "c96a147cf255812165734a9c44e906400859b34cf17cefb616826f5c82fade13",
+      "timestamp": "2026-07-24T10:53:28.836614+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/SHA256SUMS-TASK4.1",
+      "role": "source",
+      "sha256": "1544398d2b30fb799147a6244804ae56b1f228539bff75f45ac3bc2a7bc9418a",
+      "timestamp": "2026-07-24T12:10:43.803740+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/STATE.md",
+      "role": "roadmap",
+      "sha256": "52b64da9785b6b5e389f60596ac55aad8d44904c5fa3abf01ec5d40974c1a40f",
+      "timestamp": "2026-07-24T06:35:38.522363+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/alembic.ini",
+      "role": "source",
+      "sha256": "a6d7f88c0cf28374128b70caf151d5531c4166d9658986d0a418e6bb5286ef33",
+      "timestamp": "2026-07-24T06:35:38.533364+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/alembic/env.py",
+      "role": "source",
+      "sha256": "6aabdc8d25776ff4b03628f684b9c184ccfc0b1d89729ad4afe54253c169ace6",
+      "timestamp": "2026-07-24T07:54:58.594182+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/alembic/script.py.mako",
+      "role": "source",
+      "sha256": "b7a8483b1b5a11a61005e9ab4774b6a7ba782ed6585a6c1ee0267b47229b6283",
+      "timestamp": "2026-07-24T06:35:38.593090+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/alembic/versions/0001_initial_schema.py",
+      "role": "source",
+      "sha256": "220eb83a422d3c96fee79247f35c26cb2fdb407fb4c7b5dca4118774e2e74b45",
+      "timestamp": "2026-07-24T07:54:58.624924+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/alembic/versions/0002_memory_fts5.py",
+      "role": "source",
+      "sha256": "5fd9ba7d9c0c5f88a8d533abdce0175e8fa0a4f4967fa5ad00efff88d7fcd9e3",
+      "timestamp": "2026-07-24T12:10:43.817865+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/alembic/versions/0003_async_task_runner_v1.py",
+      "role": "source",
+      "sha256": "6682558e800fee5b116ddb38dd231a821c8a0cbe7ad88c1d281f51962e031fed",
+      "timestamp": "2026-07-27T19:16:43.473286+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/anh_duong_core.egg-info/PKG-INFO",
+      "role": "source",
+      "sha256": "d8e3c3526b0a5e4e0c48df952a7ddb9dbc1782c9440f1844ca7f8b8692556bda",
+      "timestamp": "2026-08-03T19:01:02.250724+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/anh_duong_core.egg-info/SOURCES.txt",
+      "role": "source",
+      "sha256": "03479e4e09d2cc1761c25eb1aab61ea3f690c279f55d5852c05c45c5ccf95710",
+      "timestamp": "2026-08-03T19:01:02.257924+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/anh_duong_core.egg-info/dependency_links.txt",
+      "role": "source",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "timestamp": "2026-08-03T19:01:02.250724+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/anh_duong_core.egg-info/requires.txt",
+      "role": "source",
+      "sha256": "17bc76707a91d32f698d7c85179a2e27b19d327ed41f2445e8d8a798bacdfe7b",
+      "timestamp": "2026-08-03T19:01:02.250724+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/anh_duong_core.egg-info/top_level.txt",
+      "role": "source",
+      "sha256": "8a8f60ecb09b7e64c6d5214a8043865e608507db8c3f61f995eae6d078875901",
+      "timestamp": "2026-08-03T19:01:02.250724+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/__init__.py",
+      "role": "source",
+      "sha256": "47c05b5e5bb8a69ee6482df8a34cd9ff920695ea046d357132c8e3f8bbe18969",
+      "timestamp": "2026-07-24T06:35:38.646181+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/api/__init__.py",
+      "role": "source",
+      "sha256": "c5e79b75137811726e30acef2fa5cfc649514fce1c86da771535b368f43238c0",
+      "timestamp": "2026-07-24T06:35:38.700967+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/api/async_tasks.py",
+      "role": "source",
+      "sha256": "a116e166684da697d39308c5fa4034fbd1a88f55dd0420adf9fecc7a32e57e09",
+      "timestamp": "2026-07-28T15:17:27.594788+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/api/async_tasks.py.orig",
+      "role": "source",
+      "sha256": "a6e82113a122713166a5577e8f1cf888c6d9d22af95bef875245e56758dd196b",
+      "timestamp": "2026-07-27T20:04:22.990499+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/api/health.py",
+      "role": "source",
+      "sha256": "0549894c90edd5ca692ee5a3b7667d364357ce9e5d0fe18b3ad75a403ee04a16",
+      "timestamp": "2026-07-24T07:54:58.623907+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/api/prepared_requests.py",
+      "role": "source",
+      "sha256": "9b6e2be6b3a97d2cfba399fd421363665f2467b9f2da313e00c7edba84d6ef96",
+      "timestamp": "2026-08-01T17:06:46.840280+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/async_tasks/__init__.py",
+      "role": "source",
+      "sha256": "3deaa85e6ea4578c5cbb6626d07193066f35fd503f4eccff8397db1b2f15ca7b",
+      "timestamp": "2026-07-27T20:02:22.962434+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/async_tasks/audit.py",
+      "role": "source",
+      "sha256": "e300b45597d5590a591e759c2048f742ce5a7886a5ad7234a63a4e629f01b54e",
+      "timestamp": "2026-07-28T14:29:26.693863+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/async_tasks/models.py",
+      "role": "source",
+      "sha256": "3e64e9a8681ba4285ede73faed903acaeb71514cc0e39e9557603b322e064bbc",
+      "timestamp": "2026-08-01T17:06:46.842336+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/async_tasks/notification.py",
+      "role": "source",
+      "sha256": "49ce04d0299f0c9344d6c5bb64960ae61be01d0f59349430e6e6e1e3f48d5f87",
+      "timestamp": "2026-07-28T14:39:17.900604+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/async_tasks/policy.py",
+      "role": "source",
+      "sha256": "098e21d7eaa08c4adb27c27694f065b84263f6e4b9bd1f0363ab01dd56881e24",
+      "timestamp": "2026-07-27T19:25:50.203588+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/async_tasks/recovery.py",
+      "role": "source",
+      "sha256": "5278d07b04eabab3ebd6cfd4f5e613d71908806675ee2ffe2b96632d5001c242",
+      "timestamp": "2026-07-28T14:37:22.917275+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/async_tasks/repository.py",
+      "role": "source",
+      "sha256": "d6fce79ffcd0dcdf7c5b30754cdef22fe1f3cd615faee03293adc4f61b2612d1",
+      "timestamp": "2026-07-28T15:17:27.557146+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/async_tasks/repository.py.orig",
+      "role": "source",
+      "sha256": "f080a2d30e2c2a5b5499512bc575993beb5149414a3e103cda2d20cf8903869f",
+      "timestamp": "2026-07-27T20:02:22.928497+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/async_tasks/service.py",
+      "role": "source",
+      "sha256": "da4e841a6a5339d3506b6b6f2dff3b50a68fb086e1858360727c93750c9e11f6",
+      "timestamp": "2026-08-01T17:06:46.911006+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/async_tasks/worker.py",
+      "role": "source",
+      "sha256": "81fb98143c0f4d07dcad80acdb2f95646c28081f3a7ae4eb421365bc248a19b0",
+      "timestamp": "2026-08-05T18:52:58.867069+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/audit/__init__.py",
+      "role": "source",
+      "sha256": "b78e4cfe4f648b6de283aa74e32199fb70936cd0bf4a618c81cefe3957bc904e",
+      "timestamp": "2026-07-24T10:04:34.360193+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/audit/models.py",
+      "role": "source",
+      "sha256": "93ea41d2cad7972a09f6609e1e11e909acd3fedd446a084e057a0ad21aff1a67",
+      "timestamp": "2026-07-24T10:24:21.202892+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/audit/redaction.py",
+      "role": "source",
+      "sha256": "cfac5cd87cb664df2f3306037e068ea45e82e7a1c34104e64a51bdf31e9df408",
+      "timestamp": "2026-07-24T10:04:34.379990+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/audit/writer.py",
+      "role": "source",
+      "sha256": "6091dc38c2c958ea025d851e4d209cfd1887c1634faf25fcede778d73af00830",
+      "timestamp": "2026-07-24T10:24:21.209890+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/capabilities/__init__.py",
+      "role": "source",
+      "sha256": "f9b181092e1e6f72a62cc188af9e21ae4f37d940fd963601b7e7a76084b49de9",
+      "timestamp": "2026-07-31T15:39:17.946979+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/capabilities/models.py",
+      "role": "source",
+      "sha256": "3fdf2697157763a54256cb10a111df7bff3f63f92016432a7763c8e218b5f42a",
+      "timestamp": "2026-07-31T15:39:17.944954+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/capabilities/router.py",
+      "role": "source",
+      "sha256": "6074f0ae6feba3a8a2a7ba4435e8c913648bd4391f0418cdc4e7d632201b42e1",
+      "timestamp": "2026-07-31T15:47:21.257724+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/config.py",
+      "role": "source",
+      "sha256": "526d745c7e91dfe1e9a68499fb5d16c9d8a782b7b82da4d4ea519ebb75896975",
+      "timestamp": "2026-07-27T20:08:06.019847+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/context_builder/__init__.py",
+      "role": "source",
+      "sha256": "b97332684e8801a7d0193b05ff5cc3674857ea134e9c5b1f13f4715b4f4699cf",
+      "timestamp": "2026-07-31T16:42:10.805910+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/context_builder/_builder_impl.py",
+      "role": "source",
+      "sha256": "056c95b644d9e187fd3f772af52bb1b0bd08c10c0ecb0a60d099debeca1a6f07",
+      "timestamp": "2026-07-31T16:38:17.878043+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/context_builder/builder.py",
+      "role": "source",
+      "sha256": "213123dd7b69e5fb7b559b2db233302704dad8f750ceb242411fb8bf9c3af9f0",
+      "timestamp": "2026-07-31T17:07:40.242375+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/context_builder/models.py",
+      "role": "source",
+      "sha256": "4d51411ddc4cd6ff6c8178dae331bb857472d70b9300574c3b231e95ee8984ea",
+      "timestamp": "2026-07-31T16:21:54.037151+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/context_builder/tokens.py",
+      "role": "source",
+      "sha256": "553ed3469cb16d3a3db9b94cc339592915818d1921cae1f447a81e2ee246a765",
+      "timestamp": "2026-07-31T16:21:54.039170+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/context_builder/wiring.py",
+      "role": "source",
+      "sha256": "4b2f7f42fc357c9b64728d13ef0cecf2451bae3a1203b09f1d8d5797fba38b7f",
+      "timestamp": "2026-07-31T16:41:29.035458+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/db/__init__.py",
+      "role": "source",
+      "sha256": "fa2cd952011286d6f9d957037bbf21dbec4f1b4226d560e42951f2f1d31f83bf",
+      "timestamp": "2026-07-24T06:35:38.733936+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/db/base.py",
+      "role": "source",
+      "sha256": "d189396d280706a7ebb43bfd8ddaae6c9a4ae26c831af20b5dedec710120fa85",
+      "timestamp": "2026-07-24T07:54:58.203776+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/db/models.py",
+      "role": "source",
+      "sha256": "b7a99266e98d7c08b1101a9568360ec64237a5a12f9868a4fbfa86c2149a3237",
+      "timestamp": "2026-07-27T19:16:43.464767+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/db/session.py",
+      "role": "source",
+      "sha256": "97fed6244d50b19e12869708d4ea9b29dabe6edf547fef09b46beb99d2166fda",
+      "timestamp": "2026-07-24T07:54:58.596609+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/main.py",
+      "role": "source",
+      "sha256": "fd7ae5815364b99e3269d4b2bb911fbd321083d83456ccce30b9ebbebf36e574",
+      "timestamp": "2026-07-31T18:00:42.437487+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/memory/__init__.py",
+      "role": "source",
+      "sha256": "6f050fcd09c82ada8f09e717bdb43bb1f51e2703298ec24748bceeed5d4c8bb8",
+      "timestamp": "2026-07-26T17:04:48.987923+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/memory/models.py",
+      "role": "source",
+      "sha256": "0683011b587e8021cc7c499f739edbcd22d88fc72c4f31d664530818a044d9f3",
+      "timestamp": "2026-07-24T12:10:43.853066+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/memory/repository.py",
+      "role": "source",
+      "sha256": "86b91d144f644d56a1a1b467747956259a718ccf518e8276505521bb46e0a04b",
+      "timestamp": "2026-07-31T14:11:46.215930+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/memory/retrieval.py",
+      "role": "source",
+      "sha256": "7fa9defd6923c1049e92e0fc05cf4792d86dd06c36f104839b8cc43767d1a73d",
+      "timestamp": "2026-07-26T10:08:30.503979+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/openclaw/__init__.py",
+      "role": "source",
+      "sha256": "11c9e5d190116689ebc9419f7d150ed120c556c3272048506d8f72538a3f7f75",
+      "timestamp": "2026-07-27T19:54:33.847121+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/openclaw/executor.py",
+      "role": "source",
+      "sha256": "18d333cdc1f13e86b1ea209f9777a04c8b5a11f63cfab5d38fa02f073efd17bb",
+      "timestamp": "2026-08-05T18:52:58.874930+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/openclaw/models.py",
+      "role": "source",
+      "sha256": "40ce59dc6422d834b90386e83dd6459ea99f125834e507bc3a56b10e2bbc2704",
+      "timestamp": "2026-07-27T19:25:50.223115+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/openclaw/notifier.py",
+      "role": "source",
+      "sha256": "8e94bdbb708fed4eab28abffd47fa65f08f879a1ca132a63be0c99b26ffc6d4b",
+      "timestamp": "2026-08-03T16:51:49.709824+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/orchestration/__init__.py",
+      "role": "source",
+      "sha256": "90593e945f112c40808afea2abce09d6b9f68e13dfab83f96051ed41246037fe",
+      "timestamp": "2026-08-01T17:06:46.838426+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/orchestration/errors.py",
+      "role": "source",
+      "sha256": "72fd465b5b682719c78421846d2fd3875982eaf40b450635c8c6c7bf7c321fb2",
+      "timestamp": "2026-08-01T17:05:53.950546+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/orchestration/models.py",
+      "role": "source",
+      "sha256": "ea486fee791f1ebc71d162bda553b39ded09348b7c35fa28855127d91d288e61",
+      "timestamp": "2026-08-01T17:05:13.095208+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/orchestration/pipeline.py",
+      "role": "source",
+      "sha256": "0192d92afee4a7522e60a5555ee31b19be9c23a5a470e63ba9b112cb12b3a422",
+      "timestamp": "2026-08-01T17:13:17.470790+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/orchestration/wiring.py",
+      "role": "source",
+      "sha256": "c79dfaff37e44d1a6fe477f9f3cd2ac8d2048edb513d79bc6d83ae4b70dcc47e",
+      "timestamp": "2026-07-31T18:00:22.006037+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/orchestration/workflow.py",
+      "role": "source",
+      "sha256": "dbc8a14f85708f5eac95777000d41a9aeaffe4c02124373fd9c52e3b83e7878c",
+      "timestamp": "2026-08-03T10:34:43.246281+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/orchestration/workflow.py.orig",
+      "role": "source",
+      "sha256": "aac1ec8283b6ba74205a83733b4b60fd532dcfe50fccc911db3645ac4db3525c",
+      "timestamp": "2026-08-03T09:28:24.477270+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/persona/__init__.py",
+      "role": "source",
+      "sha256": "78a33c8516ebadcdaa39198cfe192df29bbf55eb177961ff412a801a9df5a667",
+      "timestamp": "2026-07-24T08:55:59.787444+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/persona/loader.py",
+      "role": "source",
+      "sha256": "1bc2d516d5905e0c3e98c7e655934f3ee34447873047f60c96a83bee9fd2ccd1",
+      "timestamp": "2026-07-24T08:55:59.798383+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/persona/models.py",
+      "role": "source",
+      "sha256": "d0bf69a8311a4d9ae717f3a5c5015b65520c368e0f94f4afb01ce3d3b42adf5e",
+      "timestamp": "2026-07-24T08:55:59.805378+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/policy/__init__.py",
+      "role": "source",
+      "sha256": "5b7ae6cfaf76ce30741fa9eaf7e6d8bfead3e9fee09ed49e219399a2bd6dddd7",
+      "timestamp": "2026-07-24T09:43:14.024048+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/policy/engine.py",
+      "role": "source",
+      "sha256": "f9a4ed78f495c7b49ddcee39e32e7f269e03d8bf3f6c07ba22a48fe31cb03153",
+      "timestamp": "2026-07-24T09:43:14.032421+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/policy/models.py",
+      "role": "source",
+      "sha256": "315f89b2ffbf7dc42981d17677b53d35f0972df5ee94d7b4714e0270bacaedd7",
+      "timestamp": "2026-07-24T09:47:05.501834+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/policy/path_scope.py",
+      "role": "source",
+      "sha256": "b4414d4a1cc015a5a2f46e032dd81d13d81ada8b533c4cfde6295f0e1a092c12",
+      "timestamp": "2026-07-24T09:43:14.050825+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/projects/__init__.py",
+      "role": "source",
+      "sha256": "706d726b02f6207df0ffab80d7794942a1c43ac4c0198fce47f2f6196ca104e5",
+      "timestamp": "2026-07-24T10:36:34.155258+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/projects/mirror.py",
+      "role": "source",
+      "sha256": "07a4df12422ec818846026d1221fb3d9ad9e05d545e03a75e2ceb8eef677c0f8",
+      "timestamp": "2026-07-24T10:36:34.166026+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/projects/models.py",
+      "role": "source",
+      "sha256": "cf0705e4550eae7c35e1fabd975c993703738fac61ad30f3313f59f942f94357",
+      "timestamp": "2026-07-24T10:27:23.529340+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/projects/repository.py",
+      "role": "source",
+      "sha256": "1b6338d2aae29c1307a039b91dd65976200dc4e8f3e6fa0c207e90992b7e0c7b",
+      "timestamp": "2026-07-24T10:23:15.878919+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/projects/service.py",
+      "role": "source",
+      "sha256": "e7c223344470738c9f9dc31f55b6b06789cdd4acb1f1828f9b6c776f22658ebc",
+      "timestamp": "2026-07-24T10:27:23.541342+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/routing/__init__.py",
+      "role": "source",
+      "sha256": "b943c47bcb62aef2664c1890d5334ad4689e438cf720add1e71cc0f9bae17fe6",
+      "timestamp": "2026-07-31T14:36:12.652869+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/routing/fast_router.py",
+      "role": "source",
+      "sha256": "3d0d24ebea325915e41ce3ab2a74df23a4951a3a2f5511bc245573a2bbc0699b",
+      "timestamp": "2026-08-03T07:48:34.899090+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/routing/fast_router.py.orig",
+      "role": "source",
+      "sha256": "0d6af918a75268d09d9ade789fae637d7037f4b1a15ba8a9620d09a753991d0c",
+      "timestamp": "2026-08-03T07:45:10.236357+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/routing/models.py",
+      "role": "source",
+      "sha256": "24fe7e5b3af0f4ec6e29f1d3735734cf5632178b9b409022dac22ea9484b507f",
+      "timestamp": "2026-07-31T14:36:12.648797+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/tasks/__init__.py",
+      "role": "source",
+      "sha256": "b71ea2385349b9cb063497ce6f2c58f8396e45390fff2dbed39e50431b8a9d80",
+      "timestamp": "2026-07-24T10:53:28.845037+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/tasks/models.py",
+      "role": "source",
+      "sha256": "0ba6bf53d0a3899a8ec32502426e55a272d6cef8b6e9f1a4f7e66d379366201c",
+      "timestamp": "2026-07-24T10:53:28.857033+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/tasks/repository.py",
+      "role": "source",
+      "sha256": "d1e534c08c663b24d83533ff9683d00d3d891ea8a0ac0e88d7c01fa575699479",
+      "timestamp": "2026-07-24T10:53:28.864038+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/app/tasks/service.py",
+      "role": "source",
+      "sha256": "9ee6f30653aba4ffb795e4e3a7b4031c0c086164332ec7312740da532acc4da4",
+      "timestamp": "2026-07-24T10:53:28.875067+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/artifacts/DR-1R-CODEX-telegram-verify.sh",
+      "role": "source",
+      "sha256": "63ff780e059f48641d934fcdfc9cba30f97f2f558e885250c2e62ea059e81b99",
+      "timestamp": "2026-08-03T11:51:08.894090+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/artifacts/DR-1R-CODEX-telegram-verify.sh.orig",
+      "role": "source",
+      "sha256": "86934dda34f0b053148fbeeea4746afa3cad52c696b9f0a3beb9f216e6368888",
+      "timestamp": "2026-08-03T10:57:58.172298+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/artifacts/TG-1-overlay-content.md",
+      "role": "source",
+      "sha256": "8e00ed752ef52ff9d8127350afaa9ac8bb0d9f15bcab56228bd661300792aed4",
+      "timestamp": "2026-08-01T15:20:32.700143+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/artifacts/TG-1-overlay.zip",
+      "role": "source",
+      "sha256": "942373e71c9b4638a35394b3a39192659820d1712ee9a400e11816c22b2dfdb4",
+      "timestamp": "2026-08-01T15:20:32.754273+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/artifacts/TG-1-report.md",
+      "role": "checkpoint",
+      "sha256": "0034b2ba56ec38d7c77c6cdf45a7eac6587b01b4692d3053c2f71575da50a34a",
+      "timestamp": "2026-08-01T15:18:19.755197+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/artifacts/TG-1-route-direct-fix.patch",
+      "role": "source",
+      "sha256": "cb6333d60b03558d4ee9888279734b5e7df3e03e164308fcb9132aa26e5aafee",
+      "timestamp": "2026-08-01T15:19:07.371583+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/artifacts/TG-1-runtime.log",
+      "role": "source",
+      "sha256": "188ea6c595873cd7664c064b8a3f1ea92ee2d8b3a64b4cfb8e3a4265ce90d729",
+      "timestamp": "2026-08-01T15:18:19.754203+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/artifacts/anh-duong-openclaw-core-gate-1.0.0.tgz",
+      "role": "source",
+      "sha256": "e95e22fbf95f9dbce0d931367024a793de7e0db3ddd0ac0273d79434945579e9",
+      "timestamp": "2026-08-01T12:25:01.570914+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/artifacts/tg1-plugin-proof-config.json",
+      "role": "source",
+      "sha256": "ca915068260ff2fba9cacdbe8269fee275204c1843ba68f214ea6303bc7e414c",
+      "timestamp": "2026-08-01T12:09:47.030998+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/data/persona/IDENTITY.md",
+      "role": "source",
+      "sha256": "a7330b951a2f25665f9f9039bb20d0f09ae899dca7bb22e93091ffac6ee7891e",
+      "timestamp": "2026-07-24T08:55:59.814298+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/data/persona/SOUL.md",
+      "role": "source",
+      "sha256": "b14444a72379a18258db59039c57ce03ae6e76db99f88829543a91bcbfa43041",
+      "timestamp": "2026-07-24T08:55:59.820313+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/data/persona/USER.md",
+      "role": "source",
+      "sha256": "6c209c6c34910b958a876114c3b7befdc4224ed3f49e2598586eb60fdb7fbd53",
+      "timestamp": "2026-07-24T08:55:59.827321+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/data/persona/WORK_STYLE.md",
+      "role": "source",
+      "sha256": "19c648c1d68db035db58eb4bb6170ab546fa93bdc212b4ce29174235179eca63",
+      "timestamp": "2026-07-24T08:55:59.834257+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/data/policy/POLICY.md",
+      "role": "source",
+      "sha256": "e0370c1a7e1af1486a09296c5bc7dd2c1a9555fa1c67f70a41248b91f8b05194",
+      "timestamp": "2026-07-24T09:43:14.063641+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/ASYNC_TASK_RUNNER_V1.md",
+      "role": "spec",
+      "sha256": "6c0093ef4f664f0c39ad6f4a640a7ce1d3fa7a9a425717e206ed0a60c3dc4d43",
+      "timestamp": "2026-07-28T15:21:56.912462+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/AUDIT_SYSTEM.md",
+      "role": "source",
+      "sha256": "e2bdce759c5eb5e71972d69c37e3e1d222b254767eb2bc732a3f7834852b5ef2",
+      "timestamp": "2026-07-24T10:04:34.400248+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/MEMORY_FTS5.md",
+      "role": "source",
+      "sha256": "6d8d428064fc58c50bc90a7e518b7d62ef50f0ee6422e523c888978f67cbafde",
+      "timestamp": "2026-07-24T12:10:43.878783+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/PERSONA.md",
+      "role": "source",
+      "sha256": "de3525b3428a499cc43f6044b9489457bbad7f9a31db58ce06e940573d8bf6f8",
+      "timestamp": "2026-07-24T08:55:59.838259+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/PHASE0-1-VERIFICATION.md",
+      "role": "source",
+      "sha256": "bc24b2dd1507b61956663a9e700ebbc19238e1fc1ebb4d9276cfabf7d158a81f",
+      "timestamp": "2026-07-24T06:35:38.787859+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/POLICY_ENGINE.md",
+      "role": "source",
+      "sha256": "ecfb8198282367fc0a374cdadc676e6cd3d9601335c884b6bb95a4d63d8b3d7e",
+      "timestamp": "2026-07-24T09:43:14.073917+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/PROJECT_MARKDOWN_MIRROR.md",
+      "role": "source",
+      "sha256": "a7cc835fd8ba26f7c12f943d5d405062e217c645d7de86bd11b0614826cc33ba",
+      "timestamp": "2026-07-24T10:36:34.174199+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/PROJECT_REGISTRY.md",
+      "role": "source",
+      "sha256": "5361db881743345d2e53fa51d6efb64820debb895a3c24f1ea4af873d2062638",
+      "timestamp": "2026-07-24T10:23:15.896881+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/RUNBOOK_SYSTEMD.md",
+      "role": "source",
+      "sha256": "9cea32316cb70d23cdbd7c5d44c60015667f6cce3bc9b3b98920b9cbda177276",
+      "timestamp": "2026-07-24T08:33:37.959460+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/TASK_4_2_HYBRID_MEMORY_RETRIEVAL.md",
+      "role": "spec",
+      "sha256": "e0c5622568040eb27d7512c4c8d594edab019aaaa9ff640b9662470ad2c35701",
+      "timestamp": "2026-07-25T15:50:59.930057+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/TASK_CR1_CAPABILITY_ROUTER.md",
+      "role": "spec",
+      "sha256": "62c3e8d4073ba786f3861aea1119d2e9da43108558b3e0dabbb7b93c4e6eab4a",
+      "timestamp": "2026-07-31T15:53:41.750621+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/TASK_FR1_FAST_ROUTER.md",
+      "role": "spec",
+      "sha256": "b27dcd4b0eb9c7515444b5dfb9701e47b5830ccc88717bac8b2522152cdb82e2",
+      "timestamp": "2026-07-31T14:59:12.945695+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/TASK_OR1_CORE_REQUEST_PIPELINE.md",
+      "role": "spec",
+      "sha256": "d03b0d4dcae3b30ef80b0a197f624d61dc98e93544b266497dd8c8fa428fa87f",
+      "timestamp": "2026-07-31T18:10:05.271619+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/TASK_REGISTRY.md",
+      "role": "spec",
+      "sha256": "e1e42c8b22b7c20e710dcbfe5e3e50a38b783f2c53d98d132948293f83ac2956",
+      "timestamp": "2026-07-24T10:53:28.881068+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/ade-os/README.md",
+      "role": "source",
+      "sha256": "a5d6950ec0d804d24159ee0ff39a332e921cd013aad9b0e97f655b6219516cde",
+      "timestamp": "2026-08-06T23:55:47.081587+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/ade-os/bugs/blocked-by-core.md",
+      "role": "source",
+      "sha256": "c2547475df8652a1b5c3f17aeb5ca8fd29a2d1dd3ea9c49e7030b7a3d013d23b",
+      "timestamp": "2026-08-06T23:55:47.081587+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/ade-os/bugs/checkpoint-gates.md",
+      "role": "source",
+      "sha256": "4fc84a204a29c59065821733412cc2081666cd9115861b6cb14adffa33b3ecb2",
+      "timestamp": "2026-08-06T23:55:47.081587+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/ade-os/bugs/docker-wsl-mounts.md",
+      "role": "source",
+      "sha256": "d978efd67235e04764901a287689e86a7baa9e3dc331aa426dc943b82077c7e3",
+      "timestamp": "2026-08-06T23:55:47.081587+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/ade-os/bugs/external-memory-cli.md",
+      "role": "source",
+      "sha256": "8a03bdf8da0acb305edc690bb5efc1d2e5dbebd2fc3feb40adc091cfc2f3f43d",
+      "timestamp": "2026-08-06T23:55:47.081587+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/ade-os/bugs/media-understanding.md",
+      "role": "source",
+      "sha256": "a8ff33941a067b7ef6944658a4319f0450c334ec42b4db6b6ed583eca45bfb99",
+      "timestamp": "2026-08-06T23:55:47.081587+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/ade-os/bugs/provider-auth-quota.md",
+      "role": "source",
+      "sha256": "0a3616899167af349ae0c3ce70bfbde1099d6deb62953934562c8eeb1763b398",
+      "timestamp": "2026-08-06T23:55:47.147311+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/ade-os/bugs/regression-failures.md",
+      "role": "source",
+      "sha256": "56ee8e8d29cbd1ae7239eda3dc6ebe32910c71ed6b3c80f6a1010dc149802861",
+      "timestamp": "2026-08-06T23:55:47.189838+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/ade-os/bugs/runtime-source-divergence.md",
+      "role": "source",
+      "sha256": "7e2a9c8f107cb8a49c4813f0cf039915d80d67db660022c43c88bc95f7fe6007",
+      "timestamp": "2026-08-06T23:55:47.081587+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/ade-os/bugs/sqlite-live-db.md",
+      "role": "source",
+      "sha256": "c5365a117cffa28afa153cd427c8c5c7fd8b9ebf7767273c7233fee4310570ed",
+      "timestamp": "2026-08-06T23:55:47.147311+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/ade-os/bugs/terminal-exit-codes.md",
+      "role": "source",
+      "sha256": "6894dec3c9e5c1b0d124f5fc1b72006d6b3e80491129d459512483634773d691",
+      "timestamp": "2026-08-06T23:55:47.081587+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/ade-os/bugs/timeout-worker-lease.md",
+      "role": "source",
+      "sha256": "12dd0bb63fc51e0dfd9cc8c173761371fbb00f8d67f326a170bb4ad52db9fdc0",
+      "timestamp": "2026-08-06T23:55:47.081587+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/superpowers/plans/2026-07-28-async-task-runner-v1-correction-review.md",
+      "role": "source",
+      "sha256": "5abad35788455cb554fbe9fd964312972fa1c635f927c100b2f9f54ec562c33c",
+      "timestamp": "2026-07-28T14:26:37.282200+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/superpowers/plans/2026-07-31-cb1-context-builder.md",
+      "role": "source",
+      "sha256": "5feaae1683c7a25e738164fa7bd2866dfa8bbbea96c1a7f2e8cb4bf9ef56b052",
+      "timestamp": "2026-07-31T16:18:18.084299+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/superpowers/plans/2026-07-31-cr1-capability-router.md",
+      "role": "source",
+      "sha256": "31147c2ce009f0338a10918dabe1dcf739afd47bbf74ffb300f5f92f0de8039d",
+      "timestamp": "2026-07-31T15:32:50.348715+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/superpowers/plans/2026-08-01-or1-core-request-pipeline.md",
+      "role": "source",
+      "sha256": "e40cc954e66d92e97848138a219b93a54cce46b3a9d29d8b932ae242197a3ca0",
+      "timestamp": "2026-07-31T17:43:03.445261+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/superpowers/plans/2026-08-01-tg1-telegram-openclaw-core.md",
+      "role": "source",
+      "sha256": "85b02f1afceefc93ee6d9a9c073390e222795aa016c65079de4be9016861ccec",
+      "timestamp": "2026-08-01T12:34:44.370701+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/superpowers/specs/2026-07-31-cb1-context-builder-design.md",
+      "role": "source",
+      "sha256": "dd1b3baa61e6629640973cb9933f373578f97d0fdd2ad5262c07cddcc8e1af56",
+      "timestamp": "2026-07-31T16:18:18.083359+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/superpowers/specs/2026-07-31-cr1-capability-router-design.md",
+      "role": "source",
+      "sha256": "7b9156e4782c3ab5f95343fb6d68fdbb22323f9130e5180197e2a0786326b538",
+      "timestamp": "2026-07-31T15:32:50.195568+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/superpowers/specs/2026-08-01-or1-core-request-pipeline-design.md",
+      "role": "source",
+      "sha256": "17ca7b9c7983b870e66baaa45ede95d0dff7d7ce3a864e5594f7c858fcbb39a3",
+      "timestamp": "2026-07-31T17:43:03.442389+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/docs/superpowers/specs/2026-08-01-tg1-telegram-openclaw-core-design.md",
+      "role": "source",
+      "sha256": "3de588d163e30fd73019962db06d2e31a1572661ace39b536841ec25997f0141",
+      "timestamp": "2026-08-01T12:33:56.438178+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/integrations/openclaw-anh-duong-core/index.js",
+      "role": "source",
+      "sha256": "fc926a7cc11f7c7a40935c4504d448ff6ebcf4672721a4daeb3d959434de76a1",
+      "timestamp": "2026-08-01T17:08:30.015995+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/integrations/openclaw-anh-duong-core/openclaw.plugin.json",
+      "role": "source",
+      "sha256": "d753f2e2fd8dae9c087a5e4970437e7c19b2e0da1be3ed356f1c745354f16737",
+      "timestamp": "2026-08-01T12:07:13.416681+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/integrations/openclaw-anh-duong-core/package.json",
+      "role": "source",
+      "sha256": "7747e193b0b553281c5825f50fa4be3154861d4d528b111476735dbee93c5c9b",
+      "timestamp": "2026-08-01T12:05:15.591825+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/integrations/openclaw-anh-duong-core/src/config.js",
+      "role": "source",
+      "sha256": "8e013b09469c7ab8a3d7803b8d9afbc55644b2f3f3db8a958279ae58c9276141",
+      "timestamp": "2026-08-01T12:07:13.414668+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/integrations/openclaw-anh-duong-core/src/core-client.js",
+      "role": "source",
+      "sha256": "fdf10c0c3ec491281b233f1e072f24abba72c40ca05eb44d1ae2a2b940a771ad",
+      "timestamp": "2026-08-01T17:07:40.036219+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/integrations/openclaw-anh-duong-core/src/hooks.js",
+      "role": "source",
+      "sha256": "6b6ed6b39b45e8f363e5730f97f28cb301d1e90859fb08247bfcb9cf1d7a5758",
+      "timestamp": "2026-08-06T11:39:41.372623+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/integrations/openclaw-anh-duong-core/src/hooks.js.AD-TXT-1.bak-20260806T113204Z",
+      "role": "source",
+      "sha256": "6213976e78788dafbaaea4a7f46c4758420411d2a4fd7e1da95dd95c7aa93762",
+      "timestamp": "2026-08-05T19:39:55.296805+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/integrations/openclaw-anh-duong-core/src/prompt.js",
+      "role": "source",
+      "sha256": "aae8054607d452c922aeb35b56137e1d6dbb6b5e709d3ecfa6786e761202fba7",
+      "timestamp": "2026-08-01T12:07:13.415661+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/integrations/openclaw-anh-duong-core/test/client.test.js",
+      "role": "source",
+      "sha256": "d9ce9f6712f6a87d7de490e6cc3572ca98ab6ceb74016298a4c797b4f21b2cfa",
+      "timestamp": "2026-08-01T17:09:14.053445+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/integrations/openclaw-anh-duong-core/test/config.test.js",
+      "role": "source",
+      "sha256": "40d51a7ffbd902813d5bd53206c4558c22423e924451caf4c3ee9d9ec6570b6e",
+      "timestamp": "2026-08-01T12:05:15.593822+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/integrations/openclaw-anh-duong-core/test/hooks.test.js",
+      "role": "source",
+      "sha256": "7953b861fbf05a628e4e2c8b9ef03ef821f3903a8a769ce293fc7d8c17d9a2cd",
+      "timestamp": "2026-08-06T11:36:30.952343+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/integrations/openclaw-anh-duong-core/test/hooks.test.js.AD-TXT-1.MIDWORK-20260806T113204Z",
+      "role": "source",
+      "sha256": "973275d9cc047d019e13364f3858ba1c7008c438b2443b7c174c02b4d4e0aee1",
+      "timestamp": "2026-08-06T11:25:09.171669+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/integrations/openclaw-anh-duong-core/test/hooks.test.js.AD-TXT-1.baseline-HEAD-da062af",
+      "role": "source",
+      "sha256": "fe412369454ae63ff9e72d7c3033a7bff120a06e78b7832f66690af1b33f86f9",
+      "timestamp": "2026-08-06T11:55:39.445455+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/pyproject.toml",
+      "role": "source",
+      "sha256": "48fb09d26577bd2546b47ae9d9fa96c3df6e755c4ff9e21773e9ae997f696c3c",
+      "timestamp": "2026-07-24T06:35:38.549363+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/ade_os.py",
+      "role": "source",
+      "sha256": "f5a376581861e5ec92738ec003503ef446f95dd0fdf96b5f1016b2d460d0f9c0",
+      "timestamp": "2026-08-06T23:55:47.081587+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/ade_os/__init__.py",
+      "role": "source",
+      "sha256": "c994e49bb3c0d83efe6147907c7a3826d19ebe3bd00f694a4fc114feb68ac209",
+      "timestamp": "2026-08-06T23:55:47.081587+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/ade_os/core.py",
+      "role": "source",
+      "sha256": "6d6ea0e01844da5c3112af3103488cb6d2bf5b710e88d53da14a896e08eb54ff",
+      "timestamp": "2026-08-07T00:19:02.395639+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/agent/audit_hook.py",
+      "role": "source",
+      "sha256": "fdbeb66de51a5908d344fa8a5d742b68aa6af724bec4b778ca838e36e52fc54e",
+      "timestamp": "2026-08-06T10:40:09.265729+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/agent/pretool_guard.py",
+      "role": "source",
+      "sha256": "d8c222eb24dea683043f5de7ad6b024517f1923130d1ced4793665f6c88492fd",
+      "timestamp": "2026-08-06T10:40:09.265729+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/agent/validate_changed.py",
+      "role": "source",
+      "sha256": "9f54694f0d3d6fb78757bc588d3808e3923279a1c6e18f7a6b55df8610df334e",
+      "timestamp": "2026-08-06T10:40:09.265729+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/agent/validate_customizations.py",
+      "role": "source",
+      "sha256": "1dbaa94451ac4db34b2a44fa84cb450b73cb4348e81a8fd46bfc3bc369351043",
+      "timestamp": "2026-08-06T17:20:56.459397+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/agent/verify_ade_rollback.py",
+      "role": "checkpoint",
+      "sha256": "142f8f576b1a9735d6ac082e36a0d802de909eb7b0dce0674bbc5c620d31d47e",
+      "timestamp": "2026-08-07T00:46:21.568556+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/check_audit.sh",
+      "role": "source",
+      "sha256": "f92e3a2da32917f9a5536012d703b17035cb7f0573795212721d906c6d8cf362",
+      "timestamp": "2026-07-24T10:04:34.411247+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/check_memory_fts.sh",
+      "role": "source",
+      "sha256": "5f5523f990034ad191f3808057074c4a18923a57590b4db74ce8b2307ba03506",
+      "timestamp": "2026-07-24T12:10:43.890028+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/check_persona.sh",
+      "role": "source",
+      "sha256": "ac1e9260d0e66c0b0df48cfd3d42bc3ea0fa6b7be5e23db8346fead0f6821b8c",
+      "timestamp": "2026-07-24T08:55:59.842686+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/check_policy.sh",
+      "role": "source",
+      "sha256": "3e9a6186cb25d8a850c3053c8827a4c162ed45ded674df79ae8b776bfa936fac",
+      "timestamp": "2026-07-24T09:43:14.079916+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/check_project_mirror.sh",
+      "role": "source",
+      "sha256": "00d4008da8d07f237ea40fe35ae9ad4d4a22599b44d9756c726dce89d7073aa7",
+      "timestamp": "2026-07-24T10:36:34.180205+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/check_projects.sh",
+      "role": "source",
+      "sha256": "148e3347683b2834835a184941462a5705e99cfd2769336a73474c736aa2f383",
+      "timestamp": "2026-07-24T10:23:15.903876+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/check_tasks.sh",
+      "role": "source",
+      "sha256": "409a59533ce0463c3ea38929b8ecf4496aaefebbd504a49f5acdbec009705fa8",
+      "timestamp": "2026-07-24T10:53:28.891479+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/dev.sh",
+      "role": "source",
+      "sha256": "318e524c3aa18538054b20df352557534d5fe8a4a650cb4d5bb56511db303e4e",
+      "timestamp": "2026-07-24T08:33:37.963462+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/init_db.sh",
+      "role": "source",
+      "sha256": "b9a52b8628c5b40911999abf8ae148415c39fb67345ec82b5b6ac0bbac6cce7f",
+      "timestamp": "2026-07-24T06:35:38.808799+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/install_systemd.sh",
+      "role": "source",
+      "sha256": "c5f33392773dee3d6338194e2e286c2d440e50593a93bcb30c228cacdd5fcdb4",
+      "timestamp": "2026-07-24T08:33:37.968453+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/package_async_task_runner_v1.py",
+      "role": "source",
+      "sha256": "daa7bb37792eb4179a4ea61670091c9b1f42ccc3ee5a0a9ae03e6cee91044497",
+      "timestamp": "2026-07-28T15:21:56.931862+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/restart_service.sh",
+      "role": "source",
+      "sha256": "48dc8b593065791f75f4cb64634a3a90c2c8975403f888aea9a2e0a70e329e54",
+      "timestamp": "2026-07-24T09:04:21.342825+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/setup.sh",
+      "role": "source",
+      "sha256": "975355922a8be092f1631d2f2e8269293b968b55736c7c04cb316de75a42b47f",
+      "timestamp": "2026-07-24T06:35:38.825592+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/smoke_async_task_runner.py",
+      "role": "source",
+      "sha256": "0efc89b5208b8f7b6e3c4236e22cc8ff345904ab46861c79d48c7e196c93d011",
+      "timestamp": "2026-07-27T20:17:04.142329+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/status.sh",
+      "role": "source",
+      "sha256": "d3f270b99c27ac27f0a2771113c0dacc3506e6e456379dc1f3c3c91fd8f17bc2",
+      "timestamp": "2026-07-24T08:33:37.983469+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/test.sh",
+      "role": "source",
+      "sha256": "7ea49222a5b0c1e9f0f7d4f070e9fda8c259bdc017d1515b783a3c30eacd8676",
+      "timestamp": "2026-07-24T06:35:38.838148+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/uninstall_systemd.sh",
+      "role": "source",
+      "sha256": "2d40e05130ab1c4f771d7dcef9f595e8b984f01edb5676dba344a636ec65a531",
+      "timestamp": "2026-07-24T08:33:37.992990+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/scripts/verify_tg1_runtime.ps1",
+      "role": "source",
+      "sha256": "5de8ad91501494dac74f9e477180c90f5c057ba32500e0046802894d0cf201d6",
+      "timestamp": "2026-08-01T12:31:28.409608+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/systemd/anh-duong-core.service",
+      "role": "source",
+      "sha256": "8f3475a237d393e9c73cf98a16816cc178bfb1cb600a865901e307c81a8bcf74",
+      "timestamp": "2026-07-24T08:33:38.001489+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/__init__.py",
+      "role": "source",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "timestamp": "2026-07-24T06:35:38.856000+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/conftest.py",
+      "role": "source",
+      "sha256": "5e87f030f3edbcca2444239d8200fecb845f592c84c9c009572371d497ebebd8",
+      "timestamp": "2026-07-24T07:54:58.597879+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/e2e/test_async_task_runner.py",
+      "role": "source",
+      "sha256": "2d96475f837e5ec4ea8351cb1c3de4de1ed0b71d195cc62e605b30f3aab51af3",
+      "timestamp": "2026-07-27T20:15:46.756175+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_async_notification_retry_audit.py",
+      "role": "source",
+      "sha256": "fd26cc5ec3ae577ebcee6530258ac71ab5da9bb4c7b05251b5b0b29a42e119f8",
+      "timestamp": "2026-07-28T15:11:34.336797+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_async_task_api.py",
+      "role": "source",
+      "sha256": "ccbd5526eebdecbbe6e5520ab77be4992eea7748d6456118acb6c61e810c5ffa",
+      "timestamp": "2026-08-01T17:13:17.472785+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_async_task_api_corrections.py",
+      "role": "source",
+      "sha256": "69623204b4d6d041d30341b7e04dcf7dfcb5b8b11abb141b0b64213c928236d1",
+      "timestamp": "2026-07-28T15:03:36.341334+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_async_task_audit.py",
+      "role": "source",
+      "sha256": "b9e4ab432b2b4dad1d07d6708976405f5982bdfe2d1f0c2e47ec85929d56e966",
+      "timestamp": "2026-07-28T14:28:16.052783+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_async_task_audit_runtime.py",
+      "role": "source",
+      "sha256": "03059ab5311ae1fbee3a589d8ada724b9a7e632acd60ada5b2f766b264b73f3c",
+      "timestamp": "2026-07-28T14:37:22.824532+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_async_task_cancel_race.py",
+      "role": "source",
+      "sha256": "456daedcb7c470584029d24f8c1aedfd732ca6b6624de15df823c40fde8f5c96",
+      "timestamp": "2026-07-28T15:13:37.467210+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_async_task_cancel_safety.py",
+      "role": "source",
+      "sha256": "c2f49ed75a851488df7cf68a93670c8f365259fff4e6e9dafef037bb8ba6364b",
+      "timestamp": "2026-07-28T15:03:36.301308+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_async_task_idempotency_concurrency.py",
+      "role": "source",
+      "sha256": "ed9523e1fa43b691f77f65d29d1b0979a4512e67ede9865b48075780f40a0d3d",
+      "timestamp": "2026-08-01T17:13:17.472785+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_async_task_lifespan.py",
+      "role": "source",
+      "sha256": "7582e97c9cae624644faf6d6fe9aecebce89cfddd7711b324c1fec76a98d5786",
+      "timestamp": "2026-07-27T20:14:18.176212+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_async_task_lifespan.py.orig",
+      "role": "source",
+      "sha256": "804060dab50d3fb4d93556e84a723a23712edf673ead0521abf326201546d229",
+      "timestamp": "2026-07-27T20:08:54.618182+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_async_task_recovery.py",
+      "role": "source",
+      "sha256": "b98c09aa3a858fd543a22aac9b400068c35bca91ebf32b574e0be53393278c4a",
+      "timestamp": "2026-07-27T19:47:10.730676+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_async_task_repository.py",
+      "role": "source",
+      "sha256": "cf67f20d32c8807dd875fd57ab3896b4b79f9d7ca8318f85fbd02efa5a5a39a8",
+      "timestamp": "2026-07-27T19:16:34.958303+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_async_task_schema.py",
+      "role": "source",
+      "sha256": "7831c8664511eb1a556586db6bfde10bbb889f17a95f1d0e0661ac9e7d728adf",
+      "timestamp": "2026-07-27T19:16:34.951687+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_async_task_service.py",
+      "role": "source",
+      "sha256": "5cb573b46a4828bc79a810f6c04f6a66526de6d99387f98aa4ac0e243d0701ed",
+      "timestamp": "2026-08-01T16:57:11.220830+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_async_task_worker.py",
+      "role": "source",
+      "sha256": "68efcddf70dcd2de5e620e0620f5db61e41bbd8cca3ac957b08e9bd6e6b2cd0f",
+      "timestamp": "2026-08-05T18:52:58.890652+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_async_task_worker.py.orig",
+      "role": "source",
+      "sha256": "7a1ce3124f39bb0102f6cc7e75c4028b0815e2938cbe0f8f9b7dca4ddad84573",
+      "timestamp": "2026-07-27T19:47:10.730676+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_context_builder_wiring.py",
+      "role": "source",
+      "sha256": "40b1a59c0680030e89775a3b80a7ebe91270f54ea262092c2299cbcd506469c6",
+      "timestamp": "2026-07-31T16:40:10.410134+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_core_request_api.py",
+      "role": "source",
+      "sha256": "95a270bfffddc09bc6d0883149f3a4781624bf9ba2b3c27df71fdf2b651aa94b",
+      "timestamp": "2026-08-01T17:35:28.749333+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_database_pragmas.py",
+      "role": "source",
+      "sha256": "fa822ecb8be7c6669974901386ba1092abbf7145fd88805261eb84e41ea2631f",
+      "timestamp": "2026-07-24T07:54:58.620860+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_health.py",
+      "role": "source",
+      "sha256": "31a1708d11e8da137a5f75ab3d589db8a290238c4e493fc29ec607ac08486c32",
+      "timestamp": "2026-07-24T07:54:58.621878+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_memory_fts.py",
+      "role": "source",
+      "sha256": "97c47d8f256445416ceb38b6a3e6c4a973c098492196c3006808f472fc8eaf5d",
+      "timestamp": "2026-07-24T12:10:43.904747+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_notification_worker.py",
+      "role": "source",
+      "sha256": "22723baa5f8e80d687db570cf815b4c778cf6bee38cb7e6cfdebf9a8e694144f",
+      "timestamp": "2026-07-27T20:13:52.716002+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_notification_worker.py.orig",
+      "role": "source",
+      "sha256": "232531cc9d65659202d99cec61d2f68d528233221519fcebf32a7188d83e1c31",
+      "timestamp": "2026-07-27T19:58:57.172561+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_project_mirror.py",
+      "role": "source",
+      "sha256": "867a9cbaaaea84fd396a53e76eac40e0395d1edd9d06f7aa220e40187848bc48",
+      "timestamp": "2026-07-24T10:36:34.186358+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_projects.py",
+      "role": "source",
+      "sha256": "0544b9736511a00578447017a564c2de6e811d3e39404fd569ad47f41c8300f0",
+      "timestamp": "2026-07-24T10:23:15.911889+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_schema.py",
+      "role": "source",
+      "sha256": "f803b87c7e97114bceb4c8439b2c20643256bc6ee22ac3ceedb61868ecbd51eb",
+      "timestamp": "2026-07-24T07:54:58.617873+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/integration/test_tasks.py",
+      "role": "source",
+      "sha256": "24dd5dec4542555297bff3de6b1c1b3fed6ae0754f1ba9b58c80ab8abc42ab4d",
+      "timestamp": "2026-08-03T05:35:01.057925+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/security/test_async_runtime_config.py",
+      "role": "source",
+      "sha256": "3456b1eab6d11e871c62217db4764c160dff09d131db6d3c7533d73b929c4273",
+      "timestamp": "2026-07-27T20:17:54.385159+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/security/test_async_task_api_auth.py",
+      "role": "source",
+      "sha256": "7bc64c3f70990e92b8bab1e2fdaff72e88bd02171ee71cc58bdb9e537d6050e2",
+      "timestamp": "2026-07-27T19:58:57.178269+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/security/test_capability_router_determinism.py",
+      "role": "source",
+      "sha256": "0c1729b44df2aec620b5d7f9db8dfa0c16b7eb7f16cb0f17cae5fd0037f80298",
+      "timestamp": "2026-07-31T15:40:55.114763+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/security/test_core_request_pipeline_security.py",
+      "role": "source",
+      "sha256": "38cbb53f8385c8df394cde87e22281cb111c99dca36f6bdc68749f40da803206",
+      "timestamp": "2026-07-31T17:57:50.646293+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/security/test_fast_router_determinism.py",
+      "role": "source",
+      "sha256": "785dbeee88b007f0ab98db83b47c73da5c465f125d263c06ae875b36fb26a071",
+      "timestamp": "2026-08-03T07:49:14.896283+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/security/test_openclaw_static_contract.py",
+      "role": "source",
+      "sha256": "e2515cc2a909a6ca0783587dfa64dda0ce439b60d694042c77de98624344aeb5",
+      "timestamp": "2026-07-27T19:25:39.640869+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/security/test_path_scope.py",
+      "role": "source",
+      "sha256": "16f1a429ec3c7f9e415281128f045f91f83c59c78ea4772eb90ba415a580e0d2",
+      "timestamp": "2026-07-24T09:43:14.093572+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/security/test_policy_determinism.py",
+      "role": "source",
+      "sha256": "045287148a700959eae3874a6aa3db60fe7bfe9e31dab3fbd51685168fe24fcb",
+      "timestamp": "2026-07-24T09:43:14.103574+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/security/test_secret_redaction.py",
+      "role": "source",
+      "sha256": "2accbf184dcf3623f46e108d6d8636b1ea233c1e51aff5c259c774afb0f386b6",
+      "timestamp": "2026-07-24T10:04:34.424252+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_ade_os.py",
+      "role": "source",
+      "sha256": "cb8b02a4af09f2905fb3e7a47b59fb61fa01fff4599d7cb3e8d7bf768dcf0975",
+      "timestamp": "2026-08-07T00:19:02.407231+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_async_task_models.py",
+      "role": "source",
+      "sha256": "3f8d07046f1492c3a2e1092d63e184a35429bd59202df54f463fc5c3159d2568",
+      "timestamp": "2026-07-27T19:16:34.947238+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_async_task_policy.py",
+      "role": "source",
+      "sha256": "cc4b10ac8fca6bc64c189a56de7851572ebb4292291f9e5f0d84b52d85a173b6",
+      "timestamp": "2026-07-27T19:25:39.617882+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_audit_writer.py",
+      "role": "source",
+      "sha256": "aea1208a3507b2f980cf5938cf5b7cd58d7ad1d4fb41b332c77634fb0ed8e3e3",
+      "timestamp": "2026-07-24T10:04:34.435246+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_capability_router.py",
+      "role": "source",
+      "sha256": "7e9858bd62d48b5d06365782521ab9149baff8c05d21fb349f93de9f635de4d5",
+      "timestamp": "2026-08-03T07:49:32.006945+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_capability_router.py.orig",
+      "role": "source",
+      "sha256": "0b2e2a01c9967beb7eb3ed8588d3a0ce4bde99ec158cda9342a36ed88757df8f",
+      "timestamp": "2026-07-31T15:49:08.448617+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_config.py",
+      "role": "source",
+      "sha256": "8c2a5612c1c81bc3c407ada770d9a2985d05337b7fb69c09e26f096a6c054c32",
+      "timestamp": "2026-07-24T07:54:58.623907+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_context_builder.py",
+      "role": "source",
+      "sha256": "bd9044323362e9d00d2be30691d92911159e9528a9e3db059d590b0c634eebf0",
+      "timestamp": "2026-07-31T16:46:06.623420+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_context_builder_budget.py",
+      "role": "source",
+      "sha256": "18e9730f382fc33f9d0fe517bfd3dba26c8c1bab97c4e50dd2139c3de1881b31",
+      "timestamp": "2026-07-31T16:34:47.504460+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_context_builder_models.py",
+      "role": "source",
+      "sha256": "b2eb8d1fbf048b94cf1289097afc968e56289524aed71fda14d2d90c0c5f564c",
+      "timestamp": "2026-07-31T16:20:28.482713+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_context_builder_reliability.py",
+      "role": "source",
+      "sha256": "fb82480c68a0dd24c8ee461927793518b1d071068dc75096fe2938ed4d4fa12a",
+      "timestamp": "2026-07-31T16:30:33.550996+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_context_builder_review_regressions.py",
+      "role": "source",
+      "sha256": "e200a6d8a083a9e79f5c652f8f7f6e8268b67fb0e912d170d3945b7935a812cd",
+      "timestamp": "2026-07-31T17:05:03.976087+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_core_request_pipeline.py",
+      "role": "source",
+      "sha256": "7b5b10bc01e4a94cc1fdc64d9ee194887fe8658bb2a4fd68657d96c1bbf781b5",
+      "timestamp": "2026-07-31T17:45:10.413299+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_core_request_pipeline_behavior.py",
+      "role": "source",
+      "sha256": "f8285d940e5686808289eae0b49535a843dcf3860e8eecc5925066ff100545bf",
+      "timestamp": "2026-08-03T10:33:51.173835+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_fast_router.py",
+      "role": "source",
+      "sha256": "a47ab3a73837906d8c963dd14d292534fdb7ae5d163d02c98de807c8d7e2fcbf",
+      "timestamp": "2026-08-03T07:48:57.406415+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_fast_router.py.orig",
+      "role": "source",
+      "sha256": "3e23613d4217a012448a184b86b1b9c320e0549700190ca0e464cdf37ac2da17",
+      "timestamp": "2026-07-31T14:53:30.407882+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_memory_retrieval.py",
+      "role": "source",
+      "sha256": "da7521de9f5f1214b09bb4276c155e1f0ec0ffaf03c158f5117b447798998a63",
+      "timestamp": "2026-07-26T17:22:22.758126+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_openclaw_executor.py",
+      "role": "source",
+      "sha256": "aab3f3b03ce925867b93b9be7ac7bd0c4fd2b72f82a29fc0f11ff7fd5261080c",
+      "timestamp": "2026-08-05T18:52:58.902437+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_openclaw_notifier.py",
+      "role": "source",
+      "sha256": "9dcc37fabc5c7d6bddcdf5287f2fc0aa44f79277ac539452958e3bdbe1d0fbde",
+      "timestamp": "2026-08-03T16:50:55.126095+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_persona_content.py",
+      "role": "source",
+      "sha256": "4bc7ff6dec169f0f19da08519404b694f7cba8d3de536233c5e2ddeabe728b86",
+      "timestamp": "2026-07-24T08:55:59.848366+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_persona_loader.py",
+      "role": "source",
+      "sha256": "2b851f138a26e229dab26781001a051796ebe646c5dc39ecc35186888c7f264e",
+      "timestamp": "2026-07-24T08:55:59.854364+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_policy_engine.py",
+      "role": "source",
+      "sha256": "22b18efc44d09a5ab7d73c2ac2467829a86f298e9b2284e60e405ad8a59a51dc",
+      "timestamp": "2026-07-24T09:43:14.113566+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_shell_line_endings.py",
+      "role": "source",
+      "sha256": "e2c4c1a0f8a14076e535e3508a6101c8642d6ea6c28b148af40bf1fb425e8795",
+      "timestamp": "2026-07-24T07:54:58.203776+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/tests/unit/test_verify_ade_rollback.py",
+      "role": "checkpoint",
+      "sha256": "58aa5e3e3d5e9914498896e8b13a5540e5f071270c6d86adeba8c8746588dad3",
+      "timestamp": "2026-08-07T00:44:46.798296+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/ALEMBIC_COMMAND.log",
+      "role": "source",
+      "sha256": "6429baf7c2b3b0d0fafc85f71ad3f0e6fcb03c415506440f94cbd1e7b808b503",
+      "timestamp": "2026-07-24T06:35:38.963239+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/ALEMBIC_FINAL.log",
+      "role": "source",
+      "sha256": "40c7909fabb12123a693b347b90cac349fc5227b9cdaf9f9525da0384fcfbfb6",
+      "timestamp": "2026-07-24T06:35:38.977228+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/COMPILEALL.log",
+      "role": "source",
+      "sha256": "f8ebc65bcf3d22d004eddde09612fcff2d08ea954cb441132209d74adf4b6451",
+      "timestamp": "2026-07-24T08:55:59.872660+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/COMPILEALL_FINAL.log",
+      "role": "source",
+      "sha256": "f8ebc65bcf3d22d004eddde09612fcff2d08ea954cb441132209d74adf4b6451",
+      "timestamp": "2026-07-24T06:35:38.995253+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/FINAL_SUMMARY.txt",
+      "role": "source",
+      "sha256": "8f4058265e5aac767e8a18b490e0a2b2a9a00b718e3cf6a00270c33f1b958be4",
+      "timestamp": "2026-07-24T06:35:39.006226+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/MYPY.log",
+      "role": "source",
+      "sha256": "c9d9ac46edd86dfe1516ccfc9327e708e61d516a0b3ab2d282626bb9ab908949",
+      "timestamp": "2026-07-24T08:55:59.878280+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/PYTEST_FINAL.log",
+      "role": "source",
+      "sha256": "d92e39c785b936866d67b7f825866e7b9f7b5ed4171e51f5e8100ff1a3ed6dd3",
+      "timestamp": "2026-07-24T06:35:39.015230+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/PYTEST_GREEN.log",
+      "role": "source",
+      "sha256": "c39efe51cd313bd35a816020dcd8c7ac1446c3b68b8b6f37038ffea4140f72bf",
+      "timestamp": "2026-07-24T08:55:59.918909+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/RUFF.log",
+      "role": "source",
+      "sha256": "7eac5aa947635fd99b631910900ca15c04e7019d7104b4995bd2c144d4b5c76f",
+      "timestamp": "2026-07-24T08:55:59.924920+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK2_2_COMPILEALL.log",
+      "role": "source",
+      "sha256": "f8ebc65bcf3d22d004eddde09612fcff2d08ea954cb441132209d74adf4b6451",
+      "timestamp": "2026-07-24T09:43:14.123581+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK2_2_PYTEST_FULL.log",
+      "role": "source",
+      "sha256": "61e536e3ba0e4a3b89b38029f82950139dfda97c915b628d4c4cad4f5e4234f0",
+      "timestamp": "2026-07-24T09:43:14.129574+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK2_2_PYTEST_TARGETED.log",
+      "role": "source",
+      "sha256": "6dcb9a68f831bcac3240a71b2b25d7b36a3db73ec122507bb920fb9b470be9c6",
+      "timestamp": "2026-07-24T09:43:14.137571+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK2_2_TDD_RED.log",
+      "role": "source",
+      "sha256": "6643e510c5719c2a456db1c194ee0bf2bd346b6dbacb3c6d64c82cc4475a4dd2",
+      "timestamp": "2026-07-24T09:43:14.144573+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK2_3_COMPILEALL.log",
+      "role": "source",
+      "sha256": "f8ebc65bcf3d22d004eddde09612fcff2d08ea954cb441132209d74adf4b6451",
+      "timestamp": "2026-07-24T10:04:34.444243+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK2_3_MYPY.log",
+      "role": "source",
+      "sha256": "f5af2901eca8534b5b2a49939ad16d1380ede2a537a0026c6f9ac37109e6c514",
+      "timestamp": "2026-07-24T10:04:34.452264+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK2_3_PYTEST_FULL.log",
+      "role": "source",
+      "sha256": "bf7654416689789a42ca35babc8fca14fab9f6fafc2c329579cd92e693eb2c08",
+      "timestamp": "2026-07-24T10:04:34.459256+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK2_3_PYTEST_TARGETED.log",
+      "role": "source",
+      "sha256": "30b7d55a12322e4e34f93cd574fb3f55086176547c0321070d82b475c772cfcd",
+      "timestamp": "2026-07-24T10:04:34.469966+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK2_3_RUFF.log",
+      "role": "source",
+      "sha256": "aee740142d104d67ac0d4f374512d2241e694e419f3b3ec2203796b85c69be03",
+      "timestamp": "2026-07-24T10:04:34.479151+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK2_3_TDD_RED.log",
+      "role": "source",
+      "sha256": "6a9ac5c306425d9ec70e6f510fc0726c4a447e475ec2a37478a9c954b3e4a274",
+      "timestamp": "2026-07-24T10:04:34.492305+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK3_1_COMPILEALL.log",
+      "role": "source",
+      "sha256": "f8ebc65bcf3d22d004eddde09612fcff2d08ea954cb441132209d74adf4b6451",
+      "timestamp": "2026-07-24T10:23:15.919889+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK3_1_MYPY.log",
+      "role": "source",
+      "sha256": "f5af2901eca8534b5b2a49939ad16d1380ede2a537a0026c6f9ac37109e6c514",
+      "timestamp": "2026-07-24T10:23:15.924617+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK3_1_PYTEST_FULL.log",
+      "role": "source",
+      "sha256": "b41878a86007d4f0cf82a16d2d970a98f2cb4941e094e23a2c5d9d76bf776fc9",
+      "timestamp": "2026-07-24T10:23:15.931626+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK3_1_PYTEST_TARGETED.log",
+      "role": "source",
+      "sha256": "06dd0934e6ef1b6b2bfb727594520b54fa6d7dda16158c4f51707c534d1e8f91",
+      "timestamp": "2026-07-24T10:23:15.938278+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK3_1_RUFF.log",
+      "role": "source",
+      "sha256": "aee740142d104d67ac0d4f374512d2241e694e419f3b3ec2203796b85c69be03",
+      "timestamp": "2026-07-24T10:23:15.944280+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK3_1_TDD_RED.log",
+      "role": "source",
+      "sha256": "66c574d7c86b5fd4a14bad81c28024b7bfb202dea717f0071c101d005b26ae54",
+      "timestamp": "2026-07-24T10:23:15.950279+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK3_2_COMPILEALL.log",
+      "role": "source",
+      "sha256": "f8ebc65bcf3d22d004eddde09612fcff2d08ea954cb441132209d74adf4b6451",
+      "timestamp": "2026-07-24T10:36:34.193878+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK3_2_MYPY.log",
+      "role": "source",
+      "sha256": "f5af2901eca8534b5b2a49939ad16d1380ede2a537a0026c6f9ac37109e6c514",
+      "timestamp": "2026-07-24T10:36:34.198877+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK3_2_PYTEST_FULL.log",
+      "role": "source",
+      "sha256": "42a77800ce96c838e7f24b7a56f2c95a27089d4fcbd9196bdf68c4a18f4c3747",
+      "timestamp": "2026-07-24T10:36:34.207171+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK3_2_PYTEST_TARGETED.log",
+      "role": "source",
+      "sha256": "755046950c9827024b825314003bb658ce6b5670f561dc74f657cbc514115ec2",
+      "timestamp": "2026-07-24T10:36:34.211169+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK3_2_RUFF.log",
+      "role": "source",
+      "sha256": "aee740142d104d67ac0d4f374512d2241e694e419f3b3ec2203796b85c69be03",
+      "timestamp": "2026-07-24T10:36:34.215699+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK3_2_TDD_RED.log",
+      "role": "source",
+      "sha256": "d071e3d22a6e7ecba99cbe8dd4b7c69c64dec3f78e4c0980e3cad95ea8014ad1",
+      "timestamp": "2026-07-24T10:36:34.221699+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK3_3_COMPILEALL.log",
+      "role": "source",
+      "sha256": "f8ebc65bcf3d22d004eddde09612fcff2d08ea954cb441132209d74adf4b6451",
+      "timestamp": "2026-07-24T10:53:28.913641+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK3_3_MYPY.log",
+      "role": "source",
+      "sha256": "f5af2901eca8534b5b2a49939ad16d1380ede2a537a0026c6f9ac37109e6c514",
+      "timestamp": "2026-07-24T10:53:28.922031+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK3_3_PYTEST_FULL.log",
+      "role": "source",
+      "sha256": "2cd916a6e2d8ebecb5b25b74275d3cb2b9bbbe912562586086983ac7e99c373e",
+      "timestamp": "2026-07-24T10:53:28.928035+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK3_3_PYTEST_TARGETED.log",
+      "role": "source",
+      "sha256": "1859db7250cd0e5bd6cccd22ed07a6464063e1e309da929a2fc9d99590b08ba5",
+      "timestamp": "2026-07-24T10:53:28.934696+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK3_3_RUFF.log",
+      "role": "source",
+      "sha256": "aee740142d104d67ac0d4f374512d2241e694e419f3b3ec2203796b85c69be03",
+      "timestamp": "2026-07-24T10:53:28.940696+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK3_3_TDD_RED.log",
+      "role": "source",
+      "sha256": "07d636581baed6a4b81b683fcffe02273757e0b4b23263bdd7d9b010205080de",
+      "timestamp": "2026-07-24T10:53:28.949116+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK4_1_COMPILEALL.log",
+      "role": "source",
+      "sha256": "f8ebc65bcf3d22d004eddde09612fcff2d08ea954cb441132209d74adf4b6451",
+      "timestamp": "2026-07-24T12:10:43.915109+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK4_1_MYPY.log",
+      "role": "source",
+      "sha256": "f5af2901eca8534b5b2a49939ad16d1380ede2a537a0026c6f9ac37109e6c514",
+      "timestamp": "2026-07-24T12:10:43.925731+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK4_1_PYTEST_FULL.log",
+      "role": "source",
+      "sha256": "f3a0458bc16adcea40f463e3abe1bae990c17140d3ca9eb3dfa67bbb37f2b91b",
+      "timestamp": "2026-07-24T12:10:43.942445+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK4_1_PYTEST_TARGETED.log",
+      "role": "source",
+      "sha256": "14373b1f11fb767ed1da56e24c4befa8851675a2a20045ed156a57dc07683186",
+      "timestamp": "2026-07-24T12:10:43.952560+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK4_1_RUFF.log",
+      "role": "source",
+      "sha256": "aee740142d104d67ac0d4f374512d2241e694e419f3b3ec2203796b85c69be03",
+      "timestamp": "2026-07-24T12:10:43.969791+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TASK4_1_TDD_RED.log",
+      "role": "source",
+      "sha256": "95752813bac68e5f913e27f99c31354280f6beb89a9ca187e9d172bc4aab61a7",
+      "timestamp": "2026-07-24T12:10:43.987953+00:00"
+    },
+    {
+      "canonical_path": "/home/thadc/AIOS/anh-duong-core/verification/TDD_RED.log",
+      "role": "source",
+      "sha256": "222ae390e91384bcbcd779537f36ba62785aa75b940b88b7453bd2ff3f93868c",
+      "timestamp": "2026-07-24T08:55:59.968796+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/AD-IMG-1-diagnostic-20260805T151441Z.log",
+      "role": "source",
+      "sha256": "7a8f0e4b2d494d74f91dd97e0c12a6420c148e56d7ce06faf0b8e8ac21ac58ee",
+      "timestamp": "2026-08-05T15:15:46.449847+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/AD-IMG-2-9router-inventory.log",
+      "role": "source",
+      "sha256": "911db4f58be6c1c71bf4c93a701c38bc3c79436dc3c154119ec67224c088535d",
+      "timestamp": "2026-08-05T16:12:52.576833+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/AD-IMG-2-CLOSED-20260805T195627Z.md",
+      "role": "checkpoint",
+      "sha256": "bb8d0ac89c1a93d66de40a9cb0f4b1643ee57e1e67e44e1e1793cf28ada20063",
+      "timestamp": "2026-08-05T19:56:27.208585+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/AD-IMG-2-backup-inventory.md",
+      "role": "source",
+      "sha256": "509c89ae68bb2a24d5b2e8b48bddceb71654a8cd158438b9f3629ad48afd6497",
+      "timestamp": "2026-08-05T19:53:01.702845+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/AD-IMG-2-diff.patch",
+      "role": "source",
+      "sha256": "0201b96cf74bdb29e3d3341ae75c55e3b4b6f5265f135d68c38ead19fcd3d8c8",
+      "timestamp": "2026-08-05T19:53:01.549813+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/AD-IMG-2-openclaw-config.redacted.json",
+      "role": "source",
+      "sha256": "ee8f965e4d848ccaa22c583e5c224db19bca7f54856d6d66ebe22cd5632eda68",
+      "timestamp": "2026-08-05T15:58:41.271643+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/AD-IMG-2-plugin-inventory.log",
+      "role": "source",
+      "sha256": "974e085a5491227039713bb2f6be938697a059789e6e272a0a7b19c7d30695f5",
+      "timestamp": "2026-08-05T16:10:05.679306+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/AD-IMG-2-plugin-media-inventory.log",
+      "role": "source",
+      "sha256": "215e09a93d8e85d5680ac82c46c31cdecc59fe2bf79d7ac96e4c75e8853dfeb3",
+      "timestamp": "2026-08-05T16:08:33.884541+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/AD-IMG-2-report.md",
+      "role": "checkpoint",
+      "sha256": "ed6761915d9951b26d3a152830fb8d26bddbdb65167bbaffb3e8109a2926f070",
+      "timestamp": "2026-08-05T19:55:52.026338+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/AD-IMG-2-runtime.log",
+      "role": "source",
+      "sha256": "146a5ee10bff81c0d2c3012ed1c7384661b02130f7b6188f8424562cbeb430f5",
+      "timestamp": "2026-08-05T19:50:27.219420+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/AD-IMG-2-vision-inventory.log",
+      "role": "source",
+      "sha256": "81704a76628414d2803e0cc69d4b37a0b053ddfb41e5477419917b6856d6818c",
+      "timestamp": "2026-08-05T16:11:03.416821+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/AD-TXT-1-CLOSED-20260806T115704Z.md",
+      "role": "checkpoint",
+      "sha256": "309d08f192f2f7ba383f5075729ad351a0274304b21cbf0a35e5d48a7c53d10a",
+      "timestamp": "2026-08-06T11:57:53.694091+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/AD-TXT-1-backup-inventory.md",
+      "role": "source",
+      "sha256": "e7c1f60b5742d3b5ec7bf60b5fbe457857ffb08a3615f757c5ae3da3e7b8c7d9",
+      "timestamp": "2026-08-06T11:57:53.693093+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/AD-TXT-1-diff.patch",
+      "role": "source",
+      "sha256": "656d62b7038a41727e0f5b9137da300ed2587840b0557930dead266aac7347b4",
+      "timestamp": "2026-08-06T11:45:44.183596+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/AD-TXT-1-gate.txt",
+      "role": "source",
+      "sha256": "6906edb1e054627be73dc9ddf741bd9c73bb2c1c166a6cc9fef1dae0bf39df46",
+      "timestamp": "2026-08-06T11:18:03.328901+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/AD-TXT-1-report.md",
+      "role": "checkpoint",
+      "sha256": "edcd25a4f07bddbc76344e1fbd036cabb6f3abd363874dbd498eed311317b90d",
+      "timestamp": "2026-08-06T11:57:53.694091+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/AD-TXT-1-rollback.md",
+      "role": "checkpoint",
+      "sha256": "4352412ec2ac6b1a626cb472b0cd922a7334a4f7efec15f53f397f34b132fe5b",
+      "timestamp": "2026-08-06T11:57:53.693093+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/AD-TXT-1-runtime.log",
+      "role": "source",
+      "sha256": "5f7da17d9ca80a94aef75655c8aa015a289f348884c19c15f32c5fad729a45fd",
+      "timestamp": "2026-08-06T11:46:06.594775+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/AD-TXT-1-window-20260806T110107Z.log",
+      "role": "source",
+      "sha256": "e9c3fe586ce855dac9271b45d345a4ca7712c627e2c2b069608626a9f1c731f6",
+      "timestamp": "2026-08-06T11:01:07.638691+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/ADE-OS-CLOSED-20260807T001728Z.md",
+      "role": "checkpoint",
+      "sha256": "b7d2fc7f2c38636bf0cb3af82b1fefd26c432974052225dfcd60fa80f83fa98c",
+      "timestamp": "2026-08-07T00:19:02.914321+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/ADE-OS-backup-inventory.md",
+      "role": "source",
+      "sha256": "16de36256dd69754ac69ab5418768d8f98eaa984a3e6e875215512995a02f31d",
+      "timestamp": "2026-08-07T00:45:05.349870+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/ADE-OS-closure-evidence-20260807T001340Z.json",
+      "role": "source",
+      "sha256": "1a50f3b083714d91a5ae1dfb9a48fbd4043ca94556c1da41536a1b8656a7193b",
+      "timestamp": "2026-08-07T00:19:02.902561+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/ADE-OS-design.md",
+      "role": "source",
+      "sha256": "ec0cce0e1bee3950626bf5afe371629f88f08e5bc4ed338327b82fa9963ad3aa",
+      "timestamp": "2026-08-07T00:19:02.903685+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/ADE-OS-diff.patch",
+      "role": "source",
+      "sha256": "948b50c1c5b4d4b0f6f30869b36661c0ea264c2a5b02120498b37ec62ac745ba",
+      "timestamp": "2026-08-07T00:14:14.515552+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/ADE-OS-file-map.md",
+      "role": "source",
+      "sha256": "ce453bb5da336af6501d83d9b6eb56a8f284f3c99589fb7de9b441d384b98875",
+      "timestamp": "2026-08-07T00:19:02.903685+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/ADE-OS-handoff-tests.md",
+      "role": "source",
+      "sha256": "c59fe2cbbfd06507f0e9535bab1d660e344bf65d84715af7ded30925b05ce398",
+      "timestamp": "2026-08-07T00:19:02.904699+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/ADE-OS-hook-fix-verification.log",
+      "role": "source",
+      "sha256": "0aa223c4102f670f7e0e1a08e135bc4869c08303c7a4947bf24d14358c397c75",
+      "timestamp": "2026-08-06T12:26:55.740358+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/ADE-OS-hook-launcher-fix.md",
+      "role": "source",
+      "sha256": "bb3bfd04243ac180dddab51242706f5597302e8b6f02f94ecec9d64ac25e0b64",
+      "timestamp": "2026-08-06T17:20:56.302597+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/ADE-OS-project-index-20260807T000034Z.json.bak",
+      "role": "source",
+      "sha256": "211b2908a8ca9948d710284f1e807afd341826a2ce502249f983880ae016aed4",
+      "timestamp": "2026-08-06T18:01:27+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/ADE-OS-report.md",
+      "role": "checkpoint",
+      "sha256": "8d9dcd8f400541c42555aff781ce6dc695fe3af729112b2a71e0eaaacc8e79a0",
+      "timestamp": "2026-08-07T00:19:02.903685+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/ADE-OS-review.md",
+      "role": "source",
+      "sha256": "7ba1c95c8d5966222f05f6c2abf29eebccf5afd7af0bafdeb563143cbdfa301f",
+      "timestamp": "2026-08-07T00:19:02.905758+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/ADE-OS-rollback-validation.log",
+      "role": "checkpoint",
+      "sha256": "988c0d5aad1df76b419f4be808fae7636042c2dfad0d0aaba78f8f125b159e6a",
+      "timestamp": "2026-08-07T00:40:42.153677+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/ADE-OS-rollback.md",
+      "role": "checkpoint",
+      "sha256": "dfa17611c108a676aaf948608ae7686a2d43730fdcbb011f8829c5e441bd7a0a",
+      "timestamp": "2026-08-07T00:45:19.740127+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/ADE-OS-security-review.md",
+      "role": "source",
+      "sha256": "15e196770f104050e6f2fd894eeb653ba22b0acc6862fe9da359840b92f896f5",
+      "timestamp": "2026-08-07T00:19:02.909298+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/ADE-OS-validation-20260807T001340Z.log",
+      "role": "source",
+      "sha256": "3f86be62e4c4f3d2e9f870bc7818ebf61b60eb974608d6d92a18a5b5fc10e1fb",
+      "timestamp": "2026-08-07T00:14:14.539661+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-0-README.md",
+      "role": "source",
+      "sha256": "94ee5a3551f702feac430ba512650dffb744be530135d03cafbf1d6b4e7b9d9f",
+      "timestamp": "2026-08-04T09:57:52+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-0-package-content.md",
+      "role": "source",
+      "sha256": "872bd63b658e0e50606c37a9dfd190027522e7c9c844538c7d0de266c06d907c",
+      "timestamp": "2026-08-04T09:57:52+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-0-readonly-inventory.sh",
+      "role": "source",
+      "sha256": "4d154a5e9775f7b0d576807af59a649a642be9cbf893228df85286babae26491",
+      "timestamp": "2026-08-04T09:57:52+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-0-report-20260805T131717Z.md",
+      "role": "checkpoint",
+      "sha256": "15ff05fd7694ec77102c3fdd1668f25aa88677d0108e5b8e9f3124b819025bdb",
+      "timestamp": "2026-08-05T13:17:44.771726+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-0-runtime-20260805T131717Z.log",
+      "role": "source",
+      "sha256": "465a1646382cdf0947ac55e37cac87fcf6bb45d2e477143193ee642f4f8defc1",
+      "timestamp": "2026-08-05T13:17:44.773721+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-0R-README.md",
+      "role": "source",
+      "sha256": "f5773efb8828b54bf632acff49dd4d3d9c884933e33b7f2a9f627990b81a4735",
+      "timestamp": "2026-08-05T06:23:54+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-0R-readonly-stale-run-diagnostic.sh",
+      "role": "source",
+      "sha256": "a083ff3af6de84b1d2792640b82ff3e459640d6103c180825352f9795257a284",
+      "timestamp": "2026-08-05T06:23:54+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-0R-report-20260805T144210Z.md",
+      "role": "checkpoint",
+      "sha256": "a23cb16e4fcf774c25d7c471529f579efebb22b885576ea7a6f967034ad7c8b7",
+      "timestamp": "2026-08-05T14:42:11.766444+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-0R-runtime-20260805T144210Z.log",
+      "role": "source",
+      "sha256": "f1532b3dce9a035b96eea70d38c934e44d4cf545fb873ce86f45908467182bb0",
+      "timestamp": "2026-08-05T14:42:11.796344+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1-BLOCKED-20260805T163141Z.md",
+      "role": "source",
+      "sha256": "0675b992d57b15b829073ab0dbda920b9a29f4f637172b86f56f5f2234127590",
+      "timestamp": "2026-08-05T16:44:48.861018+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1-BLOCKED-20260805T173527Z.md",
+      "role": "source",
+      "sha256": "5c6fdde54afc6fb91c85d1ed350a6d6204100a5310dde8e18478403548f20420",
+      "timestamp": "2026-08-05T18:43:15.675016+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1-CLOSED-20260805T184820Z.md",
+      "role": "checkpoint",
+      "sha256": "359a07bbb2997f550c06f8f3841aba4b180f12be69e0340a48373232242bc64a",
+      "timestamp": "2026-08-05T18:54:52.216094+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1-SHA256SUMS-20260805T184820Z.txt",
+      "role": "source",
+      "sha256": "13e4a6acd31c8f9edc3ed6016770fc7a51cfcfc5971d733c2af8bdee2b7daf6e",
+      "timestamp": "2026-08-05T18:54:52.262093+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1-final-report-20260805T184820Z.md",
+      "role": "checkpoint",
+      "sha256": "a6ef376406aea6904966fbeeee19551109b29b205d5af0ef60803989e88be5f6",
+      "timestamp": "2026-08-05T18:54:52.206094+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1-final-runtime-20260805T163141Z.log",
+      "role": "source",
+      "sha256": "118755f0fd4eeb032154446d20615d16f06ff1a7c1d756265cbc4710a2e16976",
+      "timestamp": "2026-08-05T16:44:48.848790+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1-final-runtime-20260805T173527Z.log",
+      "role": "source",
+      "sha256": "3ab712e4627d62f6ce9ddaeb63c8a7b4895dacab56629d2863e222236d10ef04",
+      "timestamp": "2026-08-05T18:43:15.679552+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1-final-runtime-20260805T184820Z.log",
+      "role": "source",
+      "sha256": "c4bb4da01ac3c286f80db49b1fb47f342d7fb0fc4150a932c3918c02bc7dbc85",
+      "timestamp": "2026-08-05T18:54:52.276108+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1-finalize-20260805T163141Z.sh",
+      "role": "source",
+      "sha256": "1bd58c28eac1b88a2927ad5a02200860ad6829d6a2b074b7c5e30842406c7b7a",
+      "timestamp": "2026-08-05T16:43:56.378646+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1-finalize-20260805T173527Z.sh",
+      "role": "source",
+      "sha256": "c2e2c17bf1f7de919c9eaf7b05665695aa416b4d748a63afaf5f57bbc1b7fa1c",
+      "timestamp": "2026-08-05T18:43:21.030794+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1-finalize-20260805T184820Z.sh",
+      "role": "source",
+      "sha256": "2cccff4fda41d94d9ab3772014c2cf1d85d821f41f56a6122e9a8a9e62920ef5",
+      "timestamp": "2026-08-05T18:53:05.403999+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1-git-dirty-20260805T165214Z.log",
+      "role": "source",
+      "sha256": "9f54d97e60cb18018437eaa1f5499c9967bce56183b0c5fd06e5d07bf1b73dcb",
+      "timestamp": "2026-08-05T16:52:14.616647+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1-overlay-20260805T153140Z.zip",
+      "role": "source",
+      "sha256": "3d6d9975f6d28d11ed61a6a5d22eeee89717b2fb62bac8215db681db5f7e2944",
+      "timestamp": "2026-08-05T15:31:40.992126+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1-overlay-content-20260805T153140Z.md",
+      "role": "source",
+      "sha256": "72e0b814e8784d92b00184201eb5a20c1f67fd388556c8b0413e587e334e2fa0",
+      "timestamp": "2026-08-05T15:31:41.040695+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1-plugin-dirty-20260805T170313Z.log",
+      "role": "source",
+      "sha256": "fb75ef3bfbfb22a5ef54c83c25480ad7d032dc799ccedce4c97299104cddc76d",
+      "timestamp": "2026-08-05T17:03:14.044442+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1-post-close-reconcile-20260805T185842Z.log",
+      "role": "source",
+      "sha256": "7dc51d3d0c579f41a15452d5a1a51017af31a8cb7d25ecb2ca53c7104020ce88",
+      "timestamp": "2026-08-05T18:58:42.567532+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1-preflight-20260805T163141Z.sh",
+      "role": "source",
+      "sha256": "9f921bb412e5b793a2264956a3cf3a759ae5df3d6d1b91f7bb8c05d10e6b893a",
+      "timestamp": "2026-08-05T17:32:06.751633+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1-report-20260805T153140Z.md",
+      "role": "checkpoint",
+      "sha256": "a70aa22ac9b6b6f1cc8a1b976a64f7e4396fc1fa0efccd8219e3f1b69ef98ef9",
+      "timestamp": "2026-08-05T15:31:41.055704+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1-rollback-20260805T163141Z.sh",
+      "role": "checkpoint",
+      "sha256": "81c1996523e055a2f234c936bcaf9f4bf48c18b7f887975f2889c789ebdc0b51",
+      "timestamp": "2026-08-05T16:43:56.380030+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1-rollback-20260805T173527Z.sh",
+      "role": "checkpoint",
+      "sha256": "b652bddcd4a1e445ea3635eb15dd47786f619d6b15ee5e80e4ed59c83a65f9fc",
+      "timestamp": "2026-08-05T17:44:36.078084+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1-rollback-20260805T184820Z.sh",
+      "role": "checkpoint",
+      "sha256": "4770eac2d8c3f76bfab2c89e57c8e3ea8f2f51fe8e3972099109bf1f9df6b1a2",
+      "timestamp": "2026-08-05T18:48:36.779245+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1-runtime-20260805T153140Z.log",
+      "role": "source",
+      "sha256": "afa08ded528d101ba17af19e5dba15018e174f15cdfdf89e87ee4e5d20d4485b",
+      "timestamp": "2026-08-05T15:31:41.275186+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1A-report-20260805T161156Z.md",
+      "role": "checkpoint",
+      "sha256": "d0650b16c39d00f9bfec2d18228b9db3c2baeaf703f000801077e91b22cac761",
+      "timestamp": "2026-08-05T16:17:54.323467+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1A-rollback-20260805T161156Z.sh",
+      "role": "checkpoint",
+      "sha256": "d125da83bf2e362c97fc14d812616945d07d8cc958c1186a25320101f89a1a1f",
+      "timestamp": "2026-08-05T16:11:57.035920+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/CE-1A-runtime-20260805T161156Z.log",
+      "role": "source",
+      "sha256": "42e198ef2dd12f3436ad9cbf1740586c3b0ff03bfe19090aad36f7b90cd9becd",
+      "timestamp": "2026-08-05T16:17:54.305667+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1-BLOCKED-20260803T065754Z.md",
+      "role": "source",
+      "sha256": "4a5f020a5e6c03f7fedb6548cd8f2babe03171e1535ef1a2ad65aba6612287ce",
+      "timestamp": "2026-08-03T06:58:44.891101+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1-BLOCKED-20260803T070556Z.md",
+      "role": "source",
+      "sha256": "b1dcf610c92561c1f04b4df2c89674c383b905274058832fe4e497618adae43c",
+      "timestamp": "2026-08-03T07:06:06.819763+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1-BLOCKED-20260803T070928Z.md",
+      "role": "source",
+      "sha256": "bdc9025ade96e8db31da847aeba79a356022a000692228b30d960afd2faacb9d",
+      "timestamp": "2026-08-03T07:09:58.583297+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1-CODEX-AWAITING-TELEGRAM-20260803T092331Z.md",
+      "role": "source",
+      "sha256": "1f9d5e9ef695027e72b3216a735156464af5715562c55843902a66fe8794eacc",
+      "timestamp": "2026-08-03T10:00:07.541884+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1-CODEX-BLOCKED-20260803T092331Z.md",
+      "role": "source",
+      "sha256": "edc252136d1a015285c5e9b96c6b62eb5418927d36f0a53f374b45a0ec616e2a",
+      "timestamp": "2026-08-03T09:59:03.729607+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1-CODEX-overlay-20260803T092331Z.zip",
+      "role": "source",
+      "sha256": "d5a7c4240cbdeb27b3fa9071af9c09c39b80c52187287867765014903064394d",
+      "timestamp": "2026-08-03T09:49:59.113343+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1-CODEX-overlay-content-20260803T092331Z.md",
+      "role": "source",
+      "sha256": "34b86767ad0c9511f88f42d6c2a462f5cafbda15be3415fa307b0def9b3d8ddd",
+      "timestamp": "2026-08-03T09:49:38.467106+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1-CODEX-report-20260803T092331Z.md",
+      "role": "checkpoint",
+      "sha256": "4dcad834606e5748907cc9af4442e16fe50b37f2f9eb0a50a6085122c5938766",
+      "timestamp": "2026-08-03T09:58:59.078581+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1-CODEX-runtime-20260803T073643Z.log",
+      "role": "source",
+      "sha256": "9851d0164d72113adb945822ce7236841dd3be940d7f2a0584f0448ec884e72c",
+      "timestamp": "2026-08-03T09:32:17.191967+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1-CODEX-runtime-20260803T092331Z.log",
+      "role": "source",
+      "sha256": "f27e787c43b81ece86c02d27b621092308bece4ca0630e3765326b262218ebc8",
+      "timestamp": "2026-08-03T10:00:07.528180+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1-CODEX-telegram-verify.sh",
+      "role": "source",
+      "sha256": "86934dda34f0b053148fbeeea4746afa3cad52c696b9f0a3beb9f216e6368888",
+      "timestamp": "2026-08-03T09:57:17.490195+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1-runtime-20260803T065754Z.log",
+      "role": "source",
+      "sha256": "28f659de0cc3a1b52b100e0ae2e41132b7a11a95dd2d5624cca756bf5b39f6e9",
+      "timestamp": "2026-08-03T06:58:44.894084+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1-runtime-20260803T070556Z.log",
+      "role": "source",
+      "sha256": "80ca95ea8a94d3fd77cd7275dce2912790a7da4396daf1cc6bca2b0a2a43428c",
+      "timestamp": "2026-08-03T07:06:06.821290+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1-runtime-20260803T070928Z.log",
+      "role": "source",
+      "sha256": "e1f3cb5d93afa8360641b2321f30dde3a3f6af02652065765b5366354295f478",
+      "timestamp": "2026-08-03T07:09:58.585301+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1R-CODEX-AWAITING-TELEGRAM-20260803T102126Z.md",
+      "role": "source",
+      "sha256": "240be4f1087e9ee8fc460fd3b0a4d5ab6cd0a0e26f33ce7d5429e0e93150bcd7",
+      "timestamp": "2026-08-03T11:49:21.729427+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1R-CODEX-CLOSED-20260803T172130Z.md",
+      "role": "checkpoint",
+      "sha256": "35f6e915f0d6a91b07a76c2a0ac94446f22ea15fcc2cf1bb52dc57fa2625efef",
+      "timestamp": "2026-08-03T17:24:00.200218+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1R-CODEX-overlay-20260803T102126Z.zip",
+      "role": "source",
+      "sha256": "69d4020e2c4d5e22fc6d3b989cdace1562ac3b5022bcb013196cbebf3f3f5fd6",
+      "timestamp": "2026-08-03T11:49:21.657981+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1R-CODEX-overlay-20260803T172130Z.zip",
+      "role": "source",
+      "sha256": "655cd9b0adbbc432c503ddad3ef9f780b82c2d01f6ade80b7f3bbae4aa12fb22",
+      "timestamp": "2026-08-03T17:24:00.132030+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1R-CODEX-overlay-content-20260803T102126Z.md",
+      "role": "source",
+      "sha256": "6e64ea46da11c1a8407cc832d4c9d6f10e3ecad9a281f669a673192d40c03271",
+      "timestamp": "2026-08-03T11:49:21.706997+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1R-CODEX-overlay-content-20260803T172130Z.md",
+      "role": "source",
+      "sha256": "4efd2e1bb6b68b51adeea03907589d6b44a2f19fd3c4fbfe50dbeca030e9f96b",
+      "timestamp": "2026-08-03T17:24:00.187822+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1R-CODEX-report-20260803T102126Z.md",
+      "role": "checkpoint",
+      "sha256": "44e6745b4d9a1f3941ca7d8ecb8dfb37378bf87a1df6c37262f572bd457f9893",
+      "timestamp": "2026-08-03T11:49:21.724178+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1R-CODEX-report-20260803T172130Z.md",
+      "role": "checkpoint",
+      "sha256": "35f6e915f0d6a91b07a76c2a0ac94446f22ea15fcc2cf1bb52dc57fa2625efef",
+      "timestamp": "2026-08-03T17:24:00.192826+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1R-CODEX-runtime-20260803T102126Z.log",
+      "role": "source",
+      "sha256": "baf10113bb459024fa12dd0f41cd89428c195d8c234b8a0c40012de5e44bc5a6",
+      "timestamp": "2026-08-03T12:06:23.130293+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1R-CODEX-runtime-20260803T172130Z.log",
+      "role": "source",
+      "sha256": "e8eba78321a37182c705e075fb245e8d744715c459d8f6718aa56fef78ef4a54",
+      "timestamp": "2026-08-03T17:24:00.205215+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/DR-1R-CODEX-telegram-verify.sh",
+      "role": "source",
+      "sha256": "63ff780e059f48641d934fcdfc9cba30f97f2f558e885250c2e62ea059e81b99",
+      "timestamp": "2026-08-03T11:51:19.951595+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-BLOCKED-20260803T183017Z.md",
+      "role": "source",
+      "sha256": "f1199347b1a0e46d31f7c8580580c5534ec1f7dfaf50edb64bd71efb59b6e0f6",
+      "timestamp": "2026-08-03T19:08:43.072114+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-CLOSED-20260804T161513Z.md",
+      "role": "checkpoint",
+      "sha256": "3d3614ba175a67aaaa575089c03d9b2d33bff93bb4d2a14db3ffeabb7802a877",
+      "timestamp": "2026-08-04T16:20:44.210962+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-backup-manifest-20260803T183017Z.txt",
+      "role": "source",
+      "sha256": "998892b7d6b7081d1b6a09dff42aeb37391ed449aea04f5c73134fab25ac2ec6",
+      "timestamp": "2026-08-03T18:51:41.915259+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-closure-SHA256SUMS-20260804T161513Z.txt",
+      "role": "source",
+      "sha256": "1b548aece9e8c2183f64ae4144e7c5b1349d4d38e9c5a45dff6377e12f42c9e9",
+      "timestamp": "2026-08-04T16:17:12.523077+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-closure-report-20260804T161513Z.md",
+      "role": "checkpoint",
+      "sha256": "0b4e53582751bf05c247c398264683fafe33d9be21e8bf46c7738ca89bfa1cbd",
+      "timestamp": "2026-08-04T16:20:44.210962+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-closure-runtime-20260804T161513Z.log",
+      "role": "source",
+      "sha256": "978b87346beaa911985e6a97a530b0d069ce9c6e62231e9633d1ba97b1280b57",
+      "timestamp": "2026-08-04T16:20:44.210962+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-expected-diff-20260803T183017Z.patch",
+      "role": "source",
+      "sha256": "16ace284eb97023d5eeb6ee33ad09c22d270b193f2b88571b597c15fdde3117e",
+      "timestamp": "2026-08-03T19:17:00.217014+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-hidden-dependency-rename-20260804T152142Z.log",
+      "role": "source",
+      "sha256": "d32ef007fae4a077c1022880b7add5feb65e886d623b401fa42f160339608fd9",
+      "timestamp": "2026-08-04T15:21:43.431180+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-hidden-dependency-rename-retry-20260804T154230Z.log",
+      "role": "source",
+      "sha256": "5b92e2620df4e4a8db6dc6e11bf191e3f7c35eb69814cda94e7d8c97be2c58e8",
+      "timestamp": "2026-08-04T15:42:34.082388+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-hidden-dependency-windows-20260804T160501Z.log",
+      "role": "source",
+      "sha256": "7053ec6b3018baad119ff76f1ff05d823da578d0544ba671e464f65125859157",
+      "timestamp": "2026-08-04T16:05:02.072198+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-package-list-source-20260803T183017Z.txt",
+      "role": "source",
+      "sha256": "02fe7b42a51d13976d36509ecaba3c0ac6492b4601d1676fe036f3f9de7e8530",
+      "timestamp": "2026-08-03T19:00:27.266927+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-package-resolution-source-20260803T183017Z.txt",
+      "role": "source",
+      "sha256": "d3a772fe9a5f4d2b5d99a0a53462e40884dbe1c452ee3d166fe951d94b5624b6",
+      "timestamp": "2026-08-03T19:00:24.643618+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-package-resolution-target-20260803T183017Z.txt",
+      "role": "source",
+      "sha256": "d3a772fe9a5f4d2b5d99a0a53462e40884dbe1c452ee3d166fe951d94b5624b6",
+      "timestamp": "2026-08-03T19:01:02.925605+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-path-inventory-20260803T183017Z.txt",
+      "role": "source",
+      "sha256": "27916cef58fd15ffc08f34c94cbac7491d2c14d4c6816f3aecb6fd24e37a050c",
+      "timestamp": "2026-08-03T19:08:42.898904+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-postswitch-tests-20260803T183017Z.log",
+      "role": "source",
+      "sha256": "b0a4b3ebb427adaccc3a0e94df7a7c3f28116bacd16355b5b15c45c618fc78ac",
+      "timestamp": "2026-08-03T19:27:16.560507+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-python-source-20260803T183017Z.txt",
+      "role": "source",
+      "sha256": "5b3e43dc38ca01e3f5a7854ba50d4330864b0c1e0f646650b2c78cf072acc366",
+      "timestamp": "2026-08-03T19:00:15.833736+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-python-target-20260803T183017Z.txt",
+      "role": "source",
+      "sha256": "5b3e43dc38ca01e3f5a7854ba50d4330864b0c1e0f646650b2c78cf072acc366",
+      "timestamp": "2026-08-03T19:01:02.394413+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-report-20260803T183017Z.md",
+      "role": "checkpoint",
+      "sha256": "f1199347b1a0e46d31f7c8580580c5534ec1f7dfaf50edb64bd71efb59b6e0f6",
+      "timestamp": "2026-08-03T19:08:42.966805+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-rollback-20260803T183017Z.sh",
+      "role": "checkpoint",
+      "sha256": "467f658bbbab5bd12b215920b52605272eca036214d9ad7048cd65407fa19719",
+      "timestamp": "2026-08-03T19:25:06.636622+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-runtime-20260803T183017Z.log",
+      "role": "source",
+      "sha256": "b684ccc8e6366fe889908a1a25c04b35444cd86949759a697fc858023320ddbb",
+      "timestamp": "2026-08-03T19:21:09.103830+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-source-manifest-after-20260803T183017Z.sha256",
+      "role": "source",
+      "sha256": "a06a7add3a4487e0d6bd4bd789e443ae472ecf61f2d485a4c178266c84151035",
+      "timestamp": "2026-08-03T18:57:15.312393+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-source-manifest-before-20260803T183017Z.sha256",
+      "role": "source",
+      "sha256": "a06a7add3a4487e0d6bd4bd789e443ae472ecf61f2d485a4c178266c84151035",
+      "timestamp": "2026-08-03T18:57:15.226173+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-switchover-20260803T183017Z.sh",
+      "role": "source",
+      "sha256": "daa008409dd379e663bea14e8ab26f27775292e5cabfcc356c51ead3ffdc17f8",
+      "timestamp": "2026-08-03T19:25:06.637622+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-telegram-runtime-20260803T183017Z.log",
+      "role": "source",
+      "sha256": "87bb3ef1cb6648b6a32dbf8c63e7a63548c26f8f30ca399d3664f5eae04786d7",
+      "timestamp": "2026-08-04T05:49:14.271120+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/FS-1-telegram-verify-20260803T183017Z.sh",
+      "role": "source",
+      "sha256": "dc5165397d77b56362c23af704ed367ce6f22c545c628390c88e0cfdd42eaf74",
+      "timestamp": "2026-08-04T05:48:27.909951+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/OR1-DELIVERY.md",
+      "role": "source",
+      "sha256": "416715ec761e4e3ab86cc411c84a1b6e0ead4970a8e4ac7f3ef6629bd2dce409",
+      "timestamp": "2026-07-31T18:11:48.745650+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/POST-WR1-ALO-BLOCKED-20260803T061515Z.log",
+      "role": "source",
+      "sha256": "dedb987a04f1ca33e4f04611c2049d451e0b1e1ebdf466456ac46823f0e5e032",
+      "timestamp": "2026-08-03T06:15:13.997351+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/POST-WR1-R1-router-diagnostic-20260803T062539Z.log",
+      "role": "source",
+      "sha256": "d6bbd5095bde3dcd1574dfd80c9029f9fbc470696121ababcfd0393b88918b14",
+      "timestamp": "2026-08-03T06:25:39.640823+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/TG-1-overlay-content.md",
+      "role": "source",
+      "sha256": "8e00ed752ef52ff9d8127350afaa9ac8bb0d9f15bcab56228bd661300792aed4",
+      "timestamp": "2026-08-01T15:20:32.700143+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/TG-1-overlay.zip",
+      "role": "source",
+      "sha256": "942373e71c9b4638a35394b3a39192659820d1712ee9a400e11816c22b2dfdb4",
+      "timestamp": "2026-08-01T15:20:32.754273+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/TG-1-report.md",
+      "role": "checkpoint",
+      "sha256": "0034b2ba56ec38d7c77c6cdf45a7eac6587b01b4692d3053c2f71575da50a34a",
+      "timestamp": "2026-08-01T15:18:19.755197+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/TG-1-runtime.log",
+      "role": "source",
+      "sha256": "188ea6c595873cd7664c064b8a3f1ea92ee2d8b3a64b4cfb8e3a4265ce90d729",
+      "timestamp": "2026-08-01T15:18:19.754203+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/TG-2-contract-20260801-183735.log",
+      "role": "source",
+      "sha256": "ac44777d1fa49142cce0fda9e2e9f6c3fe1efd7c4324be955e91286d2b610945",
+      "timestamp": "2026-08-01T18:40:11.262637+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/TG-2A-payload-20260801-184449.log",
+      "role": "source",
+      "sha256": "85c854b765334ebcd85e324db792f8915d7ffc77fc6f5791b82a15cbe3638775",
+      "timestamp": "2026-08-01T18:44:54.572407+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/TG-2B-validation-20260801-184918.log",
+      "role": "source",
+      "sha256": "5946e39fa96cf3b312be50e0c57a8da8c94f2a9723af4c9fd25c323a8dc34337",
+      "timestamp": "2026-08-01T18:49:19.666108+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/TG-2B1-env-keys-20260801-185843.log",
+      "role": "source",
+      "sha256": "5d9572fd4847d9998e03e6efa09bf33bbaa1ba91faf1eb9b4357df5acc6cb777",
+      "timestamp": "2026-08-01T18:58:44.478126+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/TG-2C-replay-20260801-190257.log",
+      "role": "source",
+      "sha256": "b2484ba67f5afdc4d2a9015155068e48fd9b393c33d51e41d13f972fcab4caaa",
+      "timestamp": "2026-08-01T19:03:04.458241+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/TG-3-core-gate-backup-20260801-190906.tar.gz",
+      "role": "source",
+      "sha256": "53a4d7b7e34036d4cad5aed9239dee480fa42993a22968e44713c620b93d71d5",
+      "timestamp": "2026-08-01T19:09:08.436144+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/TG-3-fix-core-gate-20260801-190906.log",
+      "role": "source",
+      "sha256": "a00a7638c33e5064b0b0094b5c855cd8164f7b98493c2b9e4a0082715427d275",
+      "timestamp": "2026-08-01T19:09:10.569725+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/TG-3R-core-gate-backup-20260801-191321.tar.gz",
+      "role": "source",
+      "sha256": "53a4d7b7e34036d4cad5aed9239dee480fa42993a22968e44713c620b93d71d5",
+      "timestamp": "2026-08-01T19:13:23.176033+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/TG-3R-core-gate-recovery-20260801-191321.log",
+      "role": "source",
+      "sha256": "2a4f09950c73d4e106c4583ba97e107443a555e4308cb97bc29c1090565e7072",
+      "timestamp": "2026-08-01T19:27:15.407521+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/TG-4-active-session-20260802-065017.jsonl.gz",
+      "role": "source",
+      "sha256": "16976460e3b9633a59f3993281a3e11985bddb59142a4a9772e9cfb5edcd6d98",
+      "timestamp": "2026-08-02T06:50:20.981446+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/TG-4-context-guard-20260802-065017.log",
+      "role": "source",
+      "sha256": "ffd62e701a502f3b4a9e422512ad33ba4225ee7c431b88ca8a012599175eb39e",
+      "timestamp": "2026-08-02T06:50:52.759778+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/TG-4-openclaw-config-20260802-065017.json.gz",
+      "role": "source",
+      "sha256": "b34aadccdec728477d1337745c560c26a12c002cfcca94e7f253506b981235ac",
+      "timestamp": "2026-08-02T06:50:20.313454+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/TG-4C-CLOSED-20260802-070556.md",
+      "role": "checkpoint",
+      "sha256": "c4ea7d14907746fd0525daa37aa1ecbecbb6e95579b4b7d0ab1a99c9580a7d62",
+      "timestamp": "2026-08-02T07:06:50.099208+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/TG-4C-close-checkpoint-20260802-070556.log",
+      "role": "source",
+      "sha256": "42ebc1475ba5bee1db1e0f08f72a0095971e80b1a0d205332157dc58f51a0950",
+      "timestamp": "2026-08-02T07:06:50.103193+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/TG-4R-context-recovery-20260802-065348.log",
+      "role": "source",
+      "sha256": "5f5b0130d14b1612ad6ce50ec7fb15a33803fcf699cce64d1dc530fdfc319cb4",
+      "timestamp": "2026-08-02T06:59:10.259432+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/TG-4R-openclaw-config-20260802-065348.json.gz",
+      "role": "source",
+      "sha256": "93ce2c1e6ae5acf457ad9bf6252b3ae3cd673eb3f092e322969585ecb451aa18",
+      "timestamp": "2026-08-02T06:53:49.611164+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/TG-core-blocked-20260801-183509.log",
+      "role": "source",
+      "sha256": "fb206817e215fada45151a48ce02f13329fddbb4ba55a030a96dcdcfeafbd1ef",
+      "timestamp": "2026-08-01T18:35:10.036161+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/VSCODE-AGENT-SYSTEM-backup-inventory.md",
+      "role": "source",
+      "sha256": "7240a5e3fb484cd9d3245420deb05f0c8677e25316a57dbeb5096db837f482e8",
+      "timestamp": "2026-08-06T06:38:57.159315+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/VSCODE-AGENT-SYSTEM-backup-manifest-20260806T063856Z.txt",
+      "role": "source",
+      "sha256": "b5377bc26571881542f7045d6c2b893cee86d2158a8ab0b1b64d1b1aad2c33ae",
+      "timestamp": "2026-08-06T06:38:57.051639+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/VSCODE-AGENT-SYSTEM-diff.patch",
+      "role": "source",
+      "sha256": "7505e20b1a3460ab24d8f73a56c76f4ca19379468e600ad113edd1583d186011",
+      "timestamp": "2026-08-06T06:45:41.206559+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/VSCODE-AGENT-SYSTEM-file-map.md",
+      "role": "source",
+      "sha256": "f3275d77c3246b917e3969abf493e5a4ed5b31ffba9068645dd09ed8ebd8614b",
+      "timestamp": "2026-08-06T10:40:09.158711+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/VSCODE-AGENT-SYSTEM-report.md",
+      "role": "checkpoint",
+      "sha256": "cdff6b183224efd00aa1ff160d20d60711c6ff7252cbcb1adbe38ca90af8763e",
+      "timestamp": "2026-08-06T10:40:09.158711+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/VSCODE-AGENT-SYSTEM-rollback.md",
+      "role": "checkpoint",
+      "sha256": "4e214a2139e30bc5f10a1d3a8241fdb7718448cb8ac2e32c48260fb4be3a6eac",
+      "timestamp": "2026-08-06T10:40:09.159714+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/VSCODE-AGENT-SYSTEM-runtime.log",
+      "role": "source",
+      "sha256": "37be8fda0e5a212817c0b74515ac187b4b059d93144c563d802300919ddca1c1",
+      "timestamp": "2026-08-06T06:49:34.491082+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/VSCODE-AGENT-SYSTEM-validation.log",
+      "role": "source",
+      "sha256": "a25db43d6d54cb0f5fdc3edd857980694f6f456ed98727a0a402d90c3693a8c1",
+      "timestamp": "2026-08-06T06:44:28.471394+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-CLOSED-20260803T055703Z.md",
+      "role": "checkpoint",
+      "sha256": "e7f98f50b55711dacdaac2992e57cf991bf2df1f5603224b20db43cfb5cbc78b",
+      "timestamp": "2026-08-03T06:03:47.428273+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-R3-core-20260803T034011Z.log",
+      "role": "source",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "timestamp": "2026-08-03T03:45:10.708361+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-R3-e2e-20260803T034011Z.log",
+      "role": "source",
+      "sha256": "c037d3603b433fb72a93af91ccdc80fcf78946fa2086f653cd5598b55ede458c",
+      "timestamp": "2026-08-03T03:45:10.472703+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-R3-gateway-20260803T034011Z.log",
+      "role": "source",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "timestamp": "2026-08-03T03:45:10.481670+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-R3-post-verify-20260803T034951Z.log",
+      "role": "source",
+      "sha256": "8127d6d73c053df2ee3796cf70f7b357a64410c76ffc502ded51ce1a53851c7d",
+      "timestamp": "2026-08-03T03:49:51.512292+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-R3-state-20260803T034011Z.env",
+      "role": "source",
+      "sha256": "1499c23e4dbb8cfeff25f63346afcd0b634316381557593ce61c14352fc9a10c",
+      "timestamp": "2026-08-03T03:45:07.127308+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-activate-runtime.sh",
+      "role": "source",
+      "sha256": "d858bbabc9b3a49657b7ab15a7ac4f7860dfd4bf9d35cb5181b5170e1398cc77",
+      "timestamp": "2026-08-02T16:00:14.167491+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-close-20260803T035408Z.log",
+      "role": "source",
+      "sha256": "c680b464877235dafa97ad32e631201c7c5893879443b05378e7d70128369754",
+      "timestamp": "2026-08-03T03:54:07.999952+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-close-final-20260803T042203Z.log",
+      "role": "source",
+      "sha256": "c38a8bb160266b614770f86c2bc0fc53ddbabb2e3f98d2aded8f42483342404e",
+      "timestamp": "2026-08-03T04:22:06.331364+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-close-final-20260803T045611Z.log",
+      "role": "source",
+      "sha256": "3a42fcbb31d557b385e9e91af1ea89992f8af14242d9ce3589813307d05a4f24",
+      "timestamp": "2026-08-03T04:56:12.216090+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-close-stdin-20260803T050438Z.log",
+      "role": "source",
+      "sha256": "c0a1ea4cbfc4b1e0b40789268581aaf7c0ea77761bb9c6e67e5a28e4d8909ece",
+      "timestamp": "2026-08-03T05:05:18.647374+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-close-v2-20260803T043244Z.log",
+      "role": "source",
+      "sha256": "a66edc974c608136f1a7b5813a3ae7db1a93de6316959cbfeabdadc49a4f2e82",
+      "timestamp": "2026-08-03T04:32:44.373569+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-docker-cli-diagnostic.log",
+      "role": "source",
+      "sha256": "ed59041d83e62c4da827a3bd470c7dba1a1aae96e0261dd290fc623fe9bf5e49",
+      "timestamp": "2026-08-02T15:50:07.442932+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-enable-execution-http.sh",
+      "role": "source",
+      "sha256": "a1ed361b2c2b79ca736daf434c9d64199c322d3888078cc096fde1dafde50c5a",
+      "timestamp": "2026-08-01T19:29:54.886021+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-enable-message-tool.sh",
+      "role": "source",
+      "sha256": "09ca98610ed546b2c26f2d0776a1099c9a757faf7359df6b7a4b1c93e988b566",
+      "timestamp": "2026-08-01T18:38:27.316711+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-finalize-after-codex.sh",
+      "role": "source",
+      "sha256": "1b298e620e0a9923b48869512c0514c878ac159dda019c93e35adbe29cf4484c",
+      "timestamp": "2026-08-03T06:00:44.858486+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-manual-backup.sh",
+      "role": "source",
+      "sha256": "6697f12257a55f75c4cf402430da211933cfa85f5090e66e417d408ac1f3d761",
+      "timestamp": "2026-08-01T16:25:38.995084+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-overlay-content.md",
+      "role": "source",
+      "sha256": "7ad90410ff44271a79585d2238073d30e109c0471798644a8ef07b2dc3a14109",
+      "timestamp": "2026-08-03T06:03:47.351481+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-overlay.zip",
+      "role": "source",
+      "sha256": "6fbe82a2e3fc1459c1de0349cf546f989ca60b338c5fa8e760a0e7e617f6680e",
+      "timestamp": "2026-08-03T06:00:43.358984+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-plugin-source-locate.log",
+      "role": "source",
+      "sha256": "8c869565c305d57a49ca86869a7ef78791028586eca6997caf73a93f70f5927d",
+      "timestamp": "2026-08-03T03:56:55.936976+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-report.md",
+      "role": "checkpoint",
+      "sha256": "9566b29f82c8616cc4220b487333055a531ae9e6ea51b6219f0f33f673e7400a",
+      "timestamp": "2026-08-03T06:03:47.408622+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-runtime.log",
+      "role": "source",
+      "sha256": "3fdca90c3b078e393febb563dfb36dfea84b543c1661796c53bed8a615bcc812",
+      "timestamp": "2026-08-03T06:08:00.079611+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/WR-1-wsl-docker-integration.log",
+      "role": "source",
+      "sha256": "58d54188e5549c46006cf4e5d15a5fee6c78d0d131f8a28c69d8cada15d85e44",
+      "timestamp": "2026-08-02T15:54:07.237467+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/anh-duong-core-CR1-overlay.zip",
+      "role": "source",
+      "sha256": "96814bc611e79c6ad3a58e93bb790315e59be0d94594dcffe0326440595d55d2",
+      "timestamp": "2026-07-31T15:55:21.829777+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/anh-duong-core-FR1-overlay.zip",
+      "role": "source",
+      "sha256": "b399dacf81a667ba41acd3bdd64553d3d6607e72d6334a9f67275fcb656e0276",
+      "timestamp": "2026-07-31T14:59:41.266985+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/anh-duong-core-OR1-overlay.zip",
+      "role": "source",
+      "sha256": "443123fd729d24fdc1373da8c9ef753a58afa94e111df84c5b8e90792e75eb86",
+      "timestamp": "2026-07-31T18:11:49.310715+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-1.7A-effective-combo-settings.log",
+      "role": "source",
+      "sha256": "419b7f3db8d0fb14849ac49e7562ad0fdac52ff302a13cf9e0d135539359e31d",
+      "timestamp": "2026-07-30T17:06:52.568597+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-1.7B-normalized-fingerprint.log",
+      "role": "source",
+      "sha256": "bc8085b7d672912f568402703e81ac4e2457e4eb437db70c111f50fb3234a84e",
+      "timestamp": "2026-07-30T17:01:56.429294+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-1.7B-request-fingerprint.log",
+      "role": "source",
+      "sha256": "e1ec5f08acc784b3a131196d7fcce03bdc35ca9a10261f87916e5606d3c89b36",
+      "timestamp": "2026-07-30T16:52:57.357866+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-1.7B-runtime-routing-scan.log",
+      "role": "source",
+      "sha256": "9eaa095cbe1205049a797e42a5a5e32873b7d7a3439af73041b955005a97c0f9",
+      "timestamp": "2026-07-30T17:03:44.263429+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-1.7C-combo-after-removal.log",
+      "role": "source",
+      "sha256": "7c101d1f4440c879c771237e96940cc7509e1e3535f996733c9e156df9a1adbe",
+      "timestamp": "2026-07-30T17:12:01.391497+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-1.7D-live-telegram.log",
+      "role": "source",
+      "sha256": "fd62a9f259d89285f24b09374261d7b065121a0426662c1f82e5900946d21cb4",
+      "timestamp": "2026-07-30T17:15:25.342292+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-1.8A-new-session-repro.log",
+      "role": "source",
+      "sha256": "805d24c1616b712c82c829e6af9cf4aac47ff87a8f380e057965782f6fbc75c3",
+      "timestamp": "2026-07-30T17:20:10.085336+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-1.8B-binding-state-fingerprints.log",
+      "role": "source",
+      "sha256": "f0c1eaaad2ed56912d92e9f8db00c9e6aeca48b89abb320c32f5ff587ef05156",
+      "timestamp": "2026-07-30T17:36:51.074202+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-1.8B-codex-binding-key-map.log",
+      "role": "source",
+      "sha256": "787e2640f69ad671c9639905251eff1eef7f99498b7b2352e500dbb0bf66f436",
+      "timestamp": "2026-07-30T17:42:15.399043+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-1.8B-codex-reset-definition.log",
+      "role": "source",
+      "sha256": "8ea98e70632785c3cddb5d2da58b679aa193a9166a57727ce61792076d896c31",
+      "timestamp": "2026-07-30T17:28:33.671480+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-1.8B-reset-conflict-path.log",
+      "role": "source",
+      "sha256": "05b123a9dccba2161c212ccdc719693defea7e9c2d73e64d73f89195347ef9e9",
+      "timestamp": "2026-07-30T17:32:21.465198+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-1.8B-reset-hook-implementation.log",
+      "role": "source",
+      "sha256": "0c8192cf5203f87b8ac4283cee096cc05b35ea7726f9a6596b96c8ba984dcda5",
+      "timestamp": "2026-07-30T17:26:12.257100+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-1.8B-reset-hook-source.log",
+      "role": "source",
+      "sha256": "e53a5d0089a092a753d71431ed28a5af22e6fd57574340bf5bb4b53899c2e302",
+      "timestamp": "2026-07-30T17:22:59.620648+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-1.8B-runtime-location.log",
+      "role": "source",
+      "sha256": "4b34e65b990737670bd35a0082fea959c67f479798de1ba69e416dfa34403b39",
+      "timestamp": "2026-07-30T17:24:44.014761+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-4.1V-memory-runtime-verification.log",
+      "role": "source",
+      "sha256": "e101380be8bc0c149af3fdf3b86d114b6f8622d2908ba80c9724bed87793ccf8",
+      "timestamp": "2026-07-30T17:55:07.211380+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-4.2-G0.sh",
+      "role": "source",
+      "sha256": "152aa02c6bec639190eb804f6d2555cfc59cb694b044b12894667a7ecea40ccf",
+      "timestamp": "2026-07-31T11:51:07.748019+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-4.2-G0R.sh",
+      "role": "source",
+      "sha256": "c0eaf6f8757d5f813b35e0ea09210ed66fcc7719960dd96e811e7c94900fa9ce",
+      "timestamp": "2026-07-31T12:01:26.409314+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-CB-1.log",
+      "role": "source",
+      "sha256": "736e9fad12da2d6b92174007192ee1588e2589e8c9e3cbd311ca1e03de1074c3",
+      "timestamp": "2026-07-31T17:15:10.983968+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-CR1-one-shot.log",
+      "role": "source",
+      "sha256": "5d38f20c83e00de837e4dbf2f164549d13de088b0ca5e4e92a043c04bb393001",
+      "timestamp": "2026-07-31T15:54:49.351259+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-FR0-20260731T132255Z.log",
+      "role": "source",
+      "sha256": "a938c90a9531d7a8adc0ad3a56ccfb03f7c2dc93577b9858791c2f16a0568836",
+      "timestamp": "2026-07-31T13:23:34.520209+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-FR0-fast-router-preflight.sh",
+      "role": "source",
+      "sha256": "9bf05ef3478e79779661c033741cdf349d20320f780acbf1e0adc457296f0241",
+      "timestamp": "2026-07-31T13:22:20.145752+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-FR0R-baseline-mypy-recovery.sh",
+      "role": "source",
+      "sha256": "31c0f3067e72a424f5b0e106cf2a2f57a7f05d0f37d9d7b7eff777f59064fe9c",
+      "timestamp": "2026-07-31T13:42:27.440366+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-FR0R1-corrected-mypy-scope.sh",
+      "role": "source",
+      "sha256": "60729db5ab26e916beb9dd7f7e0274b7f087f815373d46d9b56a2cd0c38cd004",
+      "timestamp": "2026-07-31T13:59:18.968175+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-FR0R2-expected-red-trap-fix.sh",
+      "role": "source",
+      "sha256": "89bc33a600e63e03e30aff99bc393dd00a2ee165c7540193dd1155059bd7c518",
+      "timestamp": "2026-07-31T14:09:49.559352+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-FR1-one-shot.log",
+      "role": "source",
+      "sha256": "2727e51f70c7a0f66f658a01c5a5ad6583bcb48e621764c100ff92117e118ca9",
+      "timestamp": "2026-07-31T15:00:45.238532+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-OR1-one-shot.log",
+      "role": "source",
+      "sha256": "eae964fa2d535bc81aaad5778529511a150047256cd11b8b89e105f4211f23cb",
+      "timestamp": "2026-07-31T18:11:49.616976+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-OR1A-runtime.log",
+      "role": "source",
+      "sha256": "0ae1d0d9d831a00af6b3893a66c2d877e28fcd3f4c6176c1941aa547280c5e9b",
+      "timestamp": "2026-08-01T06:17:04.791828+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-openclaw-skills-eperm-D1.log",
+      "role": "source",
+      "sha256": "abc65a2db65440407dfe9e56b182778bf3624b00035778db2f621fdf92023b77",
+      "timestamp": "2026-08-01T15:29:11.987409+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-openclaw-skills-eperm-F1-20260801-153720.log",
+      "role": "source",
+      "sha256": "1ff6d4276d93205a5f9b9c4db82bf110a0af40a0bd27878eef4dac6b802f1417",
+      "timestamp": "2026-08-01T15:37:54.766160+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/checkpoint-openclaw-skills-eperm-F2-20260801-154229.log",
+      "role": "source",
+      "sha256": "5be6447bf01cb1ae7f2908388429445c5710b86ed16c96cf9c89f6b0275cfaaa",
+      "timestamp": "2026-08-01T15:44:40.464508+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/fix-openclaw-skills-eperm-F1.sh",
+      "role": "source",
+      "sha256": "faee55677bbe2807d50ef19f0454e90c52144a770e6ba429d8a09b6c3164adb5",
+      "timestamp": "2026-08-01T15:37:20.491936+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/fix-openclaw-skills-eperm-F2.sh",
+      "role": "source",
+      "sha256": "c1e895691d626585fb7c6b4c4f1653b33b527338548420ec86d251290e258b88",
+      "timestamp": "2026-08-01T15:42:29.378938+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/openclaw-before-combo-fix-20260731-155934.json",
+      "role": "source",
+      "sha256": "0fd10d4cfddcc4a9196ba147513f3b6e71b9a18e744c1f118ffce95ea4c8d327",
+      "timestamp": "2026-07-31T15:50:36+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/openclaw-before-combo-rename-20260731-153742.json",
+      "role": "source",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "timestamp": "2026-07-31T15:38:04.347986+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/openclaw-before-combo-rename-20260731-155035.json",
+      "role": "source",
+      "sha256": "08f93d62363c757db6823bdc12f02d3f6f1f3234ad43439819b8079f35ea9a10",
+      "timestamp": "2026-07-31T15:50:36.578630+00:00"
+    },
+    {
+      "canonical_path": "/mnt/f/AIOS/anh-duong-checkpoints/openclaw-before-thinking-status-20260731-162708.json",
+      "role": "source",
+      "sha256": "fc6800d39da7a6205da8334eeb281aeabc9b93b20ca3e785eee0121a8d78af4f",
+      "timestamp": "2026-07-31T16:00:16+00:00"
+    }
+  ],
+  "version": 1
+}

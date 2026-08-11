@@ -1,0 +1,218 @@
+Spreadsheet runtime warmup failed during python startup
+Traceback (most recent call last):
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/patches/warm_spreadsheet_runtime_on_startup.py", line 26, in warm_spreadsheet_runtime_on_startup
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 785, in warm_spreadsheet_runtime
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 720, in _warm_feature_flows
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 704, in _warm_collaboration_flows
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/generated/interface/models.py", line 30820, in hydrate_crdt_from_proto
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/rpc/remote.py", line 749, in __call__
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/rpc/client.py", line 150, in call
+artifact_tool.rpc.client.RemoteError: hydrateCrdtFromProto requires an empty collaborative document.
+[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31m                                                                 [100%][0m
+=================================== FAILURES ===================================
+[31m[1m________________ test_project_mirror_writes_all_readable_files _________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-16/test_project_mirror_writes_all0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_project_mirror_writes_all_readable_files[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        project = _project()[90m[39;49;00m
+    [90m[39;49;00m
+>       project_dir = ProjectMirror(tmp_path).write_snapshot(project)[90m[39;49;00m
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[90m[39;49;00m
+
+[1m[31mtests/integration/test_project_mirror.py[0m:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.projects.mirror.ProjectMirror object at 0x7f6a62698aa0>
+project = Project(id='proj_1234567890abcdef', name='Ánh Dương Core', slug='anh-duong-core', status=<ProjectStatus.ACTIVE: 'activ...tetime.timezone.utc), last_activity_at=datetime.datetime(2026, 7, 24, 10, 30, tzinfo=datetime.timezone.utc), version=3)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mwrite_snapshot[39;49;00m([96mself[39;49;00m, project):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/projects/mirror.py[0m:10: NotImplementedError
+[31m[1m______________ test_snapshot_contains_project_identity_and_paths _______________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-16/test_snapshot_contains_project0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_snapshot_contains_project_identity_and_paths[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        project = _project()[90m[39;49;00m
+    [90m[39;49;00m
+>       project_dir = ProjectMirror(tmp_path).write_snapshot(project)[90m[39;49;00m
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[90m[39;49;00m
+
+[1m[31mtests/integration/test_project_mirror.py[0m:77: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.projects.mirror.ProjectMirror object at 0x7f6a626929a0>
+project = Project(id='proj_1234567890abcdef', name='Ánh Dương Core', slug='anh-duong-core', status=<ProjectStatus.ACTIVE: 'activ...tetime.timezone.utc), last_activity_at=datetime.datetime(2026, 7, 24, 10, 30, tzinfo=datetime.timezone.utc), version=3)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mwrite_snapshot[39;49;00m([96mself[39;49;00m, project):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/projects/mirror.py[0m:10: NotImplementedError
+[31m[1m_______________ test_rewriting_snapshot_updates_generated_state ________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-16/test_rewriting_snapshot_update0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_rewriting_snapshot_updates_generated_state[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        mirror = ProjectMirror(tmp_path)[90m[39;49;00m
+        project = _project([90m[39;49;00m
+            status=ProjectStatus.ACTIVE,[90m[39;49;00m
+            version=[94m3[39;49;00m,[90m[39;49;00m
+        )[90m[39;49;00m
+>       mirror.write_snapshot(project)[90m[39;49;00m
+
+[1m[31mtests/integration/test_project_mirror.py[0m:97: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.projects.mirror.ProjectMirror object at 0x7f6a627607a0>
+project = Project(id='proj_1234567890abcdef', name='Ánh Dương Core', slug='anh-duong-core', status=<ProjectStatus.ACTIVE: 'activ...tetime.timezone.utc), last_activity_at=datetime.datetime(2026, 7, 24, 10, 30, tzinfo=datetime.timezone.utc), version=3)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mwrite_snapshot[39;49;00m([96mself[39;49;00m, project):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/projects/mirror.py[0m:10: NotImplementedError
+[31m[1m_______________ test_human_maintained_files_are_not_overwritten ________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-16/test_human_maintained_files_ar0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_human_maintained_files_are_not_overwritten[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        mirror = ProjectMirror(tmp_path)[90m[39;49;00m
+        project = _project()[90m[39;49;00m
+>       project_dir = mirror.write_snapshot(project)[90m[39;49;00m
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[90m[39;49;00m
+
+[1m[31mtests/integration/test_project_mirror.py[0m:122: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.projects.mirror.ProjectMirror object at 0x7f6a627620a0>
+project = Project(id='proj_1234567890abcdef', name='Ánh Dương Core', slug='anh-duong-core', status=<ProjectStatus.ACTIVE: 'activ...tetime.timezone.utc), last_activity_at=datetime.datetime(2026, 7, 24, 10, 30, tzinfo=datetime.timezone.utc), version=3)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mwrite_snapshot[39;49;00m([96mself[39;49;00m, project):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/projects/mirror.py[0m:10: NotImplementedError
+[31m[1m_______________________ test_snapshot_files_use_lf_only ________________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-16/test_snapshot_files_use_lf_onl0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_snapshot_files_use_lf_only[39;49;00m(tmp_path: Path) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       project_dir = ProjectMirror(tmp_path).write_snapshot([90m[39;49;00m
+            _project()[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/integration/test_project_mirror.py[0m:150: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.projects.mirror.ProjectMirror object at 0x7f6a627634a0>
+project = Project(id='proj_1234567890abcdef', name='Ánh Dương Core', slug='anh-duong-core', status=<ProjectStatus.ACTIVE: 'activ...tetime.timezone.utc), last_activity_at=datetime.datetime(2026, 7, 24, 10, 30, tzinfo=datetime.timezone.utc), version=3)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mwrite_snapshot[39;49;00m([96mself[39;49;00m, project):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/projects/mirror.py[0m:10: NotImplementedError
+[31m[1m__________________ test_successful_write_leaves_no_temp_files __________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-16/test_successful_write_leaves_n0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_successful_write_leaves_no_temp_files[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       project_dir = ProjectMirror(tmp_path).write_snapshot([90m[39;49;00m
+            _project()[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/integration/test_project_mirror.py[0m:161: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.projects.mirror.ProjectMirror object at 0x7f6a62764620>
+project = Project(id='proj_1234567890abcdef', name='Ánh Dương Core', slug='anh-duong-core', status=<ProjectStatus.ACTIVE: 'activ...tetime.timezone.utc), last_activity_at=datetime.datetime(2026, 7, 24, 10, 30, tzinfo=datetime.timezone.utc), version=3)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mwrite_snapshot[39;49;00m([96mself[39;49;00m, project):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/projects/mirror.py[0m:10: NotImplementedError
+[31m[1m_________________ test_atomic_replace_failure_cleans_temp_file _________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-16/test_atomic_replace_failure_cl0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f6a627b67a0>
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_atomic_replace_failure_cleans_temp_file[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+        monkeypatch: pytest.MonkeyPatch,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        mirror = ProjectMirror(tmp_path)[90m[39;49;00m
+        project = _project()[90m[39;49;00m
+    [90m[39;49;00m
+        [94mdef[39;49;00m[90m [39;49;00m[92mfail_replace[39;49;00m([90m[39;49;00m
+            source: [96mstr[39;49;00m | os.PathLike[[96mstr[39;49;00m],[90m[39;49;00m
+            target: [96mstr[39;49;00m | os.PathLike[[96mstr[39;49;00m],[90m[39;49;00m
+        ) -> [94mNone[39;49;00m:[90m[39;49;00m
+            [94mraise[39;49;00m [96mOSError[39;49;00m([33m"[39;49;00m[33mreplace failed[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+    [90m[39;49;00m
+        monkeypatch.setattr(os, [33m"[39;49;00m[33mreplace[39;49;00m[33m"[39;49;00m, fail_replace)[90m[39;49;00m
+    [90m[39;49;00m
+        [94mwith[39;49;00m pytest.raises([96mOSError[39;49;00m, match=[33m"[39;49;00m[33mreplace failed[39;49;00m[33m"[39;49;00m):[90m[39;49;00m
+>           mirror.write_snapshot(project)[90m[39;49;00m
+
+[1m[31mtests/integration/test_project_mirror.py[0m:184: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.projects.mirror.ProjectMirror object at 0x7f6a627b6660>
+project = Project(id='proj_1234567890abcdef', name='Ánh Dương Core', slug='anh-duong-core', status=<ProjectStatus.ACTIVE: 'activ...tetime.timezone.utc), last_activity_at=datetime.datetime(2026, 7, 24, 10, 30, tzinfo=datetime.timezone.utc), version=3)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mwrite_snapshot[39;49;00m([96mself[39;49;00m, project):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/projects/mirror.py[0m:10: NotImplementedError
+[31m[1m_________________ test_invalid_slug_cannot_escape_mirror_root __________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-16/test_invalid_slug_cannot_escap0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_invalid_slug_cannot_escape_mirror_root[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        project = _project(slug=[33m"[39;49;00m[33m../outside[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+    [90m[39;49;00m
+        [94mwith[39;49;00m pytest.raises([90m[39;49;00m
+            InvalidProjectMirrorSlug,[90m[39;49;00m
+            match=[33m"[39;49;00m[33mInvalid project slug[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+        ):[90m[39;49;00m
+>           ProjectMirror(tmp_path).write_snapshot(project)[90m[39;49;00m
+
+[1m[31mtests/integration/test_project_mirror.py[0m:199: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.projects.mirror.ProjectMirror object at 0x7f6a627b7920>
+project = Project(id='proj_1234567890abcdef', name='Ánh Dương Core', slug='../outside', status=<ProjectStatus.ACTIVE: 'active'>,...tetime.timezone.utc), last_activity_at=datetime.datetime(2026, 7, 24, 10, 30, tzinfo=datetime.timezone.utc), version=3)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mwrite_snapshot[39;49;00m([96mself[39;49;00m, project):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/projects/mirror.py[0m:10: NotImplementedError
+[36m[1m=========================== short test summary info ============================[0m
+[31mFAILED[0m tests/integration/test_project_mirror.py::[1mtest_project_mirror_writes_all_readable_files[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_project_mirror.py::[1mtest_snapshot_contains_project_identity_and_paths[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_project_mirror.py::[1mtest_rewriting_snapshot_updates_generated_state[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_project_mirror.py::[1mtest_human_maintained_files_are_not_overwritten[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_project_mirror.py::[1mtest_snapshot_files_use_lf_only[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_project_mirror.py::[1mtest_successful_write_leaves_no_temp_files[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_project_mirror.py::[1mtest_atomic_replace_failure_cleans_temp_file[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_project_mirror.py::[1mtest_invalid_slug_cannot_escape_mirror_root[0m - NotImplementedError
+[31m[31m[1m8 failed[0m[31m in 0.15s[0m[0m

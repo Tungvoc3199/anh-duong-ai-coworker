@@ -1,0 +1,141 @@
+Spreadsheet runtime warmup failed during python startup
+Traceback (most recent call last):
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/patches/warm_spreadsheet_runtime_on_startup.py", line 26, in warm_spreadsheet_runtime_on_startup
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 785, in warm_spreadsheet_runtime
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 720, in _warm_feature_flows
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 704, in _warm_collaboration_flows
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/generated/interface/models.py", line 30820, in hydrate_crdt_from_proto
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/rpc/remote.py", line 749, in __call__
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/rpc/client.py", line 150, in call
+artifact_tool.rpc.client.RemoteError: hydrateCrdtFromProto requires an empty collaborative document.
+Traceback (most recent call last):
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/engine/base.py"[0m, line [35m144[0m, in [35m__init__[0m
+    self._dbapi_connection = [31mengine.raw_connection[0m[1;31m()[0m
+                             [31m~~~~~~~~~~~~~~~~~~~~~[0m[1;31m^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/engine/base.py"[0m, line [35m3319[0m, in [35mraw_connection[0m
+    return [31mself.pool.connect[0m[1;31m()[0m
+           [31m~~~~~~~~~~~~~~~~~[0m[1;31m^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/pool/base.py"[0m, line [35m448[0m, in [35mconnect[0m
+    return [31m_ConnectionFairy._checkout[0m[1;31m(self)[0m
+           [31m~~~~~~~~~~~~~~~~~~~~~~~~~~[0m[1;31m^^^^^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/pool/base.py"[0m, line [35m1272[0m, in [35m_checkout[0m
+    fairy = _ConnectionRecord.checkout(pool)
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/pool/base.py"[0m, line [35m712[0m, in [35mcheckout[0m
+    rec = pool._do_get()
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py"[0m, line [35m307[0m, in [35m_do_get[0m
+    return [31mself._create_connection[0m[1;31m()[0m
+           [31m~~~~~~~~~~~~~~~~~~~~~~~[0m[1;31m^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/pool/base.py"[0m, line [35m389[0m, in [35m_create_connection[0m
+    return _ConnectionRecord(self)
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/pool/base.py"[0m, line [35m674[0m, in [35m__init__[0m
+    [31mself.__connect[0m[1;31m()[0m
+    [31m~~~~~~~~~~~~~~[0m[1;31m^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/pool/base.py"[0m, line [35m900[0m, in [35m__connect[0m
+    with [31mutil.safe_reraise[0m[1;31m()[0m:
+         [31m~~~~~~~~~~~~~~~~~[0m[1;31m^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py"[0m, line [35m122[0m, in [35m__exit__[0m
+    raise exc_value.with_traceback(exc_tb)
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/pool/base.py"[0m, line [35m896[0m, in [35m__connect[0m
+    self.dbapi_connection = connection = [31mpool._invoke_creator[0m[1;31m(self)[0m
+                                         [31m~~~~~~~~~~~~~~~~~~~~[0m[1;31m^^^^^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/engine/create.py"[0m, line [35m667[0m, in [35mconnect[0m
+    return [31mdialect.connect[0m[1;31m(*cargs_tup, **cparams)[0m
+           [31m~~~~~~~~~~~~~~~[0m[1;31m^^^^^^^^^^^^^^^^^^^^^^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/engine/default.py"[0m, line [35m630[0m, in [35mconnect[0m
+    return [31mself.loaded_dbapi.connect[0m[1;31m(*cargs, **cparams)[0m  # type: ignore[no-any-return]  # NOQA: E501
+           [31m~~~~~~~~~~~~~~~~~~~~~~~~~[0m[1;31m^^^^^^^^^^^^^^^^^^^[0m
+[1;35msqlite3.OperationalError[0m: [35munable to open database file[0m
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File [35m"<frozen runpy>"[0m, line [35m198[0m, in [35m_run_module_as_main[0m
+  File [35m"<frozen runpy>"[0m, line [35m88[0m, in [35m_run_code[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/alembic/__main__.py"[0m, line [35m4[0m, in [35m<module>[0m
+    [31mmain[0m[1;31m(prog="alembic")[0m
+    [31m~~~~[0m[1;31m^^^^^^^^^^^^^^^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/alembic/config.py"[0m, line [35m1047[0m, in [35mmain[0m
+    [31mCommandLine(prog=prog).main[0m[1;31m(argv=argv)[0m
+    [31m~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m[1;31m^^^^^^^^^^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/alembic/config.py"[0m, line [35m1037[0m, in [35mmain[0m
+    [31mself.run_cmd[0m[1;31m(cfg, options)[0m
+    [31m~~~~~~~~~~~~[0m[1;31m^^^^^^^^^^^^^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/alembic/config.py"[0m, line [35m971[0m, in [35mrun_cmd[0m
+    [31mfn[0m[1;31m([0m
+    [31m~~[0m[1;31m^[0m
+        [1;31mconfig,[0m
+        [1;31m^^^^^^^[0m
+        [1;31m*[getattr(options, k, None) for k in positional],[0m
+        [1;31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+        [1;31m**{k: getattr(options, k, None) for k in kwarg},[0m
+        [1;31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+    [1;31m)[0m
+    [1;31m^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/alembic/command.py"[0m, line [35m483[0m, in [35mupgrade[0m
+    [31mscript.run_env[0m[1;31m()[0m
+    [31m~~~~~~~~~~~~~~[0m[1;31m^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/alembic/script/base.py"[0m, line [35m545[0m, in [35mrun_env[0m
+    [31mutil.load_python_file[0m[1;31m(self.dir, "env.py")[0m
+    [31m~~~~~~~~~~~~~~~~~~~~~[0m[1;31m^^^^^^^^^^^^^^^^^^^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/alembic/util/pyfiles.py"[0m, line [35m116[0m, in [35mload_python_file[0m
+    module = load_module_py(module_id, path)
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/alembic/util/pyfiles.py"[0m, line [35m136[0m, in [35mload_module_py[0m
+    [31mspec.loader.exec_module[0m[1;31m(module)[0m  # type: ignore
+    [31m~~~~~~~~~~~~~~~~~~~~~~~[0m[1;31m^^^^^^^^[0m
+  File [35m"<frozen importlib._bootstrap_external>"[0m, line [35m1026[0m, in [35mexec_module[0m
+  File [35m"<frozen importlib._bootstrap>"[0m, line [35m488[0m, in [35m_call_with_frames_removed[0m
+  File [35m"/mnt/data/anh-duong-core-phase0-1/anh-duong-core/alembic/env.py"[0m, line [35m48[0m, in [35m<module>[0m
+    [31mrun_migrations_online[0m[1;31m()[0m
+    [31m~~~~~~~~~~~~~~~~~~~~~[0m[1;31m^^[0m
+  File [35m"/mnt/data/anh-duong-core-phase0-1/anh-duong-core/alembic/env.py"[0m, line [35m36[0m, in [35mrun_migrations_online[0m
+    with [31mconnectable.connect[0m[1;31m()[0m as connection:
+         [31m~~~~~~~~~~~~~~~~~~~[0m[1;31m^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/engine/base.py"[0m, line [35m3295[0m, in [35mconnect[0m
+    return [31mself._connection_cls[0m[1;31m(self)[0m
+           [31m~~~~~~~~~~~~~~~~~~~~[0m[1;31m^^^^^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/engine/base.py"[0m, line [35m146[0m, in [35m__init__[0m
+    [31mConnection._handle_dbapi_exception_noconnection[0m[1;31m([0m
+    [31m~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m[1;31m^[0m
+        [1;31merr, dialect, engine[0m
+        [1;31m^^^^^^^^^^^^^^^^^^^^[0m
+    [1;31m)[0m
+    [1;31m^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/engine/base.py"[0m, line [35m2450[0m, in [35m_handle_dbapi_exception_noconnection[0m
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/engine/base.py"[0m, line [35m144[0m, in [35m__init__[0m
+    self._dbapi_connection = [31mengine.raw_connection[0m[1;31m()[0m
+                             [31m~~~~~~~~~~~~~~~~~~~~~[0m[1;31m^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/engine/base.py"[0m, line [35m3319[0m, in [35mraw_connection[0m
+    return [31mself.pool.connect[0m[1;31m()[0m
+           [31m~~~~~~~~~~~~~~~~~[0m[1;31m^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/pool/base.py"[0m, line [35m448[0m, in [35mconnect[0m
+    return [31m_ConnectionFairy._checkout[0m[1;31m(self)[0m
+           [31m~~~~~~~~~~~~~~~~~~~~~~~~~~[0m[1;31m^^^^^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/pool/base.py"[0m, line [35m1272[0m, in [35m_checkout[0m
+    fairy = _ConnectionRecord.checkout(pool)
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/pool/base.py"[0m, line [35m712[0m, in [35mcheckout[0m
+    rec = pool._do_get()
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/pool/impl.py"[0m, line [35m307[0m, in [35m_do_get[0m
+    return [31mself._create_connection[0m[1;31m()[0m
+           [31m~~~~~~~~~~~~~~~~~~~~~~~[0m[1;31m^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/pool/base.py"[0m, line [35m389[0m, in [35m_create_connection[0m
+    return _ConnectionRecord(self)
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/pool/base.py"[0m, line [35m674[0m, in [35m__init__[0m
+    [31mself.__connect[0m[1;31m()[0m
+    [31m~~~~~~~~~~~~~~[0m[1;31m^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/pool/base.py"[0m, line [35m900[0m, in [35m__connect[0m
+    with [31mutil.safe_reraise[0m[1;31m()[0m:
+         [31m~~~~~~~~~~~~~~~~~[0m[1;31m^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py"[0m, line [35m122[0m, in [35m__exit__[0m
+    raise exc_value.with_traceback(exc_tb)
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/pool/base.py"[0m, line [35m896[0m, in [35m__connect[0m
+    self.dbapi_connection = connection = [31mpool._invoke_creator[0m[1;31m(self)[0m
+                                         [31m~~~~~~~~~~~~~~~~~~~~[0m[1;31m^^^^^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/engine/create.py"[0m, line [35m667[0m, in [35mconnect[0m
+    return [31mdialect.connect[0m[1;31m(*cargs_tup, **cparams)[0m
+           [31m~~~~~~~~~~~~~~~[0m[1;31m^^^^^^^^^^^^^^^^^^^^^^^[0m
+  File [35m"/opt/pyvenv/lib/python3.13/site-packages/sqlalchemy/engine/default.py"[0m, line [35m630[0m, in [35mconnect[0m
+    return [31mself.loaded_dbapi.connect[0m[1;31m(*cargs, **cparams)[0m  # type: ignore[no-any-return]  # NOQA: E501
+           [31m~~~~~~~~~~~~~~~~~~~~~~~~~[0m[1;31m^^^^^^^^^^^^^^^^^^^[0m
+[1;35msqlalchemy.exc.OperationalError[0m: [35m(sqlite3.OperationalError) unable to open database file
+(Background on this error at: https://sqlalche.me/e/20/e3q8)[0m

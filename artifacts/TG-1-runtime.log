@@ -1,0 +1,255 @@
+TG-1 START
+TG-1 RUNTIME LOG (SANITIZED)
+Generated: 2026-08-01 Asia/Saigon
+
+[scope]
+core_repo=F:\AIOS\anh-duong-core (not a Git worktree)
+openclaw_repo=F:\AIOS\openclaw (main, user-dirty baseline preserved)
+checkpoint_backup=F:\AIOS\anh-duong-checkpoints\backups\TG-1-20260801T114348Z
+
+[preflight]
+core_service=active/running
+core_health=200
+core_ready=200
+core_alembic=0003 (head)
+core_async_worker=false
+core_from_gateway=200
+openclaw_gateway=healthy
+openclaw_runtime_image=openclaw:2026.7.1-codex-runtime-verified-local
+openclaw_runtime_package_version=2026.7.1
+openclaw_source_version=2026.7.2
+openclaw_source_runtime_mismatch=recorded; no build/upgrade allowed
+telegram_configured=true
+telegram_running=true
+telegram_connected=true
+telegram_probe_ok=true
+telegram_mode=polling
+openclaw_cli_container=pre-existing unhealthy; not part of TG-1 Gateway path
+
+[protected baseline hashes]
+telegram_token_sha256=73b25bd3ad142cd0f5f213c0a92a04b130d3076a4d5fa64d804a8b9edc00740f
+telegram_config_sha256=904619...f351188
+model_config_sha256=636725...21d0d
+provider_config_sha256=23a5a0...b730
+ninerouter_config_sha256=7d2fc0...ff3e
+openclaw_compose_sha256=3061b3...a95b
+openclaw_env_sha256=7ad77a...c400
+core_systemd_unit_sha256=8f3475...bcf74
+core_systemd_dropin_sha256=a8fbce...03e9
+openclaw_json_backup_sha256=77e2355657ef5892c428d4ce035c13fe2e54d8492c112404850e0c9263f7351a
+
+[baseline tests]
+core_targeted=25 passed; 1 existing Starlette/httpx warning; 8.39s
+openclaw_telegram_dispatch_pipeline_init=1 passed; 66.92s
+openclaw_native_command_session_meta=38 passed; 3 pre-existing Windows path expectation failures
+openclaw_pnpm_install=dependencies hydrated; root preinstall failed because host Node 24.14.0 is below required 24.15.0
+
+[backup]
+compose=present
+.env=present; restricted ACL
+openclaw.json=present; restricted ACL
+telegram_dispatch_source=present
+openclaw_baseline_diff=present
+secret_values=not logged
+
+[implementation]
+plugin_package=@anh-duong/openclaw-core-gate@1.0.0
+plugin_source=F:\AIOS\anh-duong-core\integrations\openclaw-anh-duong-core
+plugin_artifact=anh-duong-openclaw-core-gate-1.0.0.tgz
+plugin_artifact_shasum=108a707b586a8fcdc602870b4a2d39b6c71d207b
+plugin_install_kind=npm-pack managed ext4
+plugin_runtime_status=loaded
+plugin_hook_count=3
+plugin_hooks=agent_end,before_agent_run,before_prompt_build
+plugin_diagnostics=0
+plugin_conversation_access=true
+plugin_tools_channels_http=0,0,0
+
+[tdd and failure drills]
+initial_red=3 expected ERR_MODULE_NOT_FOUND failures before production modules
+host_green=33 passed, 0 failed
+runtime_2026_7_1_green=33 passed, 0 failed
+installed_managed_package_green=33 passed, 0 failed
+covered_failures=configuration,timeout,connection,401,403,500,invalid_json,invalid_schema,request_id_mismatch,route_inconsistency,missing_run_id,pending_state
+retry_policy=one POST, zero retry
+fallback_policy=no CLI fallback; no direct-model fallback when enabled
+
+[activation diagnostics]
+temp_inspect_policy=non-bundled conversation hooks require allowConversationAccess=true
+unexpected_temp_cli_side_effect=legacy exec-approvals archive; exact live filename restored immediately after each proof
+first_recreate_failure=Windows Docker CLI resolved WSL state bind as root-owned overlay; Gateway EACCES
+root_cause_proof=WSL Docker CLI resolved the same bind as mode 700 uid 1000 and writable
+recovery=Gateway recreated from WSL; healthy; restart_count=0
+ntfs_plugin_mount=blocked by OpenClaw world-writable-path policy (mode 777)
+final_install_strategy=npm-pack into OpenClaw managed ext4 directory
+image_build_or_pull=none
+image_id_before_after=sha256:86b8cffc648507e11bb7f8e4e1900b2534e4da5f496ecc927a3628c80bd016a7
+openclaw_version_before_after=2026.7.1
+
+[runtime verification]
+verifier=F:\AIOS\anh-duong-core\scripts\verify_tg1_runtime.ps1
+verifier_result=25 passed, 0 failed
+core_health=200
+core_ready=200
+core_service=active
+core_alembic=0003 (head)
+core_async_worker=false
+gateway_health=healthy
+core_from_gateway=200
+internal_token_match=true
+telegram_probe_ok=true
+telegram_mode=polling
+telegram_token_hash=73b25bd3ad142cd0f5f213c0a92a04b130d3076a4d5fa64d804a8b9edc00740f
+telegram_config_hash=ad1c0903e0ead37e387912cab01ee988ded088f5de438e8cf631d8939f555f72
+agent_model_hash=6367256e06ead0923063baeca94ca1ab271b5b4eb211648532513055c4221d0d
+agent_models_hash=bcf7ad333acbb7d59491573c1c7360bc4983adf9b092bcb978850a638a527c5c
+providers_hash=538206a460a7611c7e0dba0626ffac162aa885a8a0df04655376d58abff717a6
+ninerouter_hash=d4778bf6b595e7338a3197752484e3eca11585a747f8c03b4a656d944a6d1cae
+all_protected_hashes_equal_baseline=true
+live_prepare_smoke_request_id=tg-runtime-smoke-1785587559335
+live_prepare_smoke_route=core_read
+live_prepare_smoke_capability=core_status_read
+live_prepare_smoke_execution_required=false
+secret_values=not logged
+
+[regression]
+core_pytest=318 passed, 1 existing Starlette/httpx warning, 27.91s
+core_ruff=pass
+core_mypy=pass, 65 source files
+core_compileall=pass
+openclaw_telegram_dispatch_pipeline_init=1 passed
+openclaw_native_command_session_meta=38 passed, 3 baseline-identical Windows path failures
+plugin_host_tests=33 passed
+plugin_runtime_tests=33 passed
+openclaw_aggregate_check=timed out while a child pnpm install was running; exact orphan child/parent stopped
+openclaw_host_node=24.14.0; repository requires >=24.15.0 on Node 24 line
+aggregate_check_interpretation=tooling baseline limitation, not TG-1 functional regression
+[telegram direct verification]
+manual_gate_attempt_1_at_utc=2026-08-01T14:42:53Z
+attempt_1_result=response delivered but contract route mismatch
+attempt_1_observed_route=workflow
+attempt_1_observed_capability=unknown_workflow
+root_cause=FastRouter direct classifier covered greeting/ack/thanks only; the bounded arithmetic request fell through to routing.workflow.ambiguous_input
+smallest_fix_files=app/routing/fast_router.py; tests/unit/test_core_request_pipeline_behavior.py
+red_test=1 failed as expected: route workflow != direct
+green_test=45 passed
+core_restart=anh-duong-core.service only; PID changed 25887 -> 28049
+postfix_prepare_smoke=HTTP 200; route=direct; capability=conversational_response; execution_required=false
+manual_recheck_at_utc=2026-08-01T15:07:05Z
+telegram_update_reference=661907925
+telegram_inbound_message_id=2375 (ordered same-chat correlation)
+telegram_response_message_id=2376
+chat_reference=telegram:[REDACTED]
+session_key=agent:main:telegram:direct:[REDACTED]
+session_reference_sha256_prefix=8776f403220a
+openclaw_correlation_id=217869a3-7fa6-4e5d-b63a-381bc885596f
+core_request_id=tg-217869a3-7fa6-4e5d-b63a-381bc885596f
+core_audit_event_id=aud_c63d55768ee94acd9958d6aa4165904e
+core_prepare_http=200
+route=direct
+capability=conversational_response
+execution_required=false
+core_envelope_in_model_prompt=true
+model_execution_http=200
+telegram_response=42
+pipeline=Telegram inbound -> OpenClaw run -> Core prepare -> OpenClaw model execution -> Telegram send
+inbound_count=1
+core_prepare_count=1
+model_execution_count=1
+telegram_send_success_count=1
+telegram_send_failure_count=0
+direct_model_fallback_count=0
+duplicate_response_count=0
+verdict=PASS
+
+[telegram workflow verification]
+manual_recheck_at_utc=2026-08-01T15:07:16Z
+telegram_update_reference=661907926
+telegram_inbound_message_id=2377 (ordered same-chat correlation)
+telegram_response_message_id=2378
+chat_reference=telegram:[REDACTED]
+session_key=agent:main:telegram:direct:[REDACTED]
+session_reference_sha256_prefix=8776f403220a
+openclaw_correlation_id=f748a1a3-631d-4e22-a48b-953b637ec923
+core_request_id=tg-f748a1a3-631d-4e22-a48b-953b637ec923
+core_audit_event_id=aud_6022e4fdb0e646938929bf07f00c5694
+core_prepare_http=200
+route=workflow
+capability=planning
+execution_required=true
+core_envelope_in_model_prompt=true
+model_execution_http=200
+telegram_response_contract=three read-only verification steps; explicitly no config edit, file write, restart, or system change
+pipeline=Telegram inbound -> OpenClaw run -> Core prepare -> OpenClaw model execution -> Telegram send
+inbound_count=1
+core_prepare_count=1
+model_execution_count=1
+telegram_send_success_count=1
+telegram_send_failure_count=0
+direct_model_fallback_count=0
+duplicate_response_count=0
+verdict=PASS
+
+[configuration integrity final]
+verified_at_utc=2026-08-01T15:10Z
+verifier_result=25 passed, 0 failed
+core_health=HTTP 200
+core_ready=HTTP 200
+core_service=active
+core_from_gateway=HTTP 200
+gateway_running=true
+gateway_healthy=true
+openclaw_version=2026.7.1
+openclaw_image_id=sha256:86b8cffc648507e11bb7f8e4e1900b2534e4da5f496ecc927a3628c80bd016a7
+alembic=0003 (head)
+async_worker=false
+telegram_probe=true; mode=polling
+telegram_token_hash=73b25bd3ad142cd0f5f213c0a92a04b130d3076a4d5fa64d804a8b9edc00740f
+telegram_config_hash=ad1c0903e0ead37e387912cab01ee988ded088f5de438e8cf631d8939f555f72
+agent_model_hash=6367256e06ead0923063baeca94ca1ab271b5b4eb211648532513055c4221d0d
+agent_models_hash=bcf7ad333acbb7d59491573c1c7360bc4983adf9b092bcb978850a638a527c5c
+providers_hash=538206a460a7611c7e0dba0626ffac162aa885a8a0df04655376d58abff717a6
+ninerouter_hash=d4778bf6b595e7338a3197752484e3eca11585a747f8c03b4a656d944a6d1cae
+all_protected_hashes_equal_baseline=true
+secret_candidates_scanned=4
+exact_secret_occurrences_in_request_logs=0
+secret_pattern_occurrences_in_request_logs=0
+secret_scan=PASS
+core_postfix_pytest=319 passed; 1 existing Starlette/httpx warning
+core_postfix_ruff=PASS
+core_postfix_mypy=PASS; 65 source files
+core_postfix_compileall=PASS
+configuration_drift=none in Telegram token/model/provider/9Router/Async Worker
+
+[rollback instructions]
+backup_path=F:\AIOS\anh-duong-checkpoints\backups\TG-1-20260801T114348Z
+route_fix_patch=F:\AIOS\anh-duong-core\artifacts\TG-1-route-direct-fix.patch
+1=Disable/uninstall the managed anh-duong-core plugin, then restore OpenClaw compose/.env/openclaw.json from the backup path.
+2=Recreate only openclaw-gateway from Ubuntu/WSL while pinning OPENCLAW_IMAGE=openclaw:2026.7.1-codex-runtime-verified-local.
+3=Reverse the route fix with: git apply -R --unidiff-zero artifacts/TG-1-route-direct-fix.patch
+4=Restart only anh-duong-core.service.
+5=Run scripts/verify_tg1_runtime.ps1 and verify Gateway/Telegram/Core health.
+prohibited=docker compose down -v; docker volume rm; deleting OpenClaw state; deleting Core SQLite
+rollback_executed=false
+
+[artifacts]
+workspace_overlay_zip=F:\AIOS\anh-duong-core\artifacts\TG-1-overlay.zip
+workspace_overlay_content=F:\AIOS\anh-duong-core\artifacts\TG-1-overlay-content.md
+workspace_report=F:\AIOS\anh-duong-core\artifacts\TG-1-report.md
+workspace_runtime_log=F:\AIOS\anh-duong-core\artifacts\TG-1-runtime.log
+checkpoint_overlay_zip=F:\AIOS\anh-duong-checkpoints\TG-1-overlay.zip
+checkpoint_overlay_content=F:\AIOS\anh-duong-checkpoints\TG-1-overlay-content.md
+checkpoint_report=F:\AIOS\anh-duong-checkpoints\TG-1-report.md
+checkpoint_runtime_log=F:\AIOS\anh-duong-checkpoints\TG-1-runtime.log
+zip_excludes=.env; openclaw.json; backups; databases; node_modules; .git; runtime secrets
+
+[final verdict]
+telegram_direct_real_response=PASS
+telegram_workflow_real_response=PASS
+end_to_end_evidence=PASS
+fail_closed_no_fallback=PASS
+no_duplicate_telegram_response=PASS
+secret_redaction=PASS
+runtime_integrity=PASS
+TG-1=PASS
+TG-1 END

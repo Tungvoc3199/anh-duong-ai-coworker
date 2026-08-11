@@ -1,0 +1,14 @@
+{
+  "id": "anh-duong-core",
+  "name": "Ánh Dương Core Gate",
+  "description": "Fail-closed Core preparation gate for ordinary Telegram agent turns.",
+  "version": "1.0.0",
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

@@ -1,0 +1,469 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd /mnt/f/AIOS/anh-duong-core
+
+read -r -d '' DR1_VERIFY_PY <<'PY' || true
+from __future__ import annotations
+
+import hashlib
+import json
+import sqlite3
+import subprocess
+import sys
+import time
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+MARKER = "DR1-CODEX-20260803T092331Z"
+MESSAGE_1 = "alo"
+MESSAGE_2 = (
+    "Đọc file README.md của dự án Ánh Dương Core và trả lời đúng mã "
+    + MARKER
+    + "; chỉ đọc, không sửa file, không restart và không thực hiện side effect."
+)
+DB = Path("/home/thadc/.local/state/anh-duong-core/anh_duong.db")
+AUDIT = Path("/home/thadc/.local/state/anh-duong-core/audit.jsonl")
+CHECKPOINTS = Path("/mnt/f/AIOS/anh-duong-checkpoints")
+RUNTIME_LOG = CHECKPOINTS / "DR-1-CODEX-runtime-20260803T092331Z.log"
+CLOSED = CHECKPOINTS / "DR-1-CODEX-CLOSED-20260803T092331Z.md"
+GATEWAY = "openclaw-openclaw-gateway-1"
+ROUTER = "9router-docker"
+EXPECTED_CONFIG_SHA = "c57863a1ba473cdfa2e1710d587b1443a3e284786b37889b720a6de0da86d179"
+EXPECTED_PLUGIN = {
+    "index.js": "fc926a7cc11f7c7a40935c4504d448ff6ebcf4672721a4daeb3d959434de76a1",
+    "src/hooks.js": "73b3cfce7eb74f33fccd7439ac364727c75c582a814e6ad08ffc01bf7a498397",
+    "src/core-client.js": "fdf10c0c3ec491281b233f1e072f24abba72c40ca05eb44d1ae2a2b940a771ad",
+}
+PLUGIN_ROOT = (
+    "/home/node/.openclaw/npm/projects/"
+    "anh-duong-openclaw-core-gate-22c8a94a1c/node_modules/"
+    "@anh-duong/openclaw-core-gate"
+)
+
+
+def run(args: list[str], *, stdin: str | None = None) -> str:
+    completed = subprocess.run(
+        args,
+        input=stdin,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=True,
+    )
+    return completed.stdout.strip()
+
+
+def db_baseline() -> dict[str, int]:
+    with sqlite3.connect(DB) as connection:
+        return {
+            "tasks": connection.execute("select count(*) from tasks").fetchone()[0],
+            "runs": connection.execute(
+                "select count(*) from async_task_runs"
+            ).fetchone()[0],
+            "task_rowid": connection.execute(
+                "select coalesce(max(rowid),0) from tasks"
+            ).fetchone()[0],
+            "run_rowid": connection.execute(
+                "select coalesce(max(rowid),0) from async_task_runs"
+            ).fetchone()[0],
+        }
+
+
+def new_db_rows(base: dict[str, int]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    with sqlite3.connect(DB) as connection:
+        connection.row_factory = sqlite3.Row
+        tasks = [
+            dict(row)
+            for row in connection.execute(
+                "select rowid,* from tasks where rowid>? order by rowid",
+                (base["task_rowid"],),
+            )
+        ]
+        runs = [
+            dict(row)
+            for row in connection.execute(
+                """
+                select r.rowid,r.*,t.status as task_status,
+                       t.result_summary as task_result_summary
+                from async_task_runs r
+                join tasks t on t.id=r.task_id
+                where r.rowid>?
+                order by r.rowid
+                """,
+                (base["run_rowid"],),
+            )
+        ]
+    return tasks, runs
+
+
+def appended_audit(offset: int) -> list[dict[str, Any]]:
+    if not AUDIT.exists() or AUDIT.stat().st_size <= offset:
+        return []
+    with AUDIT.open("rb") as handle:
+        handle.seek(offset)
+        raw = handle.read().decode("utf-8", errors="replace")
+    records = []
+    for line in raw.splitlines():
+        try:
+            records.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return records
+
+
+def session_direct_ok(start_ms: int) -> dict[str, Any]:
+    js = r"""
+const fs = require("fs");
+const path = require("path");
+const root = "/home/node/.openclaw/agents/main/sessions";
+const startMs = Number(process.argv[2]);
+function collect(value, out = []) {
+  if (typeof value === "string") out.push(value);
+  else if (Array.isArray(value)) value.forEach(v => collect(v, out));
+  else if (value && typeof value === "object") {
+    if (typeof value.text === "string") out.push(value.text);
+    else Object.values(value).forEach(v => collect(v, out));
+  }
+  return out;
+}
+let match = null;
+for (const name of fs.readdirSync(root).filter(n => n.endsWith(".jsonl") && !n.includes(".trajectory"))) {
+  const rows = fs.readFileSync(path.join(root, name), "utf8").split(/\r?\n/).filter(Boolean)
+    .map(line => { try { return JSON.parse(line); } catch { return null; } })
+    .filter(Boolean);
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const stamp = Date.parse(row.timestamp || row.created_at || "");
+    const role = row.message?.role || row.role;
+    const text = collect(row.message?.content ?? row.content).join("\n").trim();
+    if (role !== "user" || !(stamp >= startMs) || !/(^|\n)alo$/iu.test(text)) continue;
+    for (let j = i + 1; j < rows.length; j++) {
+      const next = rows[j];
+      const nextRole = next.message?.role || next.role;
+      const nextText = collect(next.message?.content ?? next.content).join("\n").trim();
+      if (nextRole === "user") break;
+      if (nextRole === "assistant" && nextText.length > 0) {
+        match = {file: name, user_timestamp: row.timestamp, assistant_chars: nextText.length};
+        break;
+      }
+    }
+    if (match) break;
+  }
+  if (match) break;
+}
+console.log(JSON.stringify({ok: Boolean(match), match}));
+"""
+    output = run(
+        ["docker", "exec", "-i", GATEWAY, "node", "-", str(start_ms)],
+        stdin=js,
+    )
+    return json.loads(output)
+
+
+def inspect_container(name: str) -> dict[str, Any]:
+    return json.loads(run(["docker", "inspect", name]))[0]
+
+
+def container_public_state(item: dict[str, Any]) -> dict[str, Any]:
+    health = item["State"].get("Health", {}).get("Status", "n/a")
+    return {
+        "id": item["Id"],
+        "status": item["State"]["Status"],
+        "health": health,
+        "started_at": item["State"]["StartedAt"],
+        "image_id": item["Image"],
+        "configured_image": item["Config"]["Image"],
+    }
+
+
+def container_sha(path: str) -> str:
+    return run(["docker", "exec", GATEWAY, "sha256sum", path]).split()[0]
+
+
+def systemd_state() -> dict[str, str]:
+    output = run(
+        [
+            "systemctl",
+            "show",
+            "anh-duong-core.service",
+            "-p",
+            "MainPID",
+            "-p",
+            "ActiveState",
+            "-p",
+            "SubState",
+            "-p",
+            "WorkingDirectory",
+        ]
+    )
+    return dict(line.split("=", 1) for line in output.splitlines() if "=" in line)
+
+
+def http_code(path: str) -> int:
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:8790" + path, timeout=10) as response:
+            return response.status
+    except Exception:
+        return 0
+
+
+def env_public(container: dict[str, Any]) -> dict[str, str]:
+    values = {}
+    for item in container["Config"].get("Env", []):
+        if "=" not in item:
+            continue
+        key, value = item.split("=", 1)
+        if key in {
+            "ANH_DUONG_CORE_ENABLED",
+            "ANH_DUONG_CORE_BASE_URL",
+            "ANH_DUONG_CORE_TIMEOUT_SECONDS",
+        }:
+            values[key] = value
+    return values
+
+
+def sha_local(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def final_invariants(
+    base_systemd: dict[str, str],
+    base_gateway: dict[str, Any],
+    base_router: dict[str, Any],
+) -> tuple[bool, dict[str, Any]]:
+    from app.config import Settings
+
+    current_gateway_raw = inspect_container(GATEWAY)
+    current_router_raw = inspect_container(ROUTER)
+    current_gateway = container_public_state(current_gateway_raw)
+    current_router = container_public_state(current_router_raw)
+    current_systemd = systemd_state()
+    settings = Settings()
+    with sqlite3.connect(DB) as connection:
+        quick = connection.execute("pragma quick_check").fetchone()[0]
+    migration = run([".venv/bin/alembic", "current"])
+    config_sha = container_sha("/home/node/.openclaw/openclaw.json")
+    plugin_hashes = {
+        rel: container_sha(PLUGIN_ROOT + "/" + rel)
+        for rel in EXPECTED_PLUGIN
+    }
+    source_hashes = {
+        rel: sha_local(
+            Path("integrations/openclaw-anh-duong-core") / rel
+        )
+        for rel in EXPECTED_PLUGIN
+    }
+    public_env = env_public(current_gateway_raw)
+    evidence = {
+        "core": current_systemd,
+        "health": http_code("/health"),
+        "ready": http_code("/ready"),
+        "database_url": settings.database_url,
+        "async_worker_enabled": settings.async_worker_enabled,
+        "quick_check": quick,
+        "migration": migration,
+        "gateway": current_gateway,
+        "9router": current_router,
+        "gateway_env": public_env,
+        "config_sha256": config_sha,
+        "production_plugin_sha256": plugin_hashes,
+        "source_plugin_sha256": source_hashes,
+    }
+    ok = all(
+        (
+            current_systemd == base_systemd,
+            current_systemd.get("ActiveState") == "active",
+            current_systemd.get("SubState") == "running",
+            current_systemd.get("WorkingDirectory") == "/mnt/f/AIOS/anh-duong-core",
+            evidence["health"] == 200,
+            evidence["ready"] == 200,
+            settings.database_url
+            == "sqlite+pysqlite:////home/thadc/.local/state/anh-duong-core/anh_duong.db",
+            settings.async_worker_enabled is True,
+            quick == "ok",
+            "0003 (head)" in migration,
+            current_gateway == base_gateway,
+            current_router == base_router,
+            current_gateway["status"] == "running",
+            current_gateway["health"] == "healthy",
+            current_router["status"] == "running",
+            public_env
+            == {
+                "ANH_DUONG_CORE_ENABLED": "true",
+                "ANH_DUONG_CORE_BASE_URL": "http://host.docker.internal:8790",
+                "ANH_DUONG_CORE_TIMEOUT_SECONDS": "10",
+            },
+            config_sha == EXPECTED_CONFIG_SHA,
+            plugin_hashes == EXPECTED_PLUGIN,
+            source_hashes == EXPECTED_PLUGIN,
+        )
+    )
+    return ok, evidence
+
+
+start_ms = int(time.time() * 1000)
+baseline = db_baseline()
+audit_offset = AUDIT.stat().st_size if AUDIT.exists() else 0
+base_systemd = systemd_state()
+base_gateway = container_public_state(inspect_container(GATEWAY))
+base_router = container_public_state(inspect_container(ROUTER))
+
+print("DR-1 verifier đã chụp baseline.")
+print(json.dumps({
+    "baseline_tasks": baseline["tasks"],
+    "baseline_runs": baseline["runs"],
+    "core_pid": base_systemd.get("MainPID"),
+    "gateway_started_at": base_gateway["started_at"],
+    "9router_started_at": base_router["started_at"],
+}, ensure_ascii=False, indent=2))
+print("\nGửi đúng hai tin Telegram theo thứ tự:")
+print("1. " + MESSAGE_1)
+print("2. " + MESSAGE_2)
+input("\nSau khi đã gửi cả hai tin, nhấn Enter tại đây để verifier bắt đầu poll: ")
+
+deadline = time.time() + 900
+last_signature = None
+failure_reason = None
+final_payload: dict[str, Any] | None = None
+
+while time.time() < deadline:
+    tasks, runs = new_db_rows(baseline)
+    audits = appended_audit(audit_offset)
+    direct_events = [
+        record
+        for record in audits
+        if record.get("event_type") == "request.prepared"
+        and record.get("payload", {}).get("route") == "direct"
+        and record.get("payload", {}).get("capability")
+        == "conversational_response"
+        and record.get("payload", {}).get("channel") == "telegram"
+    ]
+    marker_runs = [run for run in runs if MARKER in (run.get("goal") or "")]
+    marker_run = marker_runs[0] if len(marker_runs) == 1 else None
+    correlation = None
+    if marker_run:
+        try:
+            correlation = json.loads(marker_run.get("request_json") or "{}").get(
+                "correlation_id"
+            )
+        except json.JSONDecodeError:
+            correlation = None
+    risk_events = [
+        record
+        for record in audits
+        if record.get("event_type") == "request.prepared"
+        and record.get("request_id") == correlation
+        and record.get("payload", {}).get("route") == "workflow"
+        and record.get("payload", {}).get("workflow_risk_level") == 0
+        and record.get("payload", {}).get("workflow_approval_required") is False
+    ]
+    direct_session = session_direct_ok(start_ms)
+    marker_result = False
+    if marker_run:
+        marker_result = (
+            MARKER in (marker_run.get("result_json") or "")
+            or MARKER in (marker_run.get("task_result_summary") or "")
+        )
+    success = all(
+        (
+            len(tasks) == 1,
+            len(runs) == 1,
+            len(marker_runs) == 1,
+            marker_run is not None,
+            marker_run.get("status") == "completed" if marker_run else False,
+            marker_run.get("task_status") == "completed" if marker_run else False,
+            marker_run.get("attempt") == 1 if marker_run else False,
+            marker_run.get("notification_status") == "sent" if marker_run else False,
+            marker_run.get("notification_attempts") == 1 if marker_run else False,
+            marker_result,
+            bool(direct_events),
+            bool(risk_events),
+            direct_session.get("ok") is True,
+        )
+    )
+    signature = {
+        "new_tasks": len(tasks),
+        "new_runs": len(runs),
+        "marker_runs": len(marker_runs),
+        "marker_status": marker_run.get("status") if marker_run else None,
+        "task_status": marker_run.get("task_status") if marker_run else None,
+        "attempt": marker_run.get("attempt") if marker_run else None,
+        "notification_status": marker_run.get("notification_status") if marker_run else None,
+        "notification_attempts": marker_run.get("notification_attempts") if marker_run else None,
+        "marker_in_result": marker_result,
+        "direct_audit": bool(direct_events),
+        "risk0_audit": bool(risk_events),
+        "direct_session": direct_session.get("ok") is True,
+    }
+    if signature != last_signature:
+        print(json.dumps(signature, ensure_ascii=False))
+        last_signature = signature
+    if len(tasks) > 1 or len(runs) > 1:
+        failure_reason = "Có nhiều hơn đúng một Task/Run mới sau baseline."
+        break
+    if marker_run and marker_run.get("status") in {
+        "blocked",
+        "failed",
+        "cancelled",
+    }:
+        failure_reason = "Risk-0 Run đã vào trạng thái terminal mà không completed."
+        break
+    if success:
+        invariant_ok, invariants = final_invariants(
+            base_systemd, base_gateway, base_router
+        )
+        if not invariant_ok:
+            failure_reason = "Telegram flow đạt nhưng final invariants không còn nguyên vẹn."
+            final_payload = {"telegram": signature, "invariants": invariants}
+            break
+        final_payload = {
+            "verdict": "PASS",
+            "marker": MARKER,
+            "telegram": signature,
+            "task_id": marker_run["task_id"],
+            "run_id": marker_run["id"],
+            "direct_session": direct_session,
+            "invariants": invariants,
+            "verified_at": datetime.now(timezone.utc).isoformat(),
+        }
+        break
+    time.sleep(3)
+
+if final_payload and final_payload.get("verdict") == "PASS":
+    evidence_json = json.dumps(final_payload, ensure_ascii=False, indent=2)
+    with RUNTIME_LOG.open("a", encoding="utf-8") as handle:
+        handle.write("\nTELEGRAM HUMAN GATE PASS\n" + evidence_json + "\n")
+    CLOSED.write_text(
+        "# DR-1 CODEX — CLOSED — 20260803T092331Z\n\n"
+        "PASS. Both live Telegram flows and all final invariants passed.\n\n"
+        "## Evidence\n\n```json\n"
+        + evidence_json
+        + "\n```\n",
+        encoding="utf-8",
+    )
+    print("\nPASS")
+    print("CLOSED=" + str(CLOSED))
+    sys.exit(0)
+
+if failure_reason is None:
+    failure_reason = "Hết 900 giây mà chưa đủ toàn bộ điều kiện Telegram."
+failure = {
+    "verdict": "BLOCKED",
+    "reason": failure_reason,
+    "last_observation": last_signature,
+    "recorded_at": datetime.now(timezone.utc).isoformat(),
+}
+with RUNTIME_LOG.open("a", encoding="utf-8") as handle:
+    handle.write(
+        "\nTELEGRAM HUMAN GATE BLOCKED\n"
+        + json.dumps(failure, ensure_ascii=False, indent=2)
+        + "\n"
+    )
+print("\nBLOCKED")
+print(json.dumps(failure, ensure_ascii=False, indent=2))
+sys.exit(1)
+PY
+
+exec .venv/bin/python -c "$DR1_VERIFY_PY"

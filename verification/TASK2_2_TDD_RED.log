@@ -1,0 +1,560 @@
+Spreadsheet runtime warmup failed during python startup
+Traceback (most recent call last):
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/patches/warm_spreadsheet_runtime_on_startup.py", line 26, in warm_spreadsheet_runtime_on_startup
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 785, in warm_spreadsheet_runtime
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 720, in _warm_feature_flows
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 704, in _warm_collaboration_flows
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/generated/interface/models.py", line 30820, in hydrate_crdt_from_proto
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/rpc/remote.py", line 749, in __call__
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/rpc/client.py", line 150, in call
+artifact_tool.rpc.client.RemoteError: hydrateCrdtFromProto requires an empty collaborative document.
+[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31m                                                    [100%][0m
+=================================== FAILURES ===================================
+[31m[1m___________________ test_read_only_status_action_is_allowed ____________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_read_only_status_action_i0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_read_only_status_action_is_allowed[39;49;00m(tmp_path: Path) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       decision = _engine(tmp_path).evaluate([90m[39;49;00m
+            PolicyAction(name=[33m"[39;49;00m[33mview_status[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/unit/test_policy_engine.py[0m:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.policy.engine.PolicyEngine object at 0x7f934e573020>
+action = PolicyAction(name='view_status', declared_risk_level=None, target_path=None, workspace_root=None, incurs_cost=False, bypasses_security=False, requests_privilege_escalation=False)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mevaluate[39;49;00m([96mself[39;49;00m, action):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/policy/engine.py[0m:6: NotImplementedError
+[31m[1m______________ test_read_file_inside_allowed_workspace_is_allowed ______________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_read_file_inside_allowed_0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_read_file_inside_allowed_workspace_is_allowed[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        target = tmp_path / [33m"[39;49;00m[33mproject[39;49;00m[33m"[39;49;00m / [33m"[39;49;00m[33mREADME.md[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+    [90m[39;49;00m
+>       decision = _engine(tmp_path).evaluate([90m[39;49;00m
+            PolicyAction(name=[33m"[39;49;00m[33mread_file[39;49;00m[33m"[39;49;00m, target_path=target)[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/unit/test_policy_engine.py[0m:34: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.policy.engine.PolicyEngine object at 0x7f934e4de960>
+action = PolicyAction(name='read_file', declared_risk_level=None, target_path=PosixPath('/tmp/pytest-of-oai/pytest-4/test_read_...ject/README.md'), workspace_root=None, incurs_cost=False, bypasses_security=False, requests_privilege_escalation=False)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mevaluate[39;49;00m([96mself[39;49;00m, action):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/policy/engine.py[0m:6: NotImplementedError
+[31m[1m_____________ test_safe_write_inside_allowed_workspace_is_allowed ______________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_safe_write_inside_allowed0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_safe_write_inside_allowed_workspace_is_allowed[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        target = tmp_path / [33m"[39;49;00m[33mproject[39;49;00m[33m"[39;49;00m / [33m"[39;49;00m[33mnew.md[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+    [90m[39;49;00m
+>       decision = _engine(tmp_path).evaluate([90m[39;49;00m
+            PolicyAction(name=[33m"[39;49;00m[33mcreate_file[39;49;00m[33m"[39;49;00m, target_path=target)[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/unit/test_policy_engine.py[0m:47: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.policy.engine.PolicyEngine object at 0x7f934e4e09e0>
+action = PolicyAction(name='create_file', declared_risk_level=None, target_path=PosixPath('/tmp/pytest-of-oai/pytest-4/test_saf...project/new.md'), workspace_root=None, incurs_cost=False, bypasses_security=False, requests_privilege_escalation=False)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mevaluate[39;49;00m([96mself[39;49;00m, action):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/policy/engine.py[0m:6: NotImplementedError
+[31m[1m_______________ test_safe_write_without_target_path_is_escalated _______________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_safe_write_without_target0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_safe_write_without_target_path_is_escalated[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       decision = _engine(tmp_path).evaluate([90m[39;49;00m
+            PolicyAction(name=[33m"[39;49;00m[33mcreate_file[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/unit/test_policy_engine.py[0m:58: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.policy.engine.PolicyEngine object at 0x7f934e5fb560>
+action = PolicyAction(name='create_file', declared_risk_level=None, target_path=None, workspace_root=None, incurs_cost=False, bypasses_security=False, requests_privilege_escalation=False)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mevaluate[39;49;00m([96mself[39;49;00m, action):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/policy/engine.py[0m:6: NotImplementedError
+[31m[1m____________ test_sensitive_action_requires_single_action_approval _____________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_sensitive_action_requires0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_sensitive_action_requires_single_action_approval[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       decision = _engine(tmp_path).evaluate([90m[39;49;00m
+            PolicyAction(name=[33m"[39;49;00m[33mrestart_service[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/unit/test_policy_engine.py[0m:69: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.policy.engine.PolicyEngine object at 0x7f934e5fcaa0>
+action = PolicyAction(name='restart_service', declared_risk_level=None, target_path=None, workspace_root=None, incurs_cost=False, bypasses_security=False, requests_privilege_escalation=False)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mevaluate[39;49;00m([96mself[39;49;00m, action):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/policy/engine.py[0m:6: NotImplementedError
+[31m[1m_______________ test_high_risk_action_requires_explicit_approval _______________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_high_risk_action_requires0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_high_risk_action_requires_explicit_approval[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       decision = _engine(tmp_path).evaluate([90m[39;49;00m
+            PolicyAction(name=[33m"[39;49;00m[33mdeploy[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/unit/test_policy_engine.py[0m:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.policy.engine.PolicyEngine object at 0x7f934e5fdd60>
+action = PolicyAction(name='deploy', declared_risk_level=None, target_path=None, workspace_root=None, incurs_cost=False, bypasses_security=False, requests_privilege_escalation=False)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mevaluate[39;49;00m([96mself[39;49;00m, action):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/policy/engine.py[0m:6: NotImplementedError
+[31m[1m_________ test_forbidden_action_is_denied_even_when_declared_low_risk __________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_forbidden_action_is_denie0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_forbidden_action_is_denied_even_when_declared_low_risk[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       decision = _engine(tmp_path).evaluate([90m[39;49;00m
+            PolicyAction([90m[39;49;00m
+                name=[33m"[39;49;00m[33mdisable_audit[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                declared_risk_level=RiskLevel.READ_ONLY,[90m[39;49;00m
+            )[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/unit/test_policy_engine.py[0m:93: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.policy.engine.PolicyEngine object at 0x7f934e5feee0>
+action = PolicyAction(name='disable_audit', declared_risk_level=<RiskLevel.READ_ONLY: 0>, target_path=None, workspace_root=None, incurs_cost=False, bypasses_security=False, requests_privilege_escalation=False)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mevaluate[39;49;00m([96mself[39;49;00m, action):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/policy/engine.py[0m:6: NotImplementedError
+[31m[1m_______________________ test_unknown_action_is_escalated _______________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_unknown_action_is_escalat0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_unknown_action_is_escalated[39;49;00m(tmp_path: Path) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       decision = _engine(tmp_path).evaluate([90m[39;49;00m
+            PolicyAction(name=[33m"[39;49;00m[33mnew_unregistered_skill[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/unit/test_policy_engine.py[0m:105: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.policy.engine.PolicyEngine object at 0x7f934e635060>
+action = PolicyAction(name='new_unregistered_skill', declared_risk_level=None, target_path=None, workspace_root=None, incurs_cost=False, bypasses_security=False, requests_privilege_escalation=False)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mevaluate[39;49;00m([96mself[39;49;00m, action):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/policy/engine.py[0m:6: NotImplementedError
+[31m[1m____________ test_cost_flag_upgrades_known_safe_action_to_high_risk ____________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_cost_flag_upgrades_known_0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_cost_flag_upgrades_known_safe_action_to_high_risk[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       decision = _engine(tmp_path).evaluate([90m[39;49;00m
+            PolicyAction(name=[33m"[39;49;00m[33mview_status[39;49;00m[33m"[39;49;00m, incurs_cost=[94mTrue[39;49;00m)[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/unit/test_policy_engine.py[0m:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.policy.engine.PolicyEngine object at 0x7f934e603c20>
+action = PolicyAction(name='view_status', declared_risk_level=None, target_path=None, workspace_root=None, incurs_cost=True, bypasses_security=False, requests_privilege_escalation=False)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mevaluate[39;49;00m([96mself[39;49;00m, action):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/policy/engine.py[0m:6: NotImplementedError
+[31m[1m_____________________ test_safety_bypass_flag_forces_deny ______________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_safety_bypass_flag_forces0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_safety_bypass_flag_forces_deny[39;49;00m(tmp_path: Path) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       decision = _engine(tmp_path).evaluate([90m[39;49;00m
+            PolicyAction(name=[33m"[39;49;00m[33mview_status[39;49;00m[33m"[39;49;00m, bypasses_security=[94mTrue[39;49;00m)[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/unit/test_policy_engine.py[0m:125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.policy.engine.PolicyEngine object at 0x7f934e605820>
+action = PolicyAction(name='view_status', declared_risk_level=None, target_path=None, workspace_root=None, incurs_cost=False, bypasses_security=True, requests_privilege_escalation=False)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mevaluate[39;49;00m([96mself[39;49;00m, action):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/policy/engine.py[0m:6: NotImplementedError
+[31m[1m________________ test_higher_declared_risk_is_never_downgraded _________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_higher_declared_risk_is_n0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_higher_declared_risk_is_never_downgraded[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       decision = _engine(tmp_path).evaluate([90m[39;49;00m
+            PolicyAction([90m[39;49;00m
+                name=[33m"[39;49;00m[33mview_status[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                declared_risk_level=RiskLevel.HIGH_RISK,[90m[39;49;00m
+            )[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/unit/test_policy_engine.py[0m:136: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.policy.engine.PolicyEngine object at 0x7f934e606420>
+action = PolicyAction(name='view_status', declared_risk_level=<RiskLevel.HIGH_RISK: 3>, target_path=None, workspace_root=None, incurs_cost=False, bypasses_security=False, requests_privilege_escalation=False)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mevaluate[39;49;00m([96mself[39;49;00m, action):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/policy/engine.py[0m:6: NotImplementedError
+[31m[1m_______________ test_forbidden_flag_on_unknown_action_is_denied ________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_forbidden_flag_on_unknown0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_forbidden_flag_on_unknown_action_is_denied[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       decision = _engine(tmp_path).evaluate([90m[39;49;00m
+            PolicyAction([90m[39;49;00m
+                name=[33m"[39;49;00m[33munknown_action[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                requests_privilege_escalation=[94mTrue[39;49;00m,[90m[39;49;00m
+            )[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/unit/test_policy_engine.py[0m:150: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.policy.engine.PolicyEngine object at 0x7f934e665120>
+action = PolicyAction(name='unknown_action', declared_risk_level=None, target_path=None, workspace_root=None, incurs_cost=False, bypasses_security=False, requests_privilege_escalation=True)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mevaluate[39;49;00m([96mself[39;49;00m, action):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/policy/engine.py[0m:6: NotImplementedError
+[31m[1m______________ test_absolute_path_inside_allowed_root_is_allowed _______________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_absolute_path_inside_allo0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_absolute_path_inside_allowed_root_is_allowed[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        allowed = tmp_path / [33m"[39;49;00m[33mallowed[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        allowed.mkdir()[90m[39;49;00m
+    [90m[39;49;00m
+>       result = WorkspacePathPolicy((allowed,)).check([90m[39;49;00m
+            allowed / [33m"[39;49;00m[33mproject[39;49;00m[33m"[39;49;00m / [33m"[39;49;00m[33mfile.md[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/security/test_path_scope.py[0m:12: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.policy.path_scope.WorkspacePathPolicy object at 0x7f934e6c4200>
+target_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_absolute_path_inside_allo0/allowed/project/file.md')
+workspace_root = None
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcheck[39;49;00m([96mself[39;49;00m, target_path, workspace_root=[94mNone[39;49;00m):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/policy/path_scope.py[0m:6: NotImplementedError
+[31m[1m_______________ test_relative_path_is_resolved_against_workspace _______________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_relative_path_is_resolved0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_relative_path_is_resolved_against_workspace[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        allowed = tmp_path / [33m"[39;49;00m[33mallowed[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        workspace = allowed / [33m"[39;49;00m[33mproject[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        workspace.mkdir(parents=[94mTrue[39;49;00m)[90m[39;49;00m
+    [90m[39;49;00m
+>       result = WorkspacePathPolicy((allowed,)).check([90m[39;49;00m
+            Path([33m"[39;49;00m[33mdocs/spec.md[39;49;00m[33m"[39;49;00m),[90m[39;49;00m
+            workspace_root=workspace,[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/security/test_path_scope.py[0m:29: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.policy.path_scope.WorkspacePathPolicy object at 0x7f934e695ce0>
+target_path = PosixPath('docs/spec.md')
+workspace_root = PosixPath('/tmp/pytest-of-oai/pytest-4/test_relative_path_is_resolved0/allowed/project')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcheck[39;49;00m([96mself[39;49;00m, target_path, workspace_root=[94mNone[39;49;00m):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/policy/path_scope.py[0m:6: NotImplementedError
+[31m[1m__________________ test_path_outside_allowed_roots_is_denied ___________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_path_outside_allowed_root0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_path_outside_allowed_roots_is_denied[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        allowed = tmp_path / [33m"[39;49;00m[33mallowed[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        outside = tmp_path / [33m"[39;49;00m[33moutside[39;49;00m[33m"[39;49;00m / [33m"[39;49;00m[33msecret.txt[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        allowed.mkdir()[90m[39;49;00m
+    [90m[39;49;00m
+>       result = WorkspacePathPolicy((allowed,)).check(outside)[90m[39;49;00m
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[90m[39;49;00m
+
+[1m[31mtests/security/test_path_scope.py[0m:47: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.policy.path_scope.WorkspacePathPolicy object at 0x7f934e69e4e0>
+target_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_path_outside_allowed_root0/outside/secret.txt')
+workspace_root = None
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcheck[39;49;00m([96mself[39;49;00m, target_path, workspace_root=[94mNone[39;49;00m):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/policy/path_scope.py[0m:6: NotImplementedError
+[31m[1m_______________ test_parent_traversal_out_of_workspace_is_denied _______________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_parent_traversal_out_of_w0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_parent_traversal_out_of_workspace_is_denied[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        allowed = tmp_path / [33m"[39;49;00m[33mallowed[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        workspace = allowed / [33m"[39;49;00m[33mproject[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        workspace.mkdir(parents=[94mTrue[39;49;00m)[90m[39;49;00m
+    [90m[39;49;00m
+>       result = WorkspacePathPolicy((allowed,)).check([90m[39;49;00m
+            Path([33m"[39;49;00m[33m../../outside.txt[39;49;00m[33m"[39;49;00m),[90m[39;49;00m
+            workspace_root=workspace,[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/security/test_path_scope.py[0m:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.policy.path_scope.WorkspacePathPolicy object at 0x7f934e6a3260>
+target_path = PosixPath('../../outside.txt')
+workspace_root = PosixPath('/tmp/pytest-of-oai/pytest-4/test_parent_traversal_out_of_w0/allowed/project')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcheck[39;49;00m([96mself[39;49;00m, target_path, workspace_root=[94mNone[39;49;00m):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/policy/path_scope.py[0m:6: NotImplementedError
+[31m[1m___________________ test_sibling_workspace_escape_is_denied ____________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_sibling_workspace_escape_0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_sibling_workspace_escape_is_denied[39;49;00m(tmp_path: Path) -> [94mNone[39;49;00m:[90m[39;49;00m
+        allowed = tmp_path / [33m"[39;49;00m[33mallowed[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        workspace = allowed / [33m"[39;49;00m[33mproject-a[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        workspace.mkdir(parents=[94mTrue[39;49;00m)[90m[39;49;00m
+    [90m[39;49;00m
+>       result = WorkspacePathPolicy((allowed,)).check([90m[39;49;00m
+            Path([33m"[39;49;00m[33m../project-b/file.md[39;49;00m[33m"[39;49;00m),[90m[39;49;00m
+            workspace_root=workspace,[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/security/test_path_scope.py[0m:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.policy.path_scope.WorkspacePathPolicy object at 0x7f934e6a3920>
+target_path = PosixPath('../project-b/file.md')
+workspace_root = PosixPath('/tmp/pytest-of-oai/pytest-4/test_sibling_workspace_escape_0/allowed/project-a')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcheck[39;49;00m([96mself[39;49;00m, target_path, workspace_root=[94mNone[39;49;00m):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/policy/path_scope.py[0m:6: NotImplementedError
+[31m[1m________________________ test_symlink_escape_is_denied _________________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_symlink_escape_is_denied0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_symlink_escape_is_denied[39;49;00m(tmp_path: Path) -> [94mNone[39;49;00m:[90m[39;49;00m
+        allowed = tmp_path / [33m"[39;49;00m[33mallowed[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        outside = tmp_path / [33m"[39;49;00m[33moutside[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        allowed.mkdir()[90m[39;49;00m
+        outside.mkdir()[90m[39;49;00m
+        (allowed / [33m"[39;49;00m[33mescape[39;49;00m[33m"[39;49;00m).symlink_to([90m[39;49;00m
+            outside,[90m[39;49;00m
+            target_is_directory=[94mTrue[39;49;00m,[90m[39;49;00m
+        )[90m[39;49;00m
+    [90m[39;49;00m
+>       result = WorkspacePathPolicy((allowed,)).check([90m[39;49;00m
+            allowed / [33m"[39;49;00m[33mescape[39;49;00m[33m"[39;49;00m / [33m"[39;49;00m[33msecret.txt[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/security/test_path_scope.py[0m:93: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.policy.path_scope.WorkspacePathPolicy object at 0x7f934e6a4160>
+target_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_symlink_escape_is_denied0/allowed/escape/secret.txt')
+workspace_root = None
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcheck[39;49;00m([96mself[39;49;00m, target_path, workspace_root=[94mNone[39;49;00m):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/policy/path_scope.py[0m:6: NotImplementedError
+[31m[1m_________________ test_windows_path_is_rejected_in_wsl_policy __________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_windows_path_is_rejected_0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_windows_path_is_rejected_in_wsl_policy[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       result = WorkspacePathPolicy((tmp_path,)).check([90m[39;49;00m
+            Path([33mr[39;49;00m[33m"[39;49;00m[33mF:[39;49;00m[33m\[39;49;00m[33mAIOS[39;49;00m[33m\[39;49;00m[33mproject[39;49;00m[33m\[39;49;00m[33mfile.md[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/security/test_path_scope.py[0m:104: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.policy.path_scope.WorkspacePathPolicy object at 0x7f934e6a4820>
+target_path = PosixPath('F:\\AIOS\\project\\file.md'), workspace_root = None
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcheck[39;49;00m([96mself[39;49;00m, target_path, workspace_root=[94mNone[39;49;00m):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/policy/path_scope.py[0m:6: NotImplementedError
+[31m[1m________________ test_relative_path_without_workspace_is_denied ________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_relative_path_without_wor0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_relative_path_without_workspace_is_denied[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       result = WorkspacePathPolicy((tmp_path,)).check([90m[39;49;00m
+            Path([33m"[39;49;00m[33mrelative/file.md[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/security/test_path_scope.py[0m:115: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.policy.path_scope.WorkspacePathPolicy object at 0x7f934e66e520>
+target_path = PosixPath('relative/file.md'), workspace_root = None
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcheck[39;49;00m([96mself[39;49;00m, target_path, workspace_root=[94mNone[39;49;00m):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/policy/path_scope.py[0m:6: NotImplementedError
+[31m[1m__________ test_policy_engine_imports_no_llm_network_or_shell_modules __________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-4/test_policy_engine_imports_no_0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_policy_engine_imports_no_llm_network_or_shell_modules[39;49;00m([90m[39;49;00m
+        tmp_path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        source = inspect.getsource(policy_engine_module)[90m[39;49;00m
+        syntax_tree = ast.parse(source)[90m[39;49;00m
+    [90m[39;49;00m
+        imported_roots: [96mset[39;49;00m[[96mstr[39;49;00m] = [96mset[39;49;00m()[90m[39;49;00m
+        [94mfor[39;49;00m node [95min[39;49;00m ast.walk(syntax_tree):[90m[39;49;00m
+            [94mif[39;49;00m [96misinstance[39;49;00m(node, ast.Import):[90m[39;49;00m
+                imported_roots.update([90m[39;49;00m
+                    alias.name.split([33m"[39;49;00m[33m.[39;49;00m[33m"[39;49;00m, maxsplit=[94m1[39;49;00m)[[94m0[39;49;00m][90m[39;49;00m
+                    [94mfor[39;49;00m alias [95min[39;49;00m node.names[90m[39;49;00m
+                )[90m[39;49;00m
+            [94melif[39;49;00m [96misinstance[39;49;00m(node, ast.ImportFrom) [95mand[39;49;00m node.module:[90m[39;49;00m
+                imported_roots.add(node.module.split([33m"[39;49;00m[33m.[39;49;00m[33m"[39;49;00m, maxsplit=[94m1[39;49;00m)[[94m0[39;49;00m])[90m[39;49;00m
+    [90m[39;49;00m
+        forbidden_modules = {[90m[39;49;00m
+            [33m"[39;49;00m[33manthropic[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            [33m"[39;49;00m[33mhttpx[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            [33m"[39;49;00m[33mopenai[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            [33m"[39;49;00m[33mrequests[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            [33m"[39;49;00m[33msocket[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            [33m"[39;49;00m[33msubprocess[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+        }[90m[39;49;00m
+        [94massert[39;49;00m imported_roots.isdisjoint(forbidden_modules)[90m[39;49;00m
+    [90m[39;49;00m
+        engine = PolicyEngine(WorkspacePathPolicy((tmp_path,)))[90m[39;49;00m
+        action = PolicyAction(name=[33m"[39;49;00m[33mrestart_service[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+>       [94massert[39;49;00m engine.evaluate(action) == engine.evaluate(action)[90m[39;49;00m
+               ^^^^^^^^^^^^^^^^^^^^^^^[90m[39;49;00m
+
+[1m[31mtests/security/test_policy_determinism.py[0m:38: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.policy.engine.PolicyEngine object at 0x7f934e588440>
+action = PolicyAction(name='restart_service', declared_risk_level=None, target_path=None, workspace_root=None, incurs_cost=False, bypasses_security=False, requests_privilege_escalation=False)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mevaluate[39;49;00m([96mself[39;49;00m, action):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/policy/engine.py[0m:6: NotImplementedError
+[36m[1m=========================== short test summary info ============================[0m
+[31mFAILED[0m tests/unit/test_policy_engine.py::[1mtest_read_only_status_action_is_allowed[0m - NotImplementedError
+[31mFAILED[0m tests/unit/test_policy_engine.py::[1mtest_read_file_inside_allowed_workspace_is_allowed[0m - NotImplementedError
+[31mFAILED[0m tests/unit/test_policy_engine.py::[1mtest_safe_write_inside_allowed_workspace_is_allowed[0m - NotImplementedError
+[31mFAILED[0m tests/unit/test_policy_engine.py::[1mtest_safe_write_without_target_path_is_escalated[0m - NotImplementedError
+[31mFAILED[0m tests/unit/test_policy_engine.py::[1mtest_sensitive_action_requires_single_action_approval[0m - NotImplementedError
+[31mFAILED[0m tests/unit/test_policy_engine.py::[1mtest_high_risk_action_requires_explicit_approval[0m - NotImplementedError
+[31mFAILED[0m tests/unit/test_policy_engine.py::[1mtest_forbidden_action_is_denied_even_when_declared_low_risk[0m - NotImplementedError
+[31mFAILED[0m tests/unit/test_policy_engine.py::[1mtest_unknown_action_is_escalated[0m - NotImplementedError
+[31mFAILED[0m tests/unit/test_policy_engine.py::[1mtest_cost_flag_upgrades_known_safe_action_to_high_risk[0m - NotImplementedError
+[31mFAILED[0m tests/unit/test_policy_engine.py::[1mtest_safety_bypass_flag_forces_deny[0m - NotImplementedError
+[31mFAILED[0m tests/unit/test_policy_engine.py::[1mtest_higher_declared_risk_is_never_downgraded[0m - NotImplementedError
+[31mFAILED[0m tests/unit/test_policy_engine.py::[1mtest_forbidden_flag_on_unknown_action_is_denied[0m - NotImplementedError
+[31mFAILED[0m tests/security/test_path_scope.py::[1mtest_absolute_path_inside_allowed_root_is_allowed[0m - NotImplementedError
+[31mFAILED[0m tests/security/test_path_scope.py::[1mtest_relative_path_is_resolved_against_workspace[0m - NotImplementedError
+[31mFAILED[0m tests/security/test_path_scope.py::[1mtest_path_outside_allowed_roots_is_denied[0m - NotImplementedError
+[31mFAILED[0m tests/security/test_path_scope.py::[1mtest_parent_traversal_out_of_workspace_is_denied[0m - NotImplementedError
+[31mFAILED[0m tests/security/test_path_scope.py::[1mtest_sibling_workspace_escape_is_denied[0m - NotImplementedError
+[31mFAILED[0m tests/security/test_path_scope.py::[1mtest_symlink_escape_is_denied[0m - NotImplementedError
+[31mFAILED[0m tests/security/test_path_scope.py::[1mtest_windows_path_is_rejected_in_wsl_policy[0m - NotImplementedError
+[31mFAILED[0m tests/security/test_path_scope.py::[1mtest_relative_path_without_workspace_is_denied[0m - NotImplementedError
+[31mFAILED[0m tests/security/test_policy_determinism.py::[1mtest_policy_engine_imports_no_llm_network_or_shell_modules[0m - NotImplementedError
+[31m[31m[1m21 failed[0m[31m in 0.16s[0m[0m

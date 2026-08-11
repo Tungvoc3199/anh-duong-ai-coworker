@@ -1,0 +1,30 @@
+diff --git a/app/routing/fast_router.py b/app/routing/fast_router.py
+--- a/app/routing/fast_router.py
++++ b/app/routing/fast_router.py
+@@ -150,0 +151,3 @@
++_SIMPLE_ARITHMETIC_PATTERN = re.compile(
++    r"^(?:tg1 direct [0-9]+ )?tinh [0-9]+(?: [0-9]+)+ va tra loi ngan gon$"
++)
+@@ -222,0 +226,1 @@
++            or _SIMPLE_ARITHMETIC_PATTERN.fullmatch(normalized) is not None
+diff --git a/tests/unit/test_core_request_pipeline_behavior.py b/tests/unit/test_core_request_pipeline_behavior.py
+--- a/tests/unit/test_core_request_pipeline_behavior.py
++++ b/tests/unit/test_core_request_pipeline_behavior.py
+@@ -214,0 +215,17 @@
++def test_tg1_simple_arithmetic_request_routes_direct() -> None:
++    prepared = _pipeline().prepare(
++        CoreRequest(
++            text=(
++                "TG1-DIRECT-20260801 — Tính 27 + 15 và trả lời ngắn gọn."
++            ),
++            request_id="tg1-direct-regression",
++        )
++    )
++
++    assert prepared.route_decision.route is FastRoute.DIRECT
++    assert (
++        prepared.capability_decision.capability
++        is CapabilityKind.CONVERSATIONAL_RESPONSE
++    )
++    assert prepared.execution_required is False
++

@@ -1,0 +1,7 @@
+pytest: [32m[32m[1m9 passed[0m[32m in 0.35s[0m[0m
+compileall: PASS
+alembic_upgrade: PASS
+database_url: sqlite+pysqlite:////home/thadc/.local/state/anh-duong-core/anh_duong.db
+journal_mode: wal
+required_tables: 14
+shell_scripts_lf_only: 3

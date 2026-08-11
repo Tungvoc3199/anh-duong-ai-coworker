@@ -1,0 +1,1 @@
+NOT VERIFIED IN BUILD SANDBOX; run on target with: ruff check app/persona tests/unit/test_persona_loader.py tests/unit/test_persona_content.py

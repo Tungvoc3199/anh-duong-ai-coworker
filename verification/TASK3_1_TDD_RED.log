@@ -1,0 +1,329 @@
+Spreadsheet runtime warmup failed during python startup
+Traceback (most recent call last):
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/patches/warm_spreadsheet_runtime_on_startup.py", line 26, in warm_spreadsheet_runtime_on_startup
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 785, in warm_spreadsheet_runtime
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 720, in _warm_feature_flows
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 704, in _warm_collaboration_flows
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/generated/interface/models.py", line 30820, in hydrate_crdt_from_proto
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/rpc/remote.py", line 749, in __call__
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/rpc/client.py", line 150, in call
+artifact_tool.rpc.client.RemoteError: hydrateCrdtFromProto requires an empty collaborative document.
+[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31m                                                              [100%][0m
+=================================== FAILURES ===================================
+[31m[1m_________________________ test_create_and_get_project __________________________[0m
+
+project_service = <app.projects.service.ProjectService object at 0x7fc12e3c4d20>
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_create_and_get_project[39;49;00m([90m[39;49;00m
+        project_service: ProjectService,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       created = project_service.create([90m[39;49;00m
+            ProjectCreate([90m[39;49;00m
+                name=[33m"[39;49;00m[33mAIOS Dashboard[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                slug=[33m"[39;49;00m[33maios-dashboard[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                priority=ProjectPriority.HIGH,[90m[39;49;00m
+                path_windows=[33mr[39;49;00m[33m"[39;49;00m[33mF:[39;49;00m[33m\[39;49;00m[33mAIOS[39;49;00m[33m\[39;49;00m[33maios-dashboard[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                path_wsl=[33m"[39;49;00m[33m/mnt/f/AIOS/aios-dashboard[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                constraints=[[33m"[39;49;00m[33mlocal-first[39;49;00m[33m"[39;49;00m],[90m[39;49;00m
+            )[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/integration/test_projects.py[0m:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.projects.service.ProjectService object at 0x7fc12e3c4d20>
+data = ProjectCreate(name='AIOS Dashboard', slug='aios-dashboard', priority=<ProjectPriority.HIGH: 'high'>)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcreate[39;49;00m([96mself[39;49;00m, data):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/projects/service.py[0m:19: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[31m[1m_________________________ test_project_slug_is_unique __________________________[0m
+
+project_service = <app.projects.service.ProjectService object at 0x7fc12e4dc9a0>
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_project_slug_is_unique[39;49;00m([90m[39;49;00m
+        project_service: ProjectService,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       project_service.create([90m[39;49;00m
+            ProjectCreate(name=[33m"[39;49;00m[33mFirst[39;49;00m[33m"[39;49;00m, slug=[33m"[39;49;00m[33msame-slug[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/integration/test_projects.py[0m:79: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.projects.service.ProjectService object at 0x7fc12e4dc9a0>
+data = ProjectCreate(name='First', slug='same-slug', priority=<ProjectPriority.NORMAL: 'normal'>)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcreate[39;49;00m([96mself[39;49;00m, data):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/projects/service.py[0m:19: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[31m[1m__________________ test_slug_is_normalized_before_persistence __________________[0m
+
+project_service = <app.projects.service.ProjectService object at 0x7fc12e4b17e0>
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_slug_is_normalized_before_persistence[39;49;00m([90m[39;49;00m
+        project_service: ProjectService,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       project = project_service.create([90m[39;49;00m
+            ProjectCreate([90m[39;49;00m
+                name=[33m"[39;49;00m[33mÁnh Dương Core[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                slug=[33m"[39;49;00m[33m  Anh-Duong-Core  [39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            )[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/integration/test_projects.py[0m:92: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.projects.service.ProjectService object at 0x7fc12e4b17e0>
+data = ProjectCreate(name='Ánh Dương Core', slug='  Anh-Duong-Core  ', priority=<ProjectPriority.NORMAL: 'normal'>)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcreate[39;49;00m([96mself[39;49;00m, data):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/projects/service.py[0m:19: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[31m[1m_______________________ test_get_missing_project_raises ________________________[0m
+
+project_service = <app.projects.service.ProjectService object at 0x7fc12e4dbd20>
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_get_missing_project_raises[39;49;00m([90m[39;49;00m
+        project_service: ProjectService,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        [94mwith[39;49;00m pytest.raises(ProjectNotFound, match=[33m"[39;49;00m[33mproj_missing[39;49;00m[33m"[39;49;00m):[90m[39;49;00m
+>           project_service.get([33m"[39;49;00m[33mproj_missing[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+
+[1m[31mtests/integration/test_projects.py[0m:106: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.projects.service.ProjectService object at 0x7fc12e4dbd20>
+project_id = 'proj_missing'
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mget[39;49;00m([96mself[39;49;00m, project_id):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/projects/service.py[0m:22: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[31m[1m___________________ test_list_projects_can_filter_by_status ____________________[0m
+
+project_service = <app.projects.service.ProjectService object at 0x7fc12e4880e0>
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_list_projects_can_filter_by_status[39;49;00m([90m[39;49;00m
+        project_service: ProjectService,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       idea = project_service.create([90m[39;49;00m
+            ProjectCreate(name=[33m"[39;49;00m[33mIdea[39;49;00m[33m"[39;49;00m, slug=[33m"[39;49;00m[33midea[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/integration/test_projects.py[0m:112: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.projects.service.ProjectService object at 0x7fc12e4880e0>
+data = ProjectCreate(name='Idea', slug='idea', priority=<ProjectPriority.NORMAL: 'normal'>)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcreate[39;49;00m([96mself[39;49;00m, data):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/projects/service.py[0m:19: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[31m[1m________________ test_happy_path_transitions_increment_version _________________[0m
+
+project_service = <app.projects.service.ProjectService object at 0x7fc12e59cbe0>
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_happy_path_transitions_increment_version[39;49;00m([90m[39;49;00m
+        project_service: ProjectService,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       project = project_service.create([90m[39;49;00m
+            ProjectCreate(name=[33m"[39;49;00m[33mCore[39;49;00m[33m"[39;49;00m, slug=[33m"[39;49;00m[33mcore[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/integration/test_projects.py[0m:135: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.projects.service.ProjectService object at 0x7fc12e59cbe0>
+data = ProjectCreate(name='Core', slug='core', priority=<ProjectPriority.NORMAL: 'normal'>)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcreate[39;49;00m([96mself[39;49;00m, data):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/projects/service.py[0m:19: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[31m[1m_____________________ test_invalid_transition_is_rejected ______________________[0m
+
+project_service = <app.projects.service.ProjectService object at 0x7fc12e4b4da0>
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_invalid_transition_is_rejected[39;49;00m([90m[39;49;00m
+        project_service: ProjectService,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       project = project_service.create([90m[39;49;00m
+            ProjectCreate(name=[33m"[39;49;00m[33mInvalid[39;49;00m[33m"[39;49;00m, slug=[33m"[39;49;00m[33minvalid[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/integration/test_projects.py[0m:158: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.projects.service.ProjectService object at 0x7fc12e4b4da0>
+data = ProjectCreate(name='Invalid', slug='invalid', priority=<ProjectPriority.NORMAL: 'normal'>)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcreate[39;49;00m([96mself[39;49;00m, data):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/projects/service.py[0m:19: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[31m[1m____________________ test_same_state_transition_is_rejected ____________________[0m
+
+project_service = <app.projects.service.ProjectService object at 0x7fc12e4db1e0>
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_same_state_transition_is_rejected[39;49;00m([90m[39;49;00m
+        project_service: ProjectService,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       project = project_service.create([90m[39;49;00m
+            ProjectCreate(name=[33m"[39;49;00m[33mSame[39;49;00m[33m"[39;49;00m, slug=[33m"[39;49;00m[33msame[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/integration/test_projects.py[0m:179: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.projects.service.ProjectService object at 0x7fc12e4db1e0>
+data = ProjectCreate(name='Same', slug='same', priority=<ProjectPriority.NORMAL: 'normal'>)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcreate[39;49;00m([96mself[39;49;00m, data):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/projects/service.py[0m:19: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[31m[1m________________ test_transition_writes_append_only_audit_event ________________[0m
+
+session_factory = sessionmaker(class_='Session', bind=Engine(sqlite+pysqlite:////tmp/pytest-of-oai/pytest-13/test_transition_writes_append_0/migrated.db), autoflush=False, expire_on_commit=False)
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-13/test_transition_writes_append_0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_transition_writes_append_only_audit_event[39;49;00m([90m[39;49;00m
+        session_factory: sessionmaker[Session],[90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        audit_path = tmp_path / [33m"[39;49;00m[33mproject-audit.jsonl[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        session = session_factory()[90m[39;49;00m
+        service = ProjectService([90m[39;49;00m
+            repository=ProjectRepository(session),[90m[39;49;00m
+            audit_writer=AuditWriter(audit_path, fsync=[94mFalse[39;49;00m),[90m[39;49;00m
+        )[90m[39;49;00m
+        [94mtry[39;49;00m:[90m[39;49;00m
+>           project = service.create([90m[39;49;00m
+                ProjectCreate(name=[33m"[39;49;00m[33mAudit[39;49;00m[33m"[39;49;00m, slug=[33m"[39;49;00m[33maudit[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+            )[90m[39;49;00m
+
+[1m[31mtests/integration/test_projects.py[0m:204: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.projects.service.ProjectService object at 0x7fc12e535e20>
+data = ProjectCreate(name='Audit', slug='audit', priority=<ProjectPriority.NORMAL: 'normal'>)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcreate[39;49;00m([96mself[39;49;00m, data):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/projects/service.py[0m:19: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[31m[1m________________________ test_blocked_project_can_pause ________________________[0m
+
+project_service = <app.projects.service.ProjectService object at 0x7fc12e543320>
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_blocked_project_can_pause[39;49;00m([90m[39;49;00m
+        project_service: ProjectService,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       project = project_service.create([90m[39;49;00m
+            ProjectCreate(name=[33m"[39;49;00m[33mPaused[39;49;00m[33m"[39;49;00m, slug=[33m"[39;49;00m[33mpaused[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/integration/test_projects.py[0m:239: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.projects.service.ProjectService object at 0x7fc12e543320>
+data = ProjectCreate(name='Paused', slug='paused', priority=<ProjectPriority.NORMAL: 'normal'>)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcreate[39;49;00m([96mself[39;49;00m, data):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/projects/service.py[0m:19: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[31m[1m______________________ test_archived_project_is_terminal _______________________[0m
+
+project_service = <app.projects.service.ProjectService object at 0x7fc12e56be20>
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_archived_project_is_terminal[39;49;00m([90m[39;49;00m
+        project_service: ProjectService,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+>       project = project_service.create([90m[39;49;00m
+            ProjectCreate(name=[33m"[39;49;00m[33mArchive[39;49;00m[33m"[39;49;00m, slug=[33m"[39;49;00m[33marchive[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/integration/test_projects.py[0m:257: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.projects.service.ProjectService object at 0x7fc12e56be20>
+data = ProjectCreate(name='Archive', slug='archive', priority=<ProjectPriority.NORMAL: 'normal'>)
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mcreate[39;49;00m([96mself[39;49;00m, data):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/projects/service.py[0m:19: NotImplementedError
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create the Phase 1 core schema.
+[36m[1m=========================== short test summary info ============================[0m
+[31mFAILED[0m tests/integration/test_projects.py::[1mtest_create_and_get_project[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_projects.py::[1mtest_project_slug_is_unique[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_projects.py::[1mtest_slug_is_normalized_before_persistence[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_projects.py::[1mtest_get_missing_project_raises[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_projects.py::[1mtest_list_projects_can_filter_by_status[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_projects.py::[1mtest_happy_path_transitions_increment_version[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_projects.py::[1mtest_invalid_transition_is_rejected[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_projects.py::[1mtest_same_state_transition_is_rejected[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_projects.py::[1mtest_transition_writes_append_only_audit_event[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_projects.py::[1mtest_blocked_project_can_pause[0m - NotImplementedError
+[31mFAILED[0m tests/integration/test_projects.py::[1mtest_archived_project_is_terminal[0m - NotImplementedError
+[31m[31m[1m11 failed[0m[31m in 0.36s[0m[0m

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "project_id": "anh-duong-core",
+  "source_root": "/home/thadc/AIOS/anh-duong-core",
+  "runtime_db": "/home/thadc/.local/state/anh-duong-core/anh_duong.db",
+  "artifact_path": "/mnt/f/AIOS/anh-duong-checkpoints",
+  "service": "anh-duong-core.service",
+  "health_endpoints": ["http://127.0.0.1:8790/health", "http://127.0.0.1:8790/ready"],
+  "deprecated_paths": ["/mnt/f/AIOS/anh-duong-core"],
+  "protected_files": ["app/async_tasks/worker.py", "app/openclaw/executor.py", "tests/integration/test_async_task_worker.py", "tests/unit/test_openclaw_executor.py"]
+}

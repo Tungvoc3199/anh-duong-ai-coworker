@@ -1,0 +1,406 @@
+Spreadsheet runtime warmup failed during python startup
+Traceback (most recent call last):
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/patches/warm_spreadsheet_runtime_on_startup.py", line 26, in warm_spreadsheet_runtime_on_startup
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 785, in warm_spreadsheet_runtime
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 720, in _warm_feature_flows
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 704, in _warm_collaboration_flows
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/generated/interface/models.py", line 30820, in hydrate_crdt_from_proto
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/rpc/remote.py", line 749, in __call__
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/rpc/client.py", line 150, in call
+artifact_tool.rpc.client.RemoteError: hydrateCrdtFromProto requires an empty collaborative document.
+[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31m                                                          [100%][0m
+=================================== FAILURES ===================================
+[31m[1m___________________ test_writer_appends_json_lines_in_order ____________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-8/test_writer_appends_json_lines0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_writer_appends_json_lines_in_order[39;49;00m(tmp_path: Path) -> [94mNone[39;49;00m:[90m[39;49;00m
+        audit_path = tmp_path / [33m"[39;49;00m[33maudit.jsonl[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        writer = AuditWriter(audit_path)[90m[39;49;00m
+    [90m[39;49;00m
+>       writer.write([90m[39;49;00m
+            AuditEvent([90m[39;49;00m
+                event_type=[33m"[39;49;00m[33mtask.received[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                payload={[33m"[39;49;00m[33mtask_id[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33mtask_1[39;49;00m[33m"[39;49;00m},[90m[39;49;00m
+            )[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/unit/test_audit_writer.py[0m:22: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.audit.writer.AuditWriter object at 0x7f611e0fb5a0>
+event = AuditEvent(event_type='task.received', payload={'task_id': 'task_1'})
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mwrite[39;49;00m([96mself[39;49;00m, event):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/audit/writer.py[0m:6: NotImplementedError
+[31m[1m_____________________ test_writer_creates_parent_directory _____________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-8/test_writer_creates_parent_dir0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_writer_creates_parent_directory[39;49;00m(tmp_path: Path) -> [94mNone[39;49;00m:[90m[39;49;00m
+        audit_path = tmp_path / [33m"[39;49;00m[33mnested[39;49;00m[33m"[39;49;00m / [33m"[39;49;00m[33mstate[39;49;00m[33m"[39;49;00m / [33m"[39;49;00m[33maudit.jsonl[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+    [90m[39;49;00m
+>       AuditWriter(audit_path).write([90m[39;49;00m
+            AuditEvent(event_type=[33m"[39;49;00m[33msystem.started[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/unit/test_audit_writer.py[0m:50: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.audit.writer.AuditWriter object at 0x7f611e1e07a0>
+event = AuditEvent(event_type='system.started', payload={})
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mwrite[39;49;00m([96mself[39;49;00m, event):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/audit/writer.py[0m:6: NotImplementedError
+[31m[1m__________ test_writer_redacts_nested_secrets_without_mutating_event ___________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-8/test_writer_redacts_nested_sec0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_writer_redacts_nested_secrets_without_mutating_event[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        audit_path = tmp_path / [33m"[39;49;00m[33maudit.jsonl[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        event = AuditEvent([90m[39;49;00m
+            event_type=[33m"[39;49;00m[33mprovider.request[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            payload={[90m[39;49;00m
+                [33m"[39;49;00m[33mauthorization[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33mBearer top-secret-token[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                [33m"[39;49;00m[33mnested[39;49;00m[33m"[39;49;00m: {[90m[39;49;00m
+                    [33m"[39;49;00m[33mpassword[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33mcorrect-horse-battery-staple[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                    [33m"[39;49;00m[33msafe[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33mkeep-me[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                },[90m[39;49;00m
+            },[90m[39;49;00m
+        )[90m[39;49;00m
+    [90m[39;49;00m
+>       AuditWriter(audit_path).write(event)[90m[39;49;00m
+
+[1m[31mtests/unit/test_audit_writer.py[0m:72: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.audit.writer.AuditWriter object at 0x7f611e1e2460>
+event = AuditEvent(event_type='provider.request', payload={'authorization': 'Bearer top-secret-token', 'nested': {'password': 'correct-horse-battery-staple', 'safe': 'keep-me'}})
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mwrite[39;49;00m([96mself[39;49;00m, event):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/audit/writer.py[0m:6: NotImplementedError
+[31m[1m_____________ test_writer_output_is_one_valid_json_object_per_line _____________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-8/test_writer_output_is_one_vali0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_writer_output_is_one_valid_json_object_per_line[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        audit_path = tmp_path / [33m"[39;49;00m[33maudit.jsonl[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        writer = AuditWriter(audit_path)[90m[39;49;00m
+    [90m[39;49;00m
+>       writer.write([90m[39;49;00m
+            AuditEvent([90m[39;49;00m
+                event_type=[33m"[39;49;00m[33mmessage.received[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                payload={[33m"[39;49;00m[33mtext[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33mline one[39;49;00m[33m\n[39;49;00m[33mline two[39;49;00m[33m"[39;49;00m},[90m[39;49;00m
+            )[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/unit/test_audit_writer.py[0m:88: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.audit.writer.AuditWriter object at 0x7f611e1e3d60>
+event = AuditEvent(event_type='message.received', payload={'text': 'line one\nline two'})
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mwrite[39;49;00m([96mself[39;49;00m, event):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/audit/writer.py[0m:6: NotImplementedError
+[31m[1m_________________ test_concurrent_writes_do_not_corrupt_jsonl __________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-8/test_concurrent_writes_do_not_0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_concurrent_writes_do_not_corrupt_jsonl[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        audit_path = tmp_path / [33m"[39;49;00m[33maudit.jsonl[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        writer = AuditWriter(audit_path)[90m[39;49;00m
+    [90m[39;49;00m
+        [94mdef[39;49;00m[90m [39;49;00m[92mwrite_event[39;49;00m(index: [96mint[39;49;00m) -> [94mNone[39;49;00m:[90m[39;49;00m
+            writer.write([90m[39;49;00m
+                AuditEvent([90m[39;49;00m
+                    event_type=[33m"[39;49;00m[33mconcurrency.probe[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                    payload={[33m"[39;49;00m[33mindex[39;49;00m[33m"[39;49;00m: index},[90m[39;49;00m
+                )[90m[39;49;00m
+            )[90m[39;49;00m
+    [90m[39;49;00m
+        [94mwith[39;49;00m ThreadPoolExecutor(max_workers=[94m10[39;49;00m) [94mas[39;49;00m executor:[90m[39;49;00m
+>           [96mlist[39;49;00m(executor.map(write_event, [96mrange[39;49;00m([94m100[39;49;00m)))[90m[39;49;00m
+
+[1m[31mtests/unit/test_audit_writer.py[0m:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+[1m[31m/usr/lib/python3.13/concurrent/futures/_base.py[0m:619: in result_iterator
+    [0m[94myield[39;49;00m _result_or_cancel(fs.pop())[90m[39;49;00m
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^[90m[39;49;00m
+[1m[31m/usr/lib/python3.13/concurrent/futures/_base.py[0m:317: in _result_or_cancel
+    [0m[94mreturn[39;49;00m fut.result(timeout)[90m[39;49;00m
+           ^^^^^^^^^^^^^^^^^^^[90m[39;49;00m
+[1m[31m/usr/lib/python3.13/concurrent/futures/_base.py[0m:449: in result
+    [0m[94mreturn[39;49;00m [96mself[39;49;00m.__get_result()[90m[39;49;00m
+           ^^^^^^^^^^^^^^^^^^^[90m[39;49;00m
+[1m[31m/usr/lib/python3.13/concurrent/futures/_base.py[0m:401: in __get_result
+    [0m[94mraise[39;49;00m [96mself[39;49;00m._exception[90m[39;49;00m
+[1m[31m/usr/lib/python3.13/concurrent/futures/thread.py[0m:59: in run
+    [0mresult = [96mself[39;49;00m.fn(*[96mself[39;49;00m.args, **[96mself[39;49;00m.kwargs)[90m[39;49;00m
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[90m[39;49;00m
+[1m[31mtests/unit/test_audit_writer.py[0m:110: in write_event
+    [0mwriter.write([90m[39;49;00m
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.audit.writer.AuditWriter object at 0x7f611e22b160>
+event = AuditEvent(event_type='concurrency.probe', payload={'index': 0})
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mwrite[39;49;00m([96mself[39;49;00m, event):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/audit/writer.py[0m:6: NotImplementedError
+[31m[1m___________________ test_verify_integrity_accepts_clean_log ____________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-8/test_verify_integrity_accepts_0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_verify_integrity_accepts_clean_log[39;49;00m(tmp_path: Path) -> [94mNone[39;49;00m:[90m[39;49;00m
+        audit_path = tmp_path / [33m"[39;49;00m[33maudit.jsonl[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        writer = AuditWriter(audit_path)[90m[39;49;00m
+>       writer.write(AuditEvent(event_type=[33m"[39;49;00m[33mone[39;49;00m[33m"[39;49;00m))[90m[39;49;00m
+
+[1m[31mtests/unit/test_audit_writer.py[0m:132: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.audit.writer.AuditWriter object at 0x7f611e22daa0>
+event = AuditEvent(event_type='one', payload={})
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mwrite[39;49;00m([96mself[39;49;00m, event):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/audit/writer.py[0m:6: NotImplementedError
+[31m[1m_______________ test_verify_integrity_reports_first_invalid_line _______________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-8/test_verify_integrity_reports_0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_verify_integrity_reports_first_invalid_line[39;49;00m([90m[39;49;00m
+        tmp_path: Path,[90m[39;49;00m
+    ) -> [94mNone[39;49;00m:[90m[39;49;00m
+        audit_path = tmp_path / [33m"[39;49;00m[33maudit.jsonl[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        writer = AuditWriter(audit_path)[90m[39;49;00m
+>       writer.write(AuditEvent(event_type=[33m"[39;49;00m[33mone[39;49;00m[33m"[39;49;00m))[90m[39;49;00m
+
+[1m[31mtests/unit/test_audit_writer.py[0m:147: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.audit.writer.AuditWriter object at 0x7f611e22eae0>
+event = AuditEvent(event_type='one', payload={})
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mwrite[39;49;00m([96mself[39;49;00m, event):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/audit/writer.py[0m:6: NotImplementedError
+[31m[1m_______________ test_redacts_sensitive_mapping_keys_recursively ________________[0m
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_redacts_sensitive_mapping_keys_recursively[39;49;00m() -> [94mNone[39;49;00m:[90m[39;49;00m
+        redactor = SecretRedactor()[90m[39;49;00m
+    [90m[39;49;00m
+>       result = redactor.redact([90m[39;49;00m
+            {[90m[39;49;00m
+                [33m"[39;49;00m[33mapi_key[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33msk-proj-abcdef1234567890[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                [33m"[39;49;00m[33mnested[39;49;00m[33m"[39;49;00m: {[90m[39;49;00m
+                    [33m"[39;49;00m[33mPASSWORD[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33msecret-password[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                    [33m"[39;49;00m[33msafe[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33mvisible[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                },[90m[39;49;00m
+                [33m"[39;49;00m[33mitems[39;49;00m[33m"[39;49;00m: [{[33m"[39;49;00m[33maccess_token[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33mtoken-value[39;49;00m[33m"[39;49;00m}],[90m[39;49;00m
+            }[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/security/test_secret_redaction.py[0m:9: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.audit.redaction.SecretRedactor object at 0x7f611e1d3420>
+value = {'api_key': 'sk-proj-abcdef1234567890', 'items': [{'access_token': 'token-value'}], 'nested': {'PASSWORD': 'secret-password', 'safe': 'visible'}}
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mredact[39;49;00m([96mself[39;49;00m, value):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/audit/redaction.py[0m:6: NotImplementedError
+[31m[1m__________________ test_redacts_bearer_token_inside_free_text __________________[0m
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_redacts_bearer_token_inside_free_text[39;49;00m() -> [94mNone[39;49;00m:[90m[39;49;00m
+>       result = SecretRedactor().redact([90m[39;49;00m
+            [33m"[39;49;00m[33mAuthorization: Bearer abc.def.ghi[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/security/test_secret_redaction.py[0m:31: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.audit.redaction.SecretRedactor object at 0x7f611e27e8e0>
+value = 'Authorization: Bearer abc.def.ghi'
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mredact[39;49;00m([96mself[39;49;00m, value):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/audit/redaction.py[0m:6: NotImplementedError
+[31m[1m______________ test_redacts_assignment_style_secrets_inside_text _______________[0m
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_redacts_assignment_style_secrets_inside_text[39;49;00m() -> [94mNone[39;49;00m:[90m[39;49;00m
+        text = ([90m[39;49;00m
+            [33m"[39;49;00m[33mOPENAI_API_KEY=sk-proj-1234567890 [39;49;00m[33m"[39;49;00m[90m[39;49;00m
+            [33m"[39;49;00m[33mpassword=[39;49;00m[33m'[39;49;00m[33mvery-secret[39;49;00m[33m'[39;49;00m[33m [39;49;00m[33m"[39;49;00m[90m[39;49;00m
+            [33m"[39;49;00m[33mTELEGRAM_BOT_TOKEN=123456789:AAExampleTokenValue[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        )[90m[39;49;00m
+    [90m[39;49;00m
+>       result = SecretRedactor().redact(text)[90m[39;49;00m
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[90m[39;49;00m
+
+[1m[31mtests/security/test_secret_redaction.py[0m:45: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.audit.redaction.SecretRedactor object at 0x7f611e27f420>
+value = "OPENAI_API_KEY=sk-proj-1234567890 password='very-secret' TELEGRAM_BOT_TOKEN=123456789:AAExampleTokenValue"
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mredact[39;49;00m([96mself[39;49;00m, value):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/audit/redaction.py[0m:6: NotImplementedError
+[31m[1m_________________ test_redacts_sensitive_url_query_parameters __________________[0m
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_redacts_sensitive_url_query_parameters[39;49;00m() -> [94mNone[39;49;00m:[90m[39;49;00m
+>       result = SecretRedactor().redact([90m[39;49;00m
+            [33m"[39;49;00m[33mhttps://example.test/callback?[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+            [33m"[39;49;00m[33mtoken=abc123&next=/home&api_key=xyz789[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        )[90m[39;49;00m
+
+[1m[31mtests/security/test_secret_redaction.py[0m:54: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.audit.redaction.SecretRedactor object at 0x7f611e27ff60>
+value = 'https://example.test/callback?token=abc123&next=/home&api_key=xyz789'
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mredact[39;49;00m([96mself[39;49;00m, value):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/audit/redaction.py[0m:6: NotImplementedError
+[31m[1m___________________ test_redacts_common_provider_key_shapes ____________________[0m
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_redacts_common_provider_key_shapes[39;49;00m() -> [94mNone[39;49;00m:[90m[39;49;00m
+        redactor = SecretRedactor()[90m[39;49;00m
+        samples = ([90m[39;49;00m
+            [33m"[39;49;00m[33msk-proj-1234567890abcdef[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            [33m"[39;49;00m[33mghp_1234567890abcdefghijklmnopqrstuvwxyz[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            [33m"[39;49;00m[33mxoxb-1234567890-abcdefghijklmnop[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            [33m"[39;49;00m[33m123456789:AAExampleTelegramBotTokenValue[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+        )[90m[39;49;00m
+    [90m[39;49;00m
+        [94mfor[39;49;00m sample [95min[39;49;00m samples:[90m[39;49;00m
+>           [94massert[39;49;00m redactor.redact(sample) == REDACTED[90m[39;49;00m
+                   ^^^^^^^^^^^^^^^^^^^^^^^[90m[39;49;00m
+
+[1m[31mtests/security/test_secret_redaction.py[0m:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.audit.redaction.SecretRedactor object at 0x7f611e280aa0>
+value = 'sk-proj-1234567890abcdef'
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mredact[39;49;00m([96mself[39;49;00m, value):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/audit/redaction.py[0m:6: NotImplementedError
+[31m[1m__________________ test_does_not_redact_normal_business_text ___________________[0m
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_does_not_redact_normal_business_text[39;49;00m() -> [94mNone[39;49;00m:[90m[39;49;00m
+        text = ([90m[39;49;00m
+            [33m"[39;49;00m[33mThe token budget is 12000 and the password policy [39;49;00m[33m"[39;49;00m[90m[39;49;00m
+            [33m"[39;49;00m[33mrequires 16 characters.[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        )[90m[39;49;00m
+    [90m[39;49;00m
+>       [94massert[39;49;00m SecretRedactor().redact(text) == text[90m[39;49;00m
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[90m[39;49;00m
+
+[1m[31mtests/security/test_secret_redaction.py[0m:83: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.audit.redaction.SecretRedactor object at 0x7f611e281720>
+value = 'The token budget is 12000 and the password policy requires 16 characters.'
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mredact[39;49;00m([96mself[39;49;00m, value):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/audit/redaction.py[0m:6: NotImplementedError
+[31m[1m____________________ test_preserves_non_secret_scalar_types ____________________[0m
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_preserves_non_secret_scalar_types[39;49;00m() -> [94mNone[39;49;00m:[90m[39;49;00m
+        payload = {[90m[39;49;00m
+            [33m"[39;49;00m[33mcount[39;49;00m[33m"[39;49;00m: [94m3[39;49;00m,[90m[39;49;00m
+            [33m"[39;49;00m[33menabled[39;49;00m[33m"[39;49;00m: [94mTrue[39;49;00m,[90m[39;49;00m
+            [33m"[39;49;00m[33mratio[39;49;00m[33m"[39;49;00m: [94m0.5[39;49;00m,[90m[39;49;00m
+            [33m"[39;49;00m[33mnothing[39;49;00m[33m"[39;49;00m: [94mNone[39;49;00m,[90m[39;49;00m
+        }[90m[39;49;00m
+    [90m[39;49;00m
+>       [94massert[39;49;00m SecretRedactor().redact(payload) == payload[90m[39;49;00m
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[90m[39;49;00m
+
+[1m[31mtests/security/test_secret_redaction.py[0m:94: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.audit.redaction.SecretRedactor object at 0x7f611e2823a0>
+value = {'count': 3, 'enabled': True, 'nothing': None, 'ratio': 0.5}
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mredact[39;49;00m([96mself[39;49;00m, value):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/audit/redaction.py[0m:6: NotImplementedError
+[31m[1m______________________ test_redacted_value_is_idempotent _______________________[0m
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_redacted_value_is_idempotent[39;49;00m() -> [94mNone[39;49;00m:[90m[39;49;00m
+        redactor = SecretRedactor()[90m[39;49;00m
+    [90m[39;49;00m
+>       [94massert[39;49;00m redactor.redact(REDACTED) == REDACTED[90m[39;49;00m
+               ^^^^^^^^^^^^^^^^^^^^^^^^^[90m[39;49;00m
+
+[1m[31mtests/security/test_secret_redaction.py[0m:100: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.audit.redaction.SecretRedactor object at 0x7f611e2a3020>
+value = '[REDACTED]'
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mredact[39;49;00m([96mself[39;49;00m, value):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/audit/redaction.py[0m:6: NotImplementedError
+[36m[1m=========================== short test summary info ============================[0m
+[31mFAILED[0m tests/unit/test_audit_writer.py::[1mtest_writer_appends_json_lines_in_order[0m - NotImplementedError
+[31mFAILED[0m tests/unit/test_audit_writer.py::[1mtest_writer_creates_parent_directory[0m - NotImplementedError
+[31mFAILED[0m tests/unit/test_audit_writer.py::[1mtest_writer_redacts_nested_secrets_without_mutating_event[0m - NotImplementedError
+[31mFAILED[0m tests/unit/test_audit_writer.py::[1mtest_writer_output_is_one_valid_json_object_per_line[0m - NotImplementedError
+[31mFAILED[0m tests/unit/test_audit_writer.py::[1mtest_concurrent_writes_do_not_corrupt_jsonl[0m - NotImplementedError
+[31mFAILED[0m tests/unit/test_audit_writer.py::[1mtest_verify_integrity_accepts_clean_log[0m - NotImplementedError
+[31mFAILED[0m tests/unit/test_audit_writer.py::[1mtest_verify_integrity_reports_first_invalid_line[0m - NotImplementedError
+[31mFAILED[0m tests/security/test_secret_redaction.py::[1mtest_redacts_sensitive_mapping_keys_recursively[0m - NotImplementedError
+[31mFAILED[0m tests/security/test_secret_redaction.py::[1mtest_redacts_bearer_token_inside_free_text[0m - NotImplementedError
+[31mFAILED[0m tests/security/test_secret_redaction.py::[1mtest_redacts_assignment_style_secrets_inside_text[0m - NotImplementedError
+[31mFAILED[0m tests/security/test_secret_redaction.py::[1mtest_redacts_sensitive_url_query_parameters[0m - NotImplementedError
+[31mFAILED[0m tests/security/test_secret_redaction.py::[1mtest_redacts_common_provider_key_shapes[0m - NotImplementedError
+[31mFAILED[0m tests/security/test_secret_redaction.py::[1mtest_does_not_redact_normal_business_text[0m - NotImplementedError
+[31mFAILED[0m tests/security/test_secret_redaction.py::[1mtest_preserves_non_secret_scalar_types[0m - NotImplementedError
+[31mFAILED[0m tests/security/test_secret_redaction.py::[1mtest_redacted_value_is_idempotent[0m - NotImplementedError
+[31m[31m[1m15 failed[0m[31m in 0.14s[0m[0m

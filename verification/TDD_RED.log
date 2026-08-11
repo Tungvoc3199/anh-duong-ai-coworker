@@ -1,0 +1,153 @@
+Spreadsheet runtime warmup failed during python startup
+Traceback (most recent call last):
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/patches/warm_spreadsheet_runtime_on_startup.py", line 26, in warm_spreadsheet_runtime_on_startup
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 785, in warm_spreadsheet_runtime
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 720, in _warm_feature_flows
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 704, in _warm_collaboration_flows
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/generated/interface/models.py", line 30820, in hydrate_crdt_from_proto
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/rpc/remote.py", line 749, in __call__
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/rpc/client.py", line 150, in call
+artifact_tool.rpc.client.RemoteError: hydrateCrdtFromProto requires an empty collaborative document.
+[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31m                                                                   [100%][0m
+=================================== FAILURES ===================================
+[31m[1m_____________ test_load_persona_returns_version_hash_and_language ______________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-0/test_load_persona_returns_vers0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_load_persona_returns_version_hash_and_language[39;49;00m(tmp_path: Path) -> [94mNone[39;49;00m:[90m[39;49;00m
+        persona_dir = _complete_persona_dir(tmp_path)[90m[39;49;00m
+    [90m[39;49;00m
+>       snapshot = load_persona(persona_dir)[90m[39;49;00m
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^[90m[39;49;00m
+
+[1m[31mtests/unit/test_persona_loader.py[0m:45: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+root = PosixPath('/tmp/pytest-of-oai/pytest-0/test_load_persona_returns_vers0/persona')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mload_persona[39;49;00m(root: Path):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/persona/loader.py[0m:15: NotImplementedError
+[31m[1m_________________ test_load_persona_uses_canonical_file_order __________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-0/test_load_persona_uses_canonic0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_load_persona_uses_canonical_file_order[39;49;00m(tmp_path: Path) -> [94mNone[39;49;00m:[90m[39;49;00m
+        persona_dir = _complete_persona_dir(tmp_path)[90m[39;49;00m
+    [90m[39;49;00m
+>       snapshot = load_persona(persona_dir)[90m[39;49;00m
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^[90m[39;49;00m
+
+[1m[31mtests/unit/test_persona_loader.py[0m:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+root = PosixPath('/tmp/pytest-of-oai/pytest-0/test_load_persona_uses_canonic0/persona')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mload_persona[39;49;00m(root: Path):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/persona/loader.py[0m:15: NotImplementedError
+[31m[1m_________________ test_content_hash_matches_canonical_content __________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-0/test_content_hash_matches_cano0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_content_hash_matches_canonical_content[39;49;00m(tmp_path: Path) -> [94mNone[39;49;00m:[90m[39;49;00m
+        persona_dir = _complete_persona_dir(tmp_path)[90m[39;49;00m
+    [90m[39;49;00m
+>       snapshot = load_persona(persona_dir)[90m[39;49;00m
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^[90m[39;49;00m
+
+[1m[31mtests/unit/test_persona_loader.py[0m:69: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+root = PosixPath('/tmp/pytest-of-oai/pytest-0/test_content_hash_matches_cano0/persona')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mload_persona[39;49;00m(root: Path):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/persona/loader.py[0m:15: NotImplementedError
+[31m[1m____________________ test_missing_persona_file_is_rejected _____________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-0/test_missing_persona_file_is_r0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_missing_persona_file_is_rejected[39;49;00m(tmp_path: Path) -> [94mNone[39;49;00m:[90m[39;49;00m
+        persona_dir = _complete_persona_dir(tmp_path)[90m[39;49;00m
+        (persona_dir / [33m"[39;49;00m[33mSOUL.md[39;49;00m[33m"[39;49;00m).unlink()[90m[39;49;00m
+    [90m[39;49;00m
+        [94mwith[39;49;00m pytest.raises(PersonaFileMissingError, match=[33m"[39;49;00m[33mSOUL.md[39;49;00m[33m"[39;49;00m):[90m[39;49;00m
+>           load_persona(persona_dir)[90m[39;49;00m
+
+[1m[31mtests/unit/test_persona_loader.py[0m:82: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+root = PosixPath('/tmp/pytest-of-oai/pytest-0/test_missing_persona_file_is_r0/persona')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mload_persona[39;49;00m(root: Path):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/persona/loader.py[0m:15: NotImplementedError
+[31m[1m___________________ test_inconsistent_versions_are_rejected ____________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-0/test_inconsistent_versions_are0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_inconsistent_versions_are_rejected[39;49;00m(tmp_path: Path) -> [94mNone[39;49;00m:[90m[39;49;00m
+        persona_dir = _complete_persona_dir(tmp_path)[90m[39;49;00m
+        _write_persona_file([90m[39;49;00m
+            persona_dir,[90m[39;49;00m
+            [33m"[39;49;00m[33mWORK_STYLE.md[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            version=[33m"[39;49;00m[33m1.1[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            body=[33m"[39;49;00m[33mKhác phiên bản[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+        )[90m[39;49;00m
+    [90m[39;49;00m
+        [94mwith[39;49;00m pytest.raises(PersonaVersionMismatchError, match=[33m"[39;49;00m[33mWORK_STYLE.md[39;49;00m[33m"[39;49;00m):[90m[39;49;00m
+>           load_persona(persona_dir)[90m[39;49;00m
+
+[1m[31mtests/unit/test_persona_loader.py[0m:95: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+root = PosixPath('/tmp/pytest-of-oai/pytest-0/test_inconsistent_versions_are0/persona')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mload_persona[39;49;00m(root: Path):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/persona/loader.py[0m:15: NotImplementedError
+[31m[1m_____________________ test_crlf_and_lf_generate_same_hash ______________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-oai/pytest-0/test_crlf_and_lf_generate_same0')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_crlf_and_lf_generate_same_hash[39;49;00m(tmp_path: Path) -> [94mNone[39;49;00m:[90m[39;49;00m
+        lf_dir = _complete_persona_dir(tmp_path / [33m"[39;49;00m[33mlf[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        crlf_dir = _complete_persona_dir(tmp_path / [33m"[39;49;00m[33mcrlf[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+    [90m[39;49;00m
+        [94mfor[39;49;00m filename [95min[39;49;00m PERSONA_FILE_ORDER:[90m[39;49;00m
+            path = crlf_dir / filename[90m[39;49;00m
+            content = path.read_text(encoding=[33m"[39;49;00m[33mutf-8[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+            path.write_bytes(content.replace([33m"[39;49;00m[33m\n[39;49;00m[33m"[39;49;00m, [33m"[39;49;00m[33m\r[39;49;00m[33m\n[39;49;00m[33m"[39;49;00m).encode([33m"[39;49;00m[33mutf-8[39;49;00m[33m"[39;49;00m))[90m[39;49;00m
+    [90m[39;49;00m
+>       [94massert[39;49;00m load_persona(lf_dir).content_hash == load_persona(crlf_dir).content_hash[90m[39;49;00m
+               ^^^^^^^^^^^^^^^^^^^^[90m[39;49;00m
+
+[1m[31mtests/unit/test_persona_loader.py[0m:107: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+root = PosixPath('/tmp/pytest-of-oai/pytest-0/test_crlf_and_lf_generate_same0/lf/persona')
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mload_persona[39;49;00m(root: Path):[90m[39;49;00m
+>       [94mraise[39;49;00m [96mNotImplementedError[39;49;00m[90m[39;49;00m
+[1m[31mE       NotImplementedError[0m
+
+[1m[31mapp/persona/loader.py[0m:15: NotImplementedError
+[36m[1m=========================== short test summary info ============================[0m
+[31mFAILED[0m tests/unit/test_persona_loader.py::[1mtest_load_persona_returns_version_hash_and_language[0m - NotImplementedError
+[31mFAILED[0m tests/unit/test_persona_loader.py::[1mtest_load_persona_uses_canonical_file_order[0m - NotImplementedError
+[31mFAILED[0m tests/unit/test_persona_loader.py::[1mtest_content_hash_matches_canonical_content[0m - NotImplementedError
+[31mFAILED[0m tests/unit/test_persona_loader.py::[1mtest_missing_persona_file_is_rejected[0m - NotImplementedError
+[31mFAILED[0m tests/unit/test_persona_loader.py::[1mtest_inconsistent_versions_are_rejected[0m - NotImplementedError
+[31mFAILED[0m tests/unit/test_persona_loader.py::[1mtest_crlf_and_lf_generate_same_hash[0m - NotImplementedError
+[31m[31m[1m6 failed[0m[31m in 0.12s[0m[0m
