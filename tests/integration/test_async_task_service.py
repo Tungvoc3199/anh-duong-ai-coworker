@@ -83,12 +83,14 @@ def _request(
     tmp_path: Path,
     *,
     risk_level: int = 1,
+    approval_required: bool = False,
 ) -> AsyncTaskCreate:
     return AsyncTaskCreate(
         project_id=project_id,
         title="Build async runner",
         goal="Implement the next runner batch",
         risk_level=risk_level,
+        approval_required=approval_required,
         workspace=str(tmp_path / "workspace"),
         source_channel="telegram",
         source_chat_id="7535966424",
@@ -125,7 +127,7 @@ def test_create_queues_allowed_task_and_is_idempotent(
     assert len(runs) == 1
 
 
-def test_create_blocks_risk_two_before_execution(
+def test_create_queues_risk_two_for_step_level_execution(
     session_factory: sessionmaker[Session],
     tmp_path: Path,
 ) -> None:
@@ -146,12 +148,12 @@ def test_create_blocks_risk_two_before_execution(
         run = session.get(AsyncTaskRunRow, accepted.run_id)
 
     assert task is not None
-    assert task.status == TaskStatus.BLOCKED.value
+    assert task.status == TaskStatus.QUEUED.value
     assert run is not None
-    assert run.status == AsyncRunStatus.BLOCKED.value
+    assert run.status == AsyncRunStatus.PENDING.value
 
 
-def test_blocked_telegram_task_requires_final_notification(
+def test_create_queues_approval_required_task_without_raw_block(
     session_factory: sessionmaker[Session],
     tmp_path: Path,
 ) -> None:
@@ -164,17 +166,20 @@ def test_blocked_telegram_task_requires_final_notification(
                 project_id,
                 tmp_path,
                 risk_level=2,
+                approval_required=True,
             )
         )
         session.commit()
 
+        task = session.get(TaskRow, accepted.task_id)
         run = session.get(AsyncTaskRunRow, accepted.run_id)
 
-    assert accepted.status is AsyncRunStatus.BLOCKED
+    assert accepted.status is AsyncRunStatus.PENDING
+    assert task is not None
+    assert task.status == TaskStatus.QUEUED.value
     assert run is not None
-    assert run.status == AsyncRunStatus.BLOCKED.value
+    assert run.status == AsyncRunStatus.PENDING.value
     assert run.source_chat_id == "7535966424"
-    assert run.notification_status == NotificationStatus.PENDING.value
-    assert run.last_error_code == "approval_required"
-    assert run.last_error_message
-    assert "requires approval" in run.last_error_message
+    assert run.notification_status == NotificationStatus.NOT_REQUIRED.value
+    assert run.last_error_code is None
+    assert run.last_error_message is None

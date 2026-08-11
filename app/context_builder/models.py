@@ -12,6 +12,7 @@ from pydantic import (
 )
 
 from app.capabilities.models import CapabilityDecision
+from app.policy import DecisionKind, RiskLevel
 from app.persona.models import PersonaSnapshot
 from app.routing.models import RouteDecision
 
@@ -84,6 +85,18 @@ class TaskContextSnapshot(BaseModel):
     history: tuple[str, ...] = ()
 
 
+class RuntimePolicySnapshot(BaseModel):
+    """Effective workflow policy facts computed by the runtime."""
+
+    model_config = ConfigDict(frozen=True)
+
+    risk_level: RiskLevel
+    approval_required: bool
+    policy_decision: DecisionKind
+    policy_rule_id: str = Field(min_length=1, max_length=128)
+    policy_reason: str = Field(min_length=1, max_length=2000)
+
+
 class ContextBuildRequest(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -93,6 +106,7 @@ class ContextBuildRequest(BaseModel):
     capability_decision: CapabilityDecision
     project_context: ProjectContextSnapshot | None = None
     task_context: TaskContextSnapshot | None = None
+    runtime_policy: RuntimePolicySnapshot | None = None
     token_budget: ContextTokenBudget = Field(default_factory=ContextTokenBudget)
     memory_scope_id: str | None = None
 
@@ -157,4 +171,3 @@ class ContextBudgetExceededError(ValueError):
             "Required context exceeds usable token budget: "
             f"required={required_tokens}, usable={usable_tokens}"
         )
-

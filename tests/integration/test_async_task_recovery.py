@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.async_tasks import (
     AsyncRunStatus,
     AsyncTaskCreate,
+    AsyncTaskPolicyGate,
     AsyncTaskRepository,
     recover_stale_runs,
 )
@@ -110,6 +111,59 @@ def _seed_stale(
     return task.id, run.id
 
 
+def _seed_blocked_approval_run(
+    session: Session,
+    *,
+    suffix: str,
+    request_risk_level: int = 2,
+    request_approval_required: bool = True,
+) -> tuple[str, str]:
+    project = ProjectRow(
+        id=f"proj_blocked_{suffix}",
+        name=f"Blocked Project {suffix}",
+        slug=f"blocked-project-{suffix}",
+        status="active",
+    )
+    task = TaskRow(
+        id=f"task_blocked_{suffix}",
+        project_id=project.id,
+        title="Blocked recovery test",
+        description="Blocked recovery test",
+        status=TaskStatus.BLOCKED.value,
+        priority=TaskPriority.NORMAL.value,
+        risk_level=2,
+        requested_by="test",
+        source_channel="telegram",
+        approval_required=True,
+    )
+    session.add_all((project, task))
+    session.flush()
+
+    run = AsyncTaskRepository(session).enqueue(
+        task_id=task.id,
+        request=AsyncTaskCreate(
+            project_id=project.id,
+            title="Blocked recovery test",
+            goal="Research public Facebook posts, summarize, stop before publish.",
+            risk_level=request_risk_level,
+            approval_required=request_approval_required,
+            workspace="/mnt/f/AIOS/anh-duong-core",
+            source_channel="telegram",
+            source_chat_id="chat-test",
+            idempotency_key=f"telegram:blocked:{suffix}",
+        ),
+        idempotency_key=f"telegram:blocked:{suffix}",
+        status=AsyncRunStatus.BLOCKED,
+        error_code="approval_required",
+        error_message=(
+            "This action requires approval and is blocked "
+            "in Async Task Runner v1."
+        ),
+        now=NOW,
+    )
+    return task.id, run.id
+
+
 @pytest.mark.parametrize(
     ("risk_level", "uncertain", "expected_status"),
     (
@@ -162,3 +216,70 @@ def test_stale_recovery_is_risk_and_uncertainty_aware(
     if expected_status is AsyncRunStatus.BLOCKED:
         assert task.status == TaskStatus.BLOCKED.value
 
+
+def test_recovery_requeues_legacy_approval_blocked_runs_when_policy_allows(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    with session_factory() as session:
+        task_id, run_id = _seed_blocked_approval_run(
+            session,
+            suffix="approval",
+        )
+        session.commit()
+
+    summary = recover_stale_runs(
+        session_factory,
+        now=NOW,
+        audit_writer=AuditWriter(
+            tmp_path / "approval-recovery-audit.jsonl",
+            fsync=False,
+        ),
+        policy_gate=AsyncTaskPolicyGate((Path("/mnt/f/AIOS"),)),
+    )
+
+    with session_factory() as session:
+        run = AsyncTaskRepository(session).get(run_id)
+        task = session.get(TaskRow, task_id)
+
+    assert summary.policy_unblocked == 1
+    assert run.status is AsyncRunStatus.PENDING
+    assert run.last_error_code is None
+    assert run.last_error_message is None
+    assert run.notification_status is not None
+    assert task is not None
+    assert task.status == TaskStatus.QUEUED.value
+
+
+def test_recovery_does_not_requeue_inconsistent_plain_allowed_blocked_run(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    with session_factory() as session:
+        task_id, run_id = _seed_blocked_approval_run(
+            session,
+            suffix="plain-allowed",
+            request_risk_level=0,
+            request_approval_required=False,
+        )
+        session.commit()
+
+    summary = recover_stale_runs(
+        session_factory,
+        now=NOW,
+        audit_writer=AuditWriter(
+            tmp_path / "plain-allowed-recovery-audit.jsonl",
+            fsync=False,
+        ),
+        policy_gate=AsyncTaskPolicyGate((Path("/mnt/f/AIOS"),)),
+    )
+
+    with session_factory() as session:
+        run = AsyncTaskRepository(session).get(run_id)
+        task = session.get(TaskRow, task_id)
+
+    assert summary.policy_unblocked == 0
+    assert run.status is AsyncRunStatus.BLOCKED
+    assert run.last_error_code == "approval_required"
+    assert task is not None
+    assert task.status == TaskStatus.BLOCKED.value

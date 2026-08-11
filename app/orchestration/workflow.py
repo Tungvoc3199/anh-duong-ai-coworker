@@ -23,6 +23,12 @@ _NO_SIDE_EFFECT_MARKERS = (
     "no side effect",
 )
 
+_STATUS_CHECK_MARKERS = (
+    "kiểm tra trạng thái",
+    "/health",
+    "/ready",
+)
+
 
 class WorkflowResolver:
     """Build an async envelope without delegating policy to OpenClaw."""
@@ -104,6 +110,10 @@ class WorkflowResolver:
             "không restart" in folded
             or "không khởi động lại" in folded
         )
+        has_no_config_change = (
+            "không sửa cấu hình" in folded
+            or "không thay đổi cấu hình" in folded
+        )
         has_no_side_effect = any(
             marker in folded for marker in _NO_SIDE_EFFECT_MARKERS
         )
@@ -115,9 +125,16 @@ class WorkflowResolver:
             and "không sửa file" in folded
             and has_no_side_effect
         )
+        has_read_only_status_check = (
+            "read-only" in folded
+            and all(marker in folded for marker in _STATUS_CHECK_MARKERS)
+            and "không sửa file" in folded
+            and has_no_config_change
+            and has_no_restart
+        )
         if (
             has_legacy_read_only_boundaries and has_no_restart
-        ) or has_bounded_no_side_effect:
+        ) or has_bounded_no_side_effect or has_read_only_status_check:
             return (
                 "view_status",
                 RiskLevel.READ_ONLY,

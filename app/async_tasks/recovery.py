@@ -10,6 +10,7 @@ from app.async_tasks.models import (
     AsyncTaskCreate,
     NotificationStatus,
 )
+from app.async_tasks.policy import AsyncTaskPolicyGate
 from app.async_tasks.repository import AsyncTaskRepository
 from app.audit import AuditWriter
 from app.tasks import TaskRepository, TaskService, TaskStatus
@@ -20,6 +21,7 @@ class RecoverySummary(BaseModel):
 
     requeued: int = 0
     blocked: int = 0
+    policy_unblocked: int = 0
 
 
 def recover_stale_runs(
@@ -27,10 +29,12 @@ def recover_stale_runs(
     *,
     now: datetime | None = None,
     audit_writer: AuditWriter | None = None,
+    policy_gate: AsyncTaskPolicyGate | None = None,
 ) -> RecoverySummary:
     timestamp = _utc(now)
     requeued = 0
     blocked = 0
+    policy_unblocked = 0
 
     with session_factory() as session:
         repository = AsyncTaskRepository(
@@ -102,11 +106,38 @@ def recover_stale_runs(
                         ),
                     )
 
+        if policy_gate is not None:
+            task_service = TaskService(
+                TaskRepository(session),
+                audit_writer,
+            )
+            for run in repository.list_legacy_approval_blocked_runs():
+                request = AsyncTaskCreate.model_validate_json(
+                    run.request_json
+                )
+                decision = policy_gate.evaluate(request)
+                if decision.reason_code != "allowed_with_step_gates":
+                    continue
+                recovered = repository.manual_retry(
+                    run.id,
+                    now=timestamp,
+                )
+                task_service.transition(
+                    recovered.task_id,
+                    TaskStatus.QUEUED,
+                    result_summary=(
+                        "Legacy approval block requeued after "
+                        "policy allowed step-level execution."
+                    ),
+                )
+                policy_unblocked += 1
+
         session.commit()
 
     return RecoverySummary(
         requeued=requeued,
         blocked=blocked,
+        policy_unblocked=policy_unblocked,
     )
 
 
@@ -126,4 +157,3 @@ def _utc(value: datetime | None) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
-

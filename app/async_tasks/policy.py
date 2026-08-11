@@ -6,6 +6,27 @@ from app.async_tasks.models import AsyncTaskCreate, AsyncTaskMode
 from app.policy.path_scope import WorkspacePathPolicy
 
 
+SAFE_STEPS_WITHOUT_APPROVAL: tuple[str, ...] = (
+    "web_search_read",
+    "summarize",
+    "analysis",
+    "draft_content",
+    "local_file_read",
+    "read_only_checks",
+)
+HARD_APPROVAL_GATED_STEPS: tuple[str, ...] = (
+    "destructive",
+    "publish",
+    "send_external",
+    "secret_or_security_boundary",
+    "unapproved_cost",
+)
+STEP_LEVEL_EXECUTION_CONSTRAINTS: tuple[str, ...] = (
+    "complete_safe_steps_before_approval_gate",
+    "hard_gate_publish_send_external_destructive_secret_cost",
+)
+
+
 class AsyncPolicyDecision(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -34,16 +55,6 @@ class AsyncTaskPolicyGate:
                 message="Risk level 4 actions are forbidden.",
             )
 
-        if request.approval_required or request.risk_level >= 2:
-            return AsyncPolicyDecision(
-                allowed=False,
-                reason_code="approval_required",
-                message=(
-                    "This action requires approval and is blocked "
-                    "in Async Task Runner v1."
-                ),
-            )
-
         if (
             request.mode is AsyncTaskMode.BUILD
             and request.workspace is None
@@ -64,6 +75,16 @@ class AsyncTaskPolicyGate:
                     reason_code="workspace_denied",
                     message=path_result.reason,
                 )
+
+        if request.approval_required or request.risk_level >= 2:
+            return AsyncPolicyDecision(
+                allowed=True,
+                reason_code="allowed_with_step_gates",
+                message=(
+                    "Request is accepted for step-level execution: safe "
+                    "steps may run, approval-gated steps must stop."
+                ),
+            )
 
         return AsyncPolicyDecision(
             allowed=True,
