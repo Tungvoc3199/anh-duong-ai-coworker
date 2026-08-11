@@ -20,3 +20,12 @@
 3. Escalate unclear or failed first repair to Deep Debug.
 4. Obtain read-only Review before closure.
 5. Do not claim PASS from file creation alone.
+
+## User-facing prompt minimization
+- One checkpoint = one complete objective.
+- Give the user only one concise command or prompt per checkpoint.
+- Do not expose internal cross-project gates, safety gates, verification checklists, test matrices, review procedures, or evidence requirements in the user-facing prompt unless explicitly requested.
+- Perform those checks internally and autonomously.
+- Write long diagnostics and evidence to artifacts/logs instead of pasting them into chat.
+- User-facing completion output should contain only: PASS/FAIL, root cause if failed, artifact path, and next action.
+- Never require the user to manually inspect long scripts/logs or perform multi-step verification that the agent can do itself.
