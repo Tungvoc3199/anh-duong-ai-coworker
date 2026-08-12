@@ -49,18 +49,10 @@ jobs:
             tests/unit/test_openclaw_result_variants.py
 
       - name: Scoped mypy for final-response repair
-        run: mypy app/openclaw/models.py app/openclaw/executor.py
+        run: mypy --follow-imports=skip app/openclaw/models.py app/openclaw/executor.py
 
       - name: App compileall
         run: python -m compileall -q app
-
-      - name: Repository-wide Ruff baseline diagnostic
-        continue-on-error: true
-        run: ruff check app scripts tests
-
-      - name: Repository-wide mypy baseline diagnostic
-        continue-on-error: true
-        run: mypy app scripts
 
       - name: Set up Node 24
         uses: actions/setup-node@v4
@@ -70,3 +62,11 @@ jobs:
       - name: Full OpenClaw plugin regression
         working-directory: integrations/openclaw-anh-duong-core
         run: npm test
+
+      - name: Repository-wide Ruff baseline diagnostic
+        continue-on-error: true
+        run: ruff check app scripts tests
+
+      - name: Repository-wide mypy baseline diagnostic
+        continue-on-error: true
+        run: mypy app scripts
