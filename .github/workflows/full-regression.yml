@@ -49,7 +49,15 @@ jobs:
             tests/unit/test_openclaw_result_variants.py
 
       - name: Scoped mypy for final-response repair
-        run: mypy --follow-imports=skip app/openclaw/models.py app/openclaw/executor.py
+        run: |
+          cat >/tmp/mypy-final-response.ini <<'EOF'
+          [mypy]
+          python_version = 3.12
+          strict = True
+          follow_imports = skip
+          EOF
+          mypy --config-file /tmp/mypy-final-response.ini \
+            app/openclaw/models.py app/openclaw/executor.py
 
       - name: App compileall
         run: python -m compileall -q app
