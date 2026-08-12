@@ -53,6 +53,12 @@ def untracked(root: Path) -> tuple[str, ...]:
 
 def allowed_untracked(path: str) -> bool:
     baseline_files = set(files(BACKUP))
+    baseline_paths = set(BASELINE)
+    baseline_prefixes = tuple(
+        f"{item.rstrip('/')}/".replace("\\/", "/")
+        for item in BASELINE
+        if not Path(item).suffix
+    )
     ade_files = {
         "AGENTS.md", "scripts/ade_os.py", "scripts/agent/verify_ade_rollback.py",
         "tests/unit/test_ade_os.py", "tests/unit/test_verify_ade_rollback.py",
@@ -62,7 +68,14 @@ def allowed_untracked(path: str) -> bool:
         "integrations/openclaw-anh-duong-core/src/hooks.js.AD-TXT-1.",
         "integrations/openclaw-anh-duong-core/test/hooks.test.js.AD-TXT-1.",
     )
-    return path in baseline_files or path in ADE_ONLY or path in ade_files or path.startswith(ade_prefixes + evidence_prefixes)
+    return (
+        path in baseline_files
+        or path in baseline_paths
+        or path.startswith(baseline_prefixes)
+        or path in ADE_ONLY
+        or path in ade_files
+        or path.startswith(ade_prefixes + evidence_prefixes)
+    )
 
 def verify(root: Path = ROOT, backup: Path = BACKUP, artifacts: Path = ARTIFACTS) -> dict[str, object]:
     if root.resolve() == ROOT:
