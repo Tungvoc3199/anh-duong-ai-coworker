@@ -205,6 +205,10 @@ class OpenClawExecutor:
             value = normalized.get(key)
             if value is not None and not isinstance(value, str):
                 normalized[key] = str(value)
+
+        redacted = self.redactor.redact(normalized)
+        if isinstance(redacted, dict):
+            return redacted
         return normalized
 
     def _normalize_outcome(self, payload: dict[str, Any]) -> str:
@@ -214,9 +218,10 @@ class OpenClawExecutor:
         if not isinstance(raw_outcome, str):
             raw_outcome = payload.get("state")
 
-        explicit_outcome = isinstance(raw_outcome, str)
-        if explicit_outcome:
-            value = raw_outcome.strip().casefold().replace("-", "_")
+        outcome_text = raw_outcome if isinstance(raw_outcome, str) else None
+        explicit_outcome = outcome_text is not None
+        if outcome_text is not None:
+            value = outcome_text.strip().casefold().replace("-", "_")
             if value in self._COMPLETED_OUTCOMES:
                 return "completed"
             if value in self._BLOCKED_OUTCOMES:
