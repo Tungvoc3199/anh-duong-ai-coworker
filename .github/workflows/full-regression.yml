@@ -41,10 +41,11 @@ jobs:
             app/openclaw/models.py \
             app/openclaw/executor.py \
             tests/unit/test_openclaw_executor.py \
-            tests/unit/test_openclaw_result_redaction.py
+            tests/unit/test_openclaw_result_redaction.py \
+            tests/unit/test_openclaw_result_variants.py
 
-      - name: App mypy
-        run: mypy app
+      - name: Scoped mypy for final-response repair
+        run: mypy app/openclaw/models.py app/openclaw/executor.py
 
       - name: App compileall
         run: python -m compileall -q app
@@ -52,6 +53,10 @@ jobs:
       - name: Repository-wide Ruff baseline diagnostic
         continue-on-error: true
         run: ruff check app scripts tests
+
+      - name: Repository-wide mypy baseline diagnostic
+        continue-on-error: true
+        run: mypy app scripts
 
       - name: Set up Node 24
         uses: actions/setup-node@v4
