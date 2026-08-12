@@ -3,16 +3,16 @@
 ## Verdict
 
 - Regression evidence: CONFIRMED from Telegram screenshot: workflow ACK followed by `OpenClaw returned an invalid execution result contract.`
-- Root cause: CONFIRMED in current GitHub `main` source at `9e44adfde276ef687dfc86087e394876f83b77b0`.
+- Root cause: CONFIRMED in GitHub `main` source at baseline `9e44adfde276ef687dfc86087e394876f83b77b0`.
 - Isolated source repair: PASS.
-- Local focused regression harness: PASS, 27/27.
+- Branch-equivalent focused tests: PASS, 22/22.
 - Python compile check for changed Python files: PASS.
 - Production activation: NOT PERFORMED.
 - Real Telegram production E2E after this repair: NOT PERFORMED.
 
 ## Root cause
 
-`OpenClawExecutor` treated the agent's final content and optional execution metadata as one strict Pydantic contract. Useful agent replies were therefore discarded when JSON metadata was merely shaped differently from the expected schema. Two existing unit tests explicitly encoded that rejection behavior.
+`OpenClawExecutor` treated the agent's final content and optional execution metadata as one strict Pydantic contract. Useful agent replies were therefore discarded when JSON metadata was merely shaped differently from the expected schema. Existing tests explicitly encoded rejection for partial known-looking metadata and unknown outcome values.
 
 This produced inconsistent user experience:
 
@@ -31,6 +31,7 @@ This produced inconsistent user experience:
 7. Treat an explicitly unknown outcome conservatively as `failed` while still preserving and delivering the final text.
 8. Add a last-resort validation fallback that returns a terminal `failed` result with the preserved final summary rather than raising `invalid_response_contract` for model-produced result content.
 9. Strengthen the execution instruction: always return a final user-facing answer; structured metadata is secondary.
+10. Preserve secret redaction when a final summary must be synthesized from structured content.
 
 ## Focused tests
 
@@ -46,11 +47,12 @@ Covered:
 - non-critical metadata with alternate types;
 - success outcome alias;
 - unknown outcome with preserved final;
+- normalized fallback secret redaction;
 - HTTP error classification;
 - timeout semantics.
 
-Local reconstructed focused harness result: `27 passed`.
+Branch-equivalent local result: `22 passed`.
 
 ## Safety / scope
 
-No production service, DB, schema, migration, provider, token, model routing, cache, Telegram config, or OpenClaw Gateway runtime was changed by this source repair. Production remains untouched until a controlled activation and one real Telegram workflow E2E are explicitly authorized/performed.
+No production service, DB, schema, migration, provider, token, model routing, cache, Telegram config, or OpenClaw Gateway runtime was changed by this source repair. Production remains untouched until a controlled activation and one real Telegram workflow E2E are performed.
