@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: final-response-resilience
+  cancel-in-progress: true
+
 jobs:
   regression:
     runs-on: ubuntu-latest
