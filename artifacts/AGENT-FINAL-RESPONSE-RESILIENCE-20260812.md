@@ -6,7 +6,8 @@
 - Root cause: CONFIRMED against GitHub `main` baseline `9e44adfde276ef687dfc86087e394876f83b77b0`.
 - Source repair: VERIFIED on commit `55be19163bb0419979d8c1bc664f74e8ab8ac849`.
 - GitHub Actions full behavioral regression: PASS, run `31619105323`.
-- Publication source commit remains prepared from the verified blobs; production activation is not yet verified.
+- Publication source commit prepared from verified blobs.
+- Production runtime activation: NOT YET VERIFIED.
 - Real Telegram production E2E after this repair: NOT YET VERIFIED.
 - Checkpoint closure: OPEN until production E2E proves `ACK -> agent work -> final delivered`.
 
