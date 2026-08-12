@@ -27,6 +27,29 @@ def _request() -> OpenClawExecutionRequest:
     )
 
 
+def _json_transport(payload: object, *, response_id: str = "resp_1") -> httpx.MockTransport:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "id": response_id,
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": json.dumps(payload, ensure_ascii=False),
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+
+    return httpx.MockTransport(handler)
+
+
 @pytest.mark.asyncio
 async def test_executor_posts_openresponses_request() -> None:
     captured: dict[str, object] = {}
@@ -34,12 +57,8 @@ async def test_executor_posts_openresponses_request() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         captured["method"] = request.method
         captured["path"] = request.url.path
-        captured["authorization"] = request.headers.get(
-            "authorization"
-        )
-        captured["idempotency"] = request.headers.get(
-            "idempotency-key"
-        )
+        captured["authorization"] = request.headers.get("authorization")
+        captured["idempotency"] = request.headers.get("idempotency-key")
         captured["json"] = json.loads(request.content)
         return httpx.Response(
             200,
@@ -56,9 +75,7 @@ async def test_executor_posts_openresponses_request() -> None:
                                         "outcome": "completed",
                                         "summary": "Done",
                                         "artifacts": ["artifact.zip"],
-                                        "verification": [
-                                            "pytest passed"
-                                        ],
+                                        "verification": ["pytest passed"],
                                         "files_changed": ["calculate.py"],
                                         "commands_run": ["pytest -q"],
                                         "tests": [
@@ -120,77 +137,45 @@ async def test_executor_posts_openresponses_request() -> None:
 
 @pytest.mark.asyncio
 async def test_executor_accepts_real_workflow_result_objects() -> None:
-    def handler(_request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            200,
-            json={
-                "id": "resp_real_workflow",
-                "output": [
-                    {
-                        "type": "message",
-                        "content": [
-                            {
-                                "type": "output_text",
-                                "text": json.dumps(
-                                    {
-                                        "outcome": "success",
-                                        "summary": (
-                                            "Đã soạn checklist 5 bước kiểm tra "
-                                            "trạng thái Ánh Dương Core theo chế "
-                                            "độ chỉ đọc, không chạy lệnh, không "
-                                            "sửa file, không sửa cấu hình và "
-                                            "không restart dịch vụ."
-                                        ),
-                                        "artifacts": {
-                                            "checklist": [
-                                                {
-                                                    "step": 1,
-                                                    "name": (
-                                                        "Xác nhận phạm vi kiểm tra"
-                                                    ),
-                                                    "check": (
-                                                        "Đảm bảo phiên kiểm tra "
-                                                        "chỉ nhằm quan sát trạng "
-                                                        "thái Ánh Dương Core, "
-                                                        "không thực hiện thao tác "
-                                                        "thay đổi hệ thống."
-                                                    ),
-                                                    "readonly_rule": (
-                                                        "Không chạy lệnh, không "
-                                                        "gọi script, không chỉnh "
-                                                        "file, không restart "
-                                                        "service."
-                                                    ),
-                                                }
-                                            ]
-                                        },
-                                        "verification": {
-                                            "method": "static_review_only",
-                                            "commands_run": 0,
-                                            "files_changed": 0,
-                                            "config_changed": False,
-                                            "services_restarted": False,
-                                            "notes": (
-                                                "Không chạy lệnh, không đọc/sửa "
-                                                "file và không kiểm tra trạng thái "
-                                                "hệ thống thật do task yêu cầu "
-                                                "read_only + no_commands."
-                                            ),
-                                        },
-                                    }
-                                ),
-                            }
-                        ],
-                    }
-                ],
-            },
-        )
-
+    payload = {
+        "outcome": "success",
+        "summary": (
+            "Đã soạn checklist 5 bước kiểm tra trạng thái Ánh Dương Core theo chế độ "
+            "chỉ đọc, không chạy lệnh, không sửa file, không sửa cấu hình và không restart dịch vụ."
+        ),
+        "artifacts": {
+            "checklist": [
+                {
+                    "step": 1,
+                    "name": "Xác nhận phạm vi kiểm tra",
+                    "check": (
+                        "Đảm bảo phiên kiểm tra chỉ nhằm quan sát trạng thái Ánh Dương Core, "
+                        "không thực hiện thao tác thay đổi hệ thống."
+                    ),
+                    "readonly_rule": (
+                        "Không chạy lệnh, không gọi script, không chỉnh file, "
+                        "không restart service."
+                    ),
+                }
+            ]
+        },
+        "verification": {
+            "method": "static_review_only",
+            "commands_run": 0,
+            "files_changed": 0,
+            "config_changed": False,
+            "services_restarted": False,
+            "notes": (
+                "Không chạy lệnh, không đọc/sửa file và không kiểm tra trạng thái hệ thống thật "
+                "do task yêu cầu read_only + no_commands."
+            ),
+        },
+    }
     executor = OpenClawExecutor(
         base_url="http://127.0.0.1:18789",
         execution_path="/v1/responses",
         timeout_seconds=600,
-        transport=httpx.MockTransport(handler),
+        transport=_json_transport(payload, response_id="resp_real_workflow"),
     )
 
     result = await executor.execute(_request())
@@ -206,58 +191,29 @@ async def test_executor_accepts_real_workflow_result_objects() -> None:
 
 @pytest.mark.asyncio
 async def test_executor_accepts_readonly_health_ready_result_objects() -> None:
-    def handler(_request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            200,
-            json={
-                "id": "resp_readonly_health_ready",
-                "output": [
-                    {
-                        "type": "message",
-                        "content": [
-                            {
-                                "type": "output_text",
-                                "text": json.dumps(
-                                    {
-                                        "outcome": "completed",
-                                        "summary": (
-                                            "Đã kiểm tra read-only hai endpoint "
-                                            "/health và /ready."
-                                        ),
-                                        "artifacts": {
-                                            "checked_endpoints": [
-                                                "http://localhost:8000/health",
-                                                "http://localhost:8000/ready",
-                                            ],
-                                            "changes_made": "none",
-                                            "restarts": "none",
-                                            "config_changes": "none",
-                                            "file_changes": "none",
-                                        },
-                                        "verification": {
-                                            "health": {
-                                                "status": "ok",
-                                                "http_status": 200,
-                                            },
-                                            "ready": {
-                                                "status": "ready",
-                                                "http_status": 200,
-                                            },
-                                        },
-                                    }
-                                ),
-                            }
-                        ],
-                    }
-                ],
-            },
-        )
-
+    payload = {
+        "outcome": "completed",
+        "summary": "Đã kiểm tra read-only hai endpoint /health và /ready.",
+        "artifacts": {
+            "checked_endpoints": [
+                "http://localhost:8000/health",
+                "http://localhost:8000/ready",
+            ],
+            "changes_made": "none",
+            "restarts": "none",
+            "config_changes": "none",
+            "file_changes": "none",
+        },
+        "verification": {
+            "health": {"status": "ok", "http_status": 200},
+            "ready": {"status": "ready", "http_status": 200},
+        },
+    }
     executor = OpenClawExecutor(
         base_url="http://127.0.0.1:18789",
         execution_path="/v1/responses",
         timeout_seconds=600,
-        transport=httpx.MockTransport(handler),
+        transport=_json_transport(payload, response_id="resp_readonly_health_ready"),
     )
 
     result = await executor.execute(_request())
@@ -267,60 +223,108 @@ async def test_executor_accepts_readonly_health_ready_result_objects() -> None:
     assert result.artifacts["changes_made"] == "none"
     assert result.verification["health"]["status"] == "ok"
 
+
 @pytest.mark.asyncio
-async def test_executor_rejects_malformed_workflow_artifacts() -> None:
-    secret = "token-super-secret"
-
-    def handler(_request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            200,
-            json={
-                "output": [
-                    {
-                        "content": [
-                            {
-                                "type": "output_text",
-                                "text": json.dumps(
-                                    {
-                                        "outcome": "success",
-                                        "summary": secret,
-                                        "artifacts": {
-                                            "checklist": [
-                                                {
-                                                    "step": 1,
-                                                    "name": "Missing required fields",
-                                                }
-                                            ]
-                                        },
-                                        "verification": {
-                                            "method": "static_review_only",
-                                            "commands_run": 0,
-                                            "files_changed": 0,
-                                            "config_changed": False,
-                                            "services_restarted": False,
-                                            "notes": "No commands were run.",
-                                        },
-                                    }
-                                ),
-                            }
-                        ]
-                    }
-                ]
-            },
-        )
-
+async def test_executor_preserves_final_when_known_artifacts_are_partial() -> None:
+    payload = {
+        "outcome": "success",
+        "summary": "Đã làm xong và đây là báo cáo.",
+        "artifacts": {
+            "checklist": [
+                {
+                    "step": 1,
+                    "name": "Partial item from agent",
+                }
+            ]
+        },
+        "verification": {
+            "method": "static_review_only",
+            "commands_run": 0,
+            "files_changed": 0,
+            "config_changed": False,
+            "services_restarted": False,
+            "notes": "No commands were run.",
+        },
+    }
     executor = OpenClawExecutor(
         base_url="http://127.0.0.1:18789",
-        transport=httpx.MockTransport(handler),
+        transport=_json_transport(payload),
     )
 
-    with pytest.raises(OpenClawTransportError) as captured:
-        await executor.execute(_request())
+    result = await executor.execute(_request())
 
-    assert captured.value.code == "invalid_response_contract"
-    assert captured.value.retryable is False
-    assert captured.value.uncertain_side_effect is False
-    assert secret not in str(captured.value)
+    assert result.outcome == "completed"
+    assert result.summary == "Đã làm xong và đây là báo cáo."
+    assert isinstance(result.artifacts, dict)
+    assert result.artifacts["checklist"][0]["name"] == "Partial item from agent"
+
+
+@pytest.mark.asyncio
+async def test_executor_answer_only_json_becomes_completed_final_reply() -> None:
+    executor = OpenClawExecutor(
+        base_url="http://127.0.0.1:18789",
+        transport=_json_transport({"answer": "Em đã sửa xong, kiểm tra PASS."}),
+    )
+
+    result = await executor.execute(_request())
+
+    assert result.outcome == "completed"
+    assert result.summary == "Em đã sửa xong, kiểm tra PASS."
+
+
+@pytest.mark.asyncio
+async def test_executor_error_status_keeps_user_facing_message() -> None:
+    executor = OpenClawExecutor(
+        base_url="http://127.0.0.1:18789",
+        transport=_json_transport(
+            {
+                "status": "error",
+                "message": "Không thể ghi file do permission.",
+            }
+        ),
+    )
+
+    result = await executor.execute(_request())
+
+    assert result.outcome == "failed"
+    assert result.summary == "Không thể ghi file do permission."
+
+
+@pytest.mark.asyncio
+async def test_executor_json_array_still_returns_final_reply() -> None:
+    executor = OpenClawExecutor(
+        base_url="http://127.0.0.1:18789",
+        transport=_json_transport(["one", "two"]),
+    )
+
+    result = await executor.execute(_request())
+
+    assert result.outcome == "completed"
+    assert result.summary == '["one", "two"]'
+
+
+@pytest.mark.asyncio
+async def test_executor_normalizes_noncritical_metadata_instead_of_rejecting() -> None:
+    payload = {
+        "outcome": "done",
+        "summary": "Xong.",
+        "files_changed": "a.py",
+        "commands_run": None,
+        "tests": ["pytest PASS"],
+        "duration_ms": "123",
+    }
+    executor = OpenClawExecutor(
+        base_url="http://127.0.0.1:18789",
+        transport=_json_transport(payload),
+    )
+
+    result = await executor.execute(_request())
+
+    assert result.outcome == "completed"
+    assert result.files_changed == ("a.py",)
+    assert result.commands_run == ()
+    assert result.tests == ({"result": "pytest PASS"},)
+    assert result.duration_ms == 123
 
 
 @pytest.mark.asyncio
@@ -385,33 +389,16 @@ async def test_executor_timeout_is_uncertain_and_never_retried() -> None:
 
 @pytest.mark.asyncio
 async def test_executor_normalizes_success_outcome_to_completed() -> None:
-    def handler(_request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            200,
-            json={
-                "output": [
-                    {
-                        "content": [
-                            {
-                                "type": "output_text",
-                                "text": json.dumps(
-                                    {
-                                        "outcome": "success",
-                                        "summary": "Done",
-                                        "artifacts": [],
-                                        "verification": [],
-                                    }
-                                ),
-                            }
-                        ]
-                    }
-                ]
-            },
-        )
-
     executor = OpenClawExecutor(
         base_url="http://127.0.0.1:18789",
-        transport=httpx.MockTransport(handler),
+        transport=_json_transport(
+            {
+                "outcome": "success",
+                "summary": "Done",
+                "artifacts": [],
+                "verification": [],
+            }
+        ),
     )
 
     result = await executor.execute(_request())
@@ -420,42 +407,20 @@ async def test_executor_normalizes_success_outcome_to_completed() -> None:
 
 
 @pytest.mark.asyncio
-async def test_executor_contains_invalid_result_contract() -> None:
-    secret = "token-super-secret"
-
-    def handler(_request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            200,
-            json={
-                "output": [
-                    {
-                        "content": [
-                            {
-                                "type": "output_text",
-                                "text": json.dumps(
-                                    {
-                                        "outcome": "unexpected_value",
-                                        "summary": secret,
-                                        "artifacts": [],
-                                        "verification": [],
-                                    }
-                                ),
-                            }
-                        ]
-                    }
-                ]
-            },
-        )
-
+async def test_executor_unknown_outcome_fails_safe_but_preserves_final() -> None:
     executor = OpenClawExecutor(
         base_url="http://127.0.0.1:18789",
-        transport=httpx.MockTransport(handler),
+        transport=_json_transport(
+            {
+                "outcome": "unexpected_value",
+                "summary": "Em đã xử lý và có kết quả.",
+                "artifacts": [],
+                "verification": [],
+            }
+        ),
     )
 
-    with pytest.raises(OpenClawTransportError) as captured:
-        await executor.execute(_request())
+    result = await executor.execute(_request())
 
-    assert captured.value.code == "invalid_response_contract"
-    assert captured.value.retryable is False
-    assert captured.value.uncertain_side_effect is False
-    assert secret not in str(captured.value)
+    assert result.outcome == "failed"
+    assert result.summary == "Em đã xử lý và có kết quả."
