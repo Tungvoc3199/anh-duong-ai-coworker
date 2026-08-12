@@ -48,16 +48,18 @@ jobs:
             tests/unit/test_openclaw_result_redaction.py \
             tests/unit/test_openclaw_result_variants.py
 
-      - name: Scoped mypy for final-response repair
+      - name: App mypy with known recovery debt baselined
         run: |
           cat >/tmp/mypy-final-response.ini <<'EOF'
           [mypy]
           python_version = 3.12
           strict = True
-          follow_imports = skip
+          packages = app
+
+          [mypy-app.async_tasks.recovery]
+          disable_error_code = arg-type
           EOF
-          mypy --config-file /tmp/mypy-final-response.ini \
-            app/openclaw/models.py app/openclaw/executor.py
+          mypy --config-file /tmp/mypy-final-response.ini
 
       - name: App compileall
         run: python -m compileall -q app
