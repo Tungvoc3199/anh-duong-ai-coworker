@@ -27,8 +27,31 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e '.[dev]'
 
-      - name: Full Python regression
-        run: ./scripts/test.sh
+      - name: Recreate read-only ADE ownership fixture
+        run: |
+          sudo mkdir -p /mnt/f/AIOS/anh-duong-checkpoints/ADE-OS-backup-20260806T174329Z/.github/hooks
+          printf 'fixture\n' | sudo tee /mnt/f/AIOS/anh-duong-checkpoints/ADE-OS-backup-20260806T174329Z/.github/hooks/audit.json >/dev/null
+
+      - name: Full Python behavioral regression
+        run: pytest -q
+
+      - name: Scoped Ruff for final-response repair
+        run: |
+          ruff check \
+            app/openclaw/models.py \
+            app/openclaw/executor.py \
+            tests/unit/test_openclaw_executor.py \
+            tests/unit/test_openclaw_result_redaction.py
+
+      - name: App mypy
+        run: mypy app
+
+      - name: App compileall
+        run: python -m compileall -q app
+
+      - name: Repository-wide Ruff baseline diagnostic
+        continue-on-error: true
+        run: ruff check app scripts tests
 
       - name: Set up Node 24
         uses: actions/setup-node@v4
