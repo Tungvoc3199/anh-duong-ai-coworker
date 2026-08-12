@@ -54,10 +54,10 @@ def untracked(root: Path) -> tuple[str, ...]:
 def allowed_untracked(path: str) -> bool:
     baseline_files = set(files(BACKUP))
     baseline_paths = set(BASELINE)
-    baseline_prefixes = tuple(
-        f"{item.rstrip('/')}/".replace("\\/", "/")
-        for item in BASELINE
-        if not Path(item).suffix
+    static_baseline_prefixes = (
+        ".github/hooks/",
+        ".github/instructions/",
+        ".github/prompts/",
     )
     ade_files = {
         "AGENTS.md", "scripts/ade_os.py", "scripts/agent/verify_ade_rollback.py",
@@ -71,7 +71,7 @@ def allowed_untracked(path: str) -> bool:
     return (
         path in baseline_files
         or path in baseline_paths
-        or path.startswith(baseline_prefixes)
+        or path.startswith(static_baseline_prefixes)
         or path in ADE_ONLY
         or path in ade_files
         or path.startswith(ade_prefixes + evidence_prefixes)
