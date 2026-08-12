@@ -21,6 +21,13 @@
 4. Obtain read-only Review before closure.
 5. Do not claim PASS from file creation alone.
 
+## Runtime/Git closure consistency
+- Runtime-affecting changes are not CLOSED until deployed runtime, tracked configuration, and Git commit are mutually consistent.
+- No undocumented host-only configuration drift is allowed.
+- Before closure, compare the effective deployed runtime configuration against the tracked repository representation and resolve any drift inside the checkpoint scope.
+- A checkpoint is not CLOSED merely because a local commit exists; verify the intended scoped commit is present on the authoritative GitHub branch and contains the runtime-affecting changes.
+- Secrets and host-local secret values must not be committed. Track only safe configuration/templates needed to reconstruct the runtime shape.
+
 ## Automatic commit for verified fixes
 - For every bug/error repair, once the scoped fix is verified PASS, commit it automatically without asking the user for separate commit approval.
 - Stage and commit only the exact files belonging to the verified fix plus its closure/evidence artifacts; never include unrelated dirty files.
