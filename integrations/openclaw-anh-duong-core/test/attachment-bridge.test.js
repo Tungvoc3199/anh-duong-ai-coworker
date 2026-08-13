@@ -10,6 +10,9 @@ const ENV = {
   ANH_DUONG_CORE_TIMEOUT_SECONDS: "1",
 };
 
+const DOCX_MIME =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
 function preparedFixture(requestId) {
   return {
     request_id: requestId,
@@ -45,9 +48,8 @@ function preparedFixture(requestId) {
   };
 }
 
-test("message_received media facts are injected into the same Core prepare request only", async () => {
-  const bodies = [];
-  const handlers = createPluginHandlers({
+function createRecordingHandlers(bodies) {
+  return createPluginHandlers({
     api: { logger: {} },
     env: ENV,
     fetchImpl: async (_url, init) => {
@@ -56,6 +58,11 @@ test("message_received media facts are injected into the same Core prepare reque
       return new Response(JSON.stringify(preparedFixture(body.request_id)), { status: 200 });
     },
   });
+}
+
+test("message_received media facts are injected into the same Core prepare request only", async () => {
+  const bodies = [];
+  const handlers = createRecordingHandlers(bodies);
 
   await handlers.messageReceived(
     {
@@ -67,8 +74,7 @@ test("message_received media facts are injected into the same Core prepare reque
       metadata: {
         mediaPath: "/tmp/openclaw/a.docx",
         mediaUrl: "media://telegram/a",
-        mediaType:
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        mediaType: DOCX_MIME,
       },
     },
     {
@@ -113,15 +119,7 @@ test("message_received media facts are injected into the same Core prepare reque
 
 test("session correlation carries attachment when message_received has no run id", async () => {
   const bodies = [];
-  const handlers = createPluginHandlers({
-    api: { logger: {} },
-    env: ENV,
-    fetchImpl: async (_url, init) => {
-      const body = JSON.parse(init.body);
-      bodies.push(body);
-      return new Response(JSON.stringify(preparedFixture(body.request_id)), { status: 200 });
-    },
-  });
+  const handlers = createRecordingHandlers(bodies);
 
   await handlers.messageReceived(
     {
@@ -131,8 +129,7 @@ test("session correlation carries attachment when message_received has no run id
       sessionKey: "session-no-run",
       metadata: {
         mediaPath: "/tmp/openclaw/no-run.docx",
-        mediaType:
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        mediaType: DOCX_MIME,
       },
     },
     {
@@ -168,6 +165,83 @@ test("session correlation carries attachment when message_received has no run id
     },
   );
 
+  assert.equal(bodies.length, 2);
+  assert.equal("attachments" in bodies[1], false);
+});
+
+test("staged media replaces pending provider-only state for the same no-run message", async () => {
+  const bodies = [];
+  const handlers = createRecordingHandlers(bodies);
+  const ctx = {
+    channelId: "telegram",
+    sessionKey: "session-stage",
+    messageId: "msg-stage",
+  };
+
+  await handlers.messageReceived(
+    {
+      content: "Đọc file này",
+      messageId: "msg-stage",
+      sessionKey: "session-stage",
+      mediaStagingPending: true,
+      originalMedia: [
+        {
+          path: "/provider/not-local/stage.docx",
+          url: "media://telegram/stage",
+          contentType: DOCX_MIME,
+          kind: "document",
+          messageId: "msg-stage",
+        },
+      ],
+    },
+    ctx,
+  );
+
+  await handlers.messageReceived(
+    {
+      content: "Đọc file này",
+      messageId: "msg-stage",
+      sessionKey: "session-stage",
+      media: [
+        {
+          path: "/tmp/openclaw/stage.docx",
+          url: "media://telegram/stage",
+          contentType: DOCX_MIME,
+          kind: "document",
+          messageId: "msg-stage",
+        },
+      ],
+    },
+    ctx,
+  );
+
+  await handlers.beforePromptBuild(
+    { prompt: "Đọc file này", messages: [] },
+    {
+      messageProvider: "telegram",
+      runId: "run-after-staging",
+      sessionKey: "session-stage",
+      senderId: "sender-1",
+      chatId: "chat-1",
+    },
+  );
+
+  assert.equal(bodies.length, 1);
+  assert.equal(bodies[0].attachments.length, 1);
+  assert.equal(bodies[0].attachments[0].staged, true);
+  assert.equal(bodies[0].attachments[0].filename, "stage.docx");
+  assert.equal(bodies[0].attachments[0].local_ref, "/tmp/openclaw/stage.docx");
+
+  await handlers.beforePromptBuild(
+    { prompt: "alo", messages: [] },
+    {
+      messageProvider: "telegram",
+      runId: "run-after-stage-next",
+      sessionKey: "session-stage",
+      senderId: "sender-1",
+      chatId: "chat-1",
+    },
+  );
   assert.equal(bodies.length, 2);
   assert.equal("attachments" in bodies[1], false);
 });
