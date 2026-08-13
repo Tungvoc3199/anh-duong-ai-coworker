@@ -16,6 +16,7 @@ test("message_received attachment observation is registered without runtime comm
   const registrations = registrationsFor({
     logger: {},
     pluginConfig: {},
+    runtime: { system: {} },
   });
 
   assert.equal(
