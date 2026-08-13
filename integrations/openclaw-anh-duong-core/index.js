@@ -48,6 +48,11 @@ function runIdOf(event, ctx) {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
+function sessionKeyOf(event, ctx) {
+  const value = event?.sessionKey ?? ctx?.sessionKey;
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
 export async function deleteTelegramWorkflowProgress(api, { chatId, messageId }) {
   const runner = api?.runtime?.system?.runCommandWithTimeout;
   if (typeof runner !== "function") {
@@ -88,6 +93,7 @@ export function createPluginHandlers({
   const prepareContext = new AsyncLocalStorage();
   const pendingProgress = new Map();
   const inboundAttachments = new Map();
+  const pendingSessionAttachments = new Map();
   let config;
   try {
     config = readCoreConfig(env, api?.pluginConfig ?? {});
@@ -108,6 +114,14 @@ export function createPluginHandlers({
     for (const [runId, state] of inboundAttachments) {
       if (state.expiresAt <= current) {
         inboundAttachments.delete(runId);
+      }
+    }
+    for (const [sessionKey, queue] of pendingSessionAttachments) {
+      const retained = queue.filter((item) => item.expiresAt > current);
+      if (retained.length > 0) {
+        pendingSessionAttachments.set(sessionKey, retained);
+      } else {
+        pendingSessionAttachments.delete(sessionKey);
       }
     }
   }
@@ -210,26 +224,56 @@ export function createPluginHandlers({
     return undefined;
   }
 
+  function enqueueSessionAttachments(sessionKey, state) {
+    const queue = pendingSessionAttachments.get(sessionKey) ?? [];
+    queue.push(state);
+    pendingSessionAttachments.set(sessionKey, queue);
+  }
+
+  function takeSessionAttachments(sessionKey) {
+    const queue = pendingSessionAttachments.get(sessionKey);
+    if (!queue?.length) {
+      return undefined;
+    }
+    const state = queue.shift();
+    if (queue.length > 0) {
+      pendingSessionAttachments.set(sessionKey, queue);
+    } else {
+      pendingSessionAttachments.delete(sessionKey);
+    }
+    return state;
+  }
+
   async function messageReceived(event, ctx) {
     if (ctx?.channelId !== "telegram") {
       return undefined;
     }
     sweepPending();
-    const runId = runIdOf(event, ctx);
-    if (!runId) {
-      return undefined;
-    }
     const attachments = normalizeInboundAttachmentFacts(event, ctx);
     if (attachments.length === 0) {
       return undefined;
     }
-    inboundAttachments.set(runId, {
+    const runId = runIdOf(event, ctx);
+    const sessionKey = sessionKeyOf(event, ctx);
+    const state = {
       attachments,
       expiresAt: Date.now() + ATTACHMENT_STATE_TTL_MS,
-    });
+    };
+    if (runId) {
+      inboundAttachments.set(runId, state);
+    } else if (sessionKey) {
+      enqueueSessionAttachments(sessionKey, state);
+    } else {
+      safeLog(api?.logger, "warn", {
+        event: "anh_duong_core_attachment_uncorrelated",
+        attachment_count: attachments.length,
+        attachment_kinds: attachments.map((item) => item.kind),
+      });
+      return undefined;
+    }
     safeLog(api?.logger, "info", {
       event: "anh_duong_core_attachment_observed",
-      run_id_present: true,
+      correlation: runId ? "run" : "session",
       attachment_count: attachments.length,
       attachment_kinds: attachments.map((item) => item.kind),
     });
@@ -239,9 +283,18 @@ export function createPluginHandlers({
   async function beforePromptBuild(event, ctx) {
     sweepPending();
     const runId = runIdOf(event, ctx);
-    const attachments = runId ? inboundAttachments.get(runId)?.attachments ?? [] : [];
+    let state = runId ? inboundAttachments.get(runId) : undefined;
+    if (!state) {
+      const sessionKey = sessionKeyOf(event, ctx);
+      if (sessionKey) {
+        state = takeSessionAttachments(sessionKey);
+        if (state && runId) {
+          inboundAttachments.set(runId, state);
+        }
+      }
+    }
     return prepareContext.run(
-      { attachments },
+      { attachments: state?.attachments ?? [] },
       () => hooks.beforePromptBuild(event, ctx),
     );
   }
