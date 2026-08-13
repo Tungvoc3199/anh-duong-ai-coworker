@@ -9,8 +9,8 @@ def test_attachment_context_is_rendered_with_current_request() -> None:
         update={
             "attachment_context": (
                 "index=0 kind=document filename=a.docx "
-                "content_type=application/vnd.openxmlformats-officedocument.wordprocessingml.document "
-                "staged=true",
+                "content_type=application/vnd.openxmlformats-officedocument."
+                "wordprocessingml.document staged=true",
             )
         }
     )
