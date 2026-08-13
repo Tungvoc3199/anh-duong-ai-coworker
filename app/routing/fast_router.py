@@ -193,7 +193,12 @@ _SIMPLE_ARITHMETIC_PATTERN = re.compile(
 class FastRouter:
     """Deterministic domain router with fail-closed workflow fallback."""
 
-    def route(self, request: str) -> RouteDecision:
+    def route(
+        self,
+        request: str,
+        *,
+        attachments: tuple[object, ...] = (),
+    ) -> RouteDecision:
         normalized = self._normalize(request)
         if not normalized:
             return RouteDecision(
@@ -254,6 +259,15 @@ class FastRouter:
                 reason="The request is a simple conversational response.",
             )
 
+        if attachments:
+            return RouteDecision(
+                route=FastRoute.DIRECT,
+                rule_id="routing.direct.attachment_context",
+                reason=(
+                    "The turn contains attachment context but no explicit side effect."
+                ),
+            )
+
         return RouteDecision(
             route=FastRoute.DIRECT,
             rule_id="routing.direct.no_explicit_execution_intent",
@@ -288,7 +302,10 @@ class FastRouter:
             segments = normalized.split(f" {marker} ")
             if len(segments) < 2:
                 continue
-            if any(cls._contains_any(segment, _WORKFLOW_PHRASES) for segment in segments[1:]):
+            if any(
+                cls._contains_any(segment, _WORKFLOW_PHRASES)
+                for segment in segments[1:]
+            ):
                 return True
         return False
 
