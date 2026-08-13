@@ -350,7 +350,11 @@ class CoreRequestPipeline:
                     "persona_content_hash": prepared.persona.content_hash,
                     "token_estimate": prepared.context.estimated_tokens,
                     "warning_count": len(prepared.warnings),
-                    "attachment_count": len(request.attachments),
+                    **(
+                        {"attachment_count": len(request.attachments)}
+                        if request.attachments
+                        else {}
+                    ),
                     **(
                         {
                             "workflow_policy_rule": (
