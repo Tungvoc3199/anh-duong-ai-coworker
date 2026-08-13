@@ -14,9 +14,11 @@ permissions:
 jobs:
   red-green:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -31,6 +33,18 @@ jobs:
         run: pytest tests/unit/test_attachment_context.py -q
       - name: Core attachment pipeline
         run: pytest tests/unit/test_attachment_pipeline.py -q
+      - name: Core attachment API
+        run: pytest tests/integration/test_attachment_core_request_api.py tests/integration/test_core_request_api.py -q
+      - name: Full Core regression
+        run: pytest -q
+      - name: Ruff
+        run: ruff check app tests
+      - name: Mypy
+        run: mypy app
+      - name: Compileall
+        env:
+          PYTHONPYCACHEPREFIX: /tmp/anh-duong-pycache
+        run: python -m compileall -q app tests
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -40,6 +54,8 @@ jobs:
       - name: OpenClaw same-turn attachment bridge
         working-directory: integrations/openclaw-anh-duong-core
         run: node --test test/attachment-bridge.test.js
-      - name: Existing OpenClaw plugin regression
+      - name: Full OpenClaw plugin regression
         working-directory: integrations/openclaw-anh-duong-core
         run: npm test
+      - name: Diff check against authoritative main
+        run: git diff --check origin/main...HEAD
