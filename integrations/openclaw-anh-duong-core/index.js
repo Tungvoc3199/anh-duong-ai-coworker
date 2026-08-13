@@ -90,7 +90,7 @@ export function createPluginHandlers({
   const inboundAttachments = new Map();
   let config;
   try {
-    config = readCoreConfig(env);
+    config = readCoreConfig(env, api?.pluginConfig ?? {});
   } catch {
     config = undefined;
   }
