@@ -4,6 +4,7 @@ import {
   WORKFLOW_ACKNOWLEDGMENT,
   createAnhDuongCoreHooks,
 } from "./src/hooks.js";
+import { normalizeInboundAttachmentFacts } from "./src/attachments.js";
 import { getAsyncTaskRun } from "./src/core-client.js";
 import { readCoreConfig } from "./src/config.js";
 
@@ -15,6 +16,7 @@ const GATE_HOOK_TIMEOUT_MS = 2_000;
 const MESSAGE_HOOK_TIMEOUT_MS = 2_000;
 const TELEGRAM_DELETE_TIMEOUT_MS = 10_000;
 const WORKFLOW_PROGRESS_TTL_MS = 5 * 60_000;
+const ATTACHMENT_STATE_TTL_MS = 5 * 60_000;
 const WORKFLOW_PROGRESS_CLEANUP_POLL_MS = 2_000;
 const WORKFLOW_PROGRESS_CLEANUP_MAX_ATTEMPTS = 900;
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "blocked", "cancelled"]);
@@ -39,6 +41,11 @@ function progressKey(sessionKey, chatId) {
     return `session:${sessionKey}`;
   }
   return undefined;
+}
+
+function runIdOf(event, ctx) {
+  const value = event?.runId ?? ctx?.runId;
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 export async function deleteTelegramWorkflowProgress(api, { chatId, messageId }) {
@@ -78,7 +85,9 @@ export function createPluginHandlers({
   scheduleWorkflowCleanup = (task) => { void task; },
 } = {}) {
   const replyContext = new AsyncLocalStorage();
+  const prepareContext = new AsyncLocalStorage();
   const pendingProgress = new Map();
+  const inboundAttachments = new Map();
   let config;
   try {
     config = readCoreConfig(env);
@@ -96,21 +105,48 @@ export function createPluginHandlers({
         pendingProgress.delete(key);
       }
     }
+    for (const [runId, state] of inboundAttachments) {
+      if (state.expiresAt <= current) {
+        inboundAttachments.delete(runId);
+      }
+    }
   }
 
   async function trackedFetch(url, init = {}) {
-    const response = await fetchImpl(url, init);
+    let effectiveInit = init;
+    const prepareCall = prepareContext.getStore();
+    if (
+      prepareCall?.attachments?.length > 0 &&
+      init?.method === "POST" &&
+      String(url).endsWith("/api/internal/requests/prepare") &&
+      typeof init.body === "string"
+    ) {
+      try {
+        const payload = JSON.parse(init.body);
+        effectiveInit = {
+          ...init,
+          body: JSON.stringify({
+            ...payload,
+            attachments: prepareCall.attachments,
+          }),
+        };
+      } catch {
+        // Core client validation remains authoritative for malformed request bodies.
+      }
+    }
+
+    const response = await fetchImpl(url, effectiveInit);
     const call = replyContext.getStore();
     if (
       call &&
-      init?.method === "POST" &&
+      effectiveInit?.method === "POST" &&
       String(url).endsWith("/api/async-tasks") &&
       response?.ok &&
       typeof response.clone === "function"
     ) {
       try {
         const accepted = await response.clone().json();
-        const payload = typeof init.body === "string" ? JSON.parse(init.body) : {};
+        const payload = typeof effectiveInit.body === "string" ? JSON.parse(effectiveInit.body) : {};
         if (
           typeof accepted?.run_id === "string" &&
           accepted.run_id.length > 0 &&
@@ -172,6 +208,42 @@ export function createPluginHandlers({
       return item;
     }
     return undefined;
+  }
+
+  async function messageReceived(event, ctx) {
+    if (ctx?.channelId !== "telegram") {
+      return undefined;
+    }
+    sweepPending();
+    const runId = runIdOf(event, ctx);
+    if (!runId) {
+      return undefined;
+    }
+    const attachments = normalizeInboundAttachmentFacts(event, ctx);
+    if (attachments.length === 0) {
+      return undefined;
+    }
+    inboundAttachments.set(runId, {
+      attachments,
+      expiresAt: Date.now() + ATTACHMENT_STATE_TTL_MS,
+    });
+    safeLog(api?.logger, "info", {
+      event: "anh_duong_core_attachment_observed",
+      run_id_present: true,
+      attachment_count: attachments.length,
+      attachment_kinds: attachments.map((item) => item.kind),
+    });
+    return undefined;
+  }
+
+  async function beforePromptBuild(event, ctx) {
+    sweepPending();
+    const runId = runIdOf(event, ctx);
+    const attachments = runId ? inboundAttachments.get(runId)?.attachments ?? [] : [];
+    return prepareContext.run(
+      { attachments },
+      () => hooks.beforePromptBuild(event, ctx),
+    );
   }
 
   async function beforeAgentReply(event, ctx) {
@@ -252,12 +324,24 @@ export function createPluginHandlers({
     return undefined;
   }
 
+  async function agentEnd(event, ctx) {
+    try {
+      return await hooks.agentEnd(event, ctx);
+    } finally {
+      const runId = runIdOf(event, ctx);
+      if (runId) {
+        inboundAttachments.delete(runId);
+      }
+    }
+  }
+
   return {
     beforeAgentReply,
-    beforePromptBuild: hooks.beforePromptBuild,
+    beforePromptBuild,
     beforeAgentRun: hooks.beforeAgentRun,
+    messageReceived,
     messageSent,
-    agentEnd: hooks.agentEnd,
+    agentEnd,
   };
 }
 
@@ -267,6 +351,10 @@ export default {
   description: "Fail-closed Core preparation gate for ordinary Telegram agent turns.",
   register(api) {
     const handlers = createPluginHandlers({ api });
+    api.on("message_received", handlers.messageReceived, {
+      priority: 100,
+      timeoutMs: MESSAGE_HOOK_TIMEOUT_MS,
+    });
     api.on("before_agent_reply", handlers.beforeAgentReply, {
       priority: 100,
       timeoutMs: WORKFLOW_HOOK_TIMEOUT_MS,
