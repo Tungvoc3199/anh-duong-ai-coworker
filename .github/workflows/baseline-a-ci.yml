@@ -69,7 +69,7 @@ jobs:
             tests/unit/test_attachment_facts.py \
             tests/unit/test_attachment_pipeline.py \
             tests/unit/test_attachment_routing.py
-      - name: Verify known main Mypy recovery debt only
+      - name: Full Mypy delta verification against known main debt
         shell: bash
         run: |
           set +e
@@ -78,25 +78,17 @@ jobs:
           set -e
           printf '%s\n' "$output"
           if [ "$rc" -eq 0 ]; then
-            echo "MAIN_MYPY_NOW_PASS"
+            echo "FULL_MYPY_PASS"
             exit 0
           fi
           if [ "$rc" -eq 1 ] \
             && grep -q 'app/async_tasks/recovery.py:112:' <<<"$output" \
             && grep -q 'Found 1 error in 1 file' <<<"$output"; then
-            echo "KNOWN_MAIN_MYPY_DEBT_CONFIRMED"
+            echo "KNOWN_MAIN_MYPY_DEBT_ONLY_NO_NEW_ERRORS"
             exit 0
           fi
           echo "UNEXPECTED_MYPY_FAILURE rc=$rc"
           exit 1
-      - name: Mypy scoped Baseline A modules
-        run: |
-          mypy \
-            app/context_builder/builder.py \
-            app/context_builder/models.py \
-            app/orchestration/models.py \
-            app/orchestration/pipeline.py \
-            app/routing/fast_router.py
       - name: Compileall
         env:
           PYTHONPYCACHEPREFIX: /tmp/anh-duong-pycache
