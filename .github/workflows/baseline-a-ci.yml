@@ -1,0 +1,33 @@
+name: Baseline A Branch CI
+
+on:
+  push:
+    branches:
+      - feature/openclaw-attachment-bridge-20260813
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  red-green:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install Core dev dependencies
+        run: python -m pip install -e '.[dev]'
+      - name: Core attachment contract
+        run: pytest tests/unit/test_attachment_facts.py -q
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Existing OpenClaw plugin regression
+        working-directory: integrations/openclaw-anh-duong-core
+        run: npm test
