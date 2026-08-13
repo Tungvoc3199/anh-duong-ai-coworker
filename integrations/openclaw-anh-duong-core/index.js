@@ -224,8 +224,29 @@ export function createPluginHandlers({
     return undefined;
   }
 
+  function sourceMessageIdOfAttachmentState(state) {
+    for (const attachment of state?.attachments ?? []) {
+      const value = attachment?.source_message_id;
+      if (typeof value === "string" && value.length > 0) {
+        return value;
+      }
+    }
+    return undefined;
+  }
+
   function enqueueSessionAttachments(sessionKey, state) {
     const queue = pendingSessionAttachments.get(sessionKey) ?? [];
+    const sourceMessageId = sourceMessageIdOfAttachmentState(state);
+    if (sourceMessageId) {
+      const existingIndex = queue.findIndex(
+        (item) => sourceMessageIdOfAttachmentState(item) === sourceMessageId,
+      );
+      if (existingIndex >= 0) {
+        queue[existingIndex] = state;
+        pendingSessionAttachments.set(sessionKey, queue);
+        return;
+      }
+    }
     queue.push(state);
     pendingSessionAttachments.set(sessionKey, queue);
   }
