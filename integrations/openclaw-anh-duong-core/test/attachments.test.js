@@ -3,16 +3,83 @@ import test from "node:test";
 
 import { normalizeInboundAttachmentFacts } from "../src/attachments.js";
 
-test("normalizes v2026.7.1 message_received media metadata", () => {
+const DOCX_MIME =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+test("prefers canonical v2026.7.1 event.media facts", () => {
+  assert.deepEqual(
+    normalizeInboundAttachmentFacts(
+      {
+        media: [
+          {
+            path: "/tmp/openclaw/inbound/canonical.docx",
+            url: "media://telegram/canonical-1",
+            contentType: DOCX_MIME,
+            kind: "document",
+            messageId: "canonical-msg",
+            workspaceDir: "/tmp/openclaw/inbound",
+          },
+        ],
+        metadata: {
+          mediaPath: "/tmp/openclaw/inbound/legacy-wrong.pdf",
+          mediaUrl: "media://telegram/legacy-wrong",
+          mediaType: "application/pdf",
+        },
+        messageId: "event-msg",
+      },
+      { messageId: "ctx-msg" },
+    ),
+    [
+      {
+        index: 0,
+        kind: "document",
+        content_type: DOCX_MIME,
+        filename: "canonical.docx",
+        local_ref: "/tmp/openclaw/inbound/canonical.docx",
+        provider_ref: "media://telegram/canonical-1",
+        staged: true,
+        source_message_id: "canonical-msg",
+      },
+    ],
+  );
+});
+
+test("canonical originalMedia stays provider-side while staging is pending", () => {
+  assert.deepEqual(
+    normalizeInboundAttachmentFacts({
+      originalMedia: [
+        {
+          path: "/provider/not-local/pending.docx",
+          url: "media://telegram/pending-1",
+          contentType: DOCX_MIME,
+          kind: "document",
+          messageId: "pending-msg",
+        },
+      ],
+      mediaStagingPending: true,
+      messageId: "event-msg",
+    }),
+    [
+      {
+        index: 0,
+        kind: "document",
+        content_type: DOCX_MIME,
+        provider_ref: "media://telegram/pending-1",
+        staged: false,
+        source_message_id: "pending-msg",
+      },
+    ],
+  );
+});
+
+test("normalizes legacy media metadata as compatibility fallback", () => {
   assert.deepEqual(
     normalizeInboundAttachmentFacts(
       {
         metadata: {
           mediaPaths: ["/tmp/openclaw/inbound/a.docx"],
           mediaUrls: ["media://telegram/file-1"],
-          mediaTypes: [
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-          ],
+          mediaTypes: [DOCX_MIME],
           mediaStagingPending: false,
         },
         messageId: "42",
@@ -23,8 +90,7 @@ test("normalizes v2026.7.1 message_received media metadata", () => {
       {
         index: 0,
         kind: "document",
-        content_type:
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        content_type: DOCX_MIME,
         filename: "a.docx",
         local_ref: "/tmp/openclaw/inbound/a.docx",
         provider_ref: "media://telegram/file-1",
@@ -35,7 +101,7 @@ test("normalizes v2026.7.1 message_received media metadata", () => {
   );
 });
 
-test("supports single media fields and classifies image audio video pdf", () => {
+test("supports legacy single media fields and classifies image audio video pdf", () => {
   const cases = [
     ["image/jpeg", "image"],
     ["audio/ogg", "audio"],
@@ -51,7 +117,7 @@ test("supports single media fields and classifies image audio video pdf", () => 
   }
 });
 
-test("caps attachment count and does not invent staged local refs", () => {
+test("caps legacy attachment count and does not invent staged local refs", () => {
   const mediaUrls = Array.from({ length: 12 }, (_, index) => `media://remote/${index}`);
   const facts = normalizeInboundAttachmentFacts({
     metadata: {
