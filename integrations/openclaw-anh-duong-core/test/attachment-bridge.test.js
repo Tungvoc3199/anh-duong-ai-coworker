@@ -110,3 +110,64 @@ test("message_received media facts are injected into the same Core prepare reque
   assert.equal(bodies.length, 2);
   assert.equal("attachments" in bodies[1], false);
 });
+
+test("session correlation carries attachment when message_received has no run id", async () => {
+  const bodies = [];
+  const handlers = createPluginHandlers({
+    api: { logger: {} },
+    env: ENV,
+    fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      bodies.push(body);
+      return new Response(JSON.stringify(preparedFixture(body.request_id)), { status: 200 });
+    },
+  });
+
+  await handlers.messageReceived(
+    {
+      from: "telegram:user",
+      content: "File đây nhé",
+      messageId: "msg-no-run",
+      sessionKey: "session-no-run",
+      metadata: {
+        mediaPath: "/tmp/openclaw/no-run.docx",
+        mediaType:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      },
+    },
+    {
+      channelId: "telegram",
+      sessionKey: "session-no-run",
+      messageId: "msg-no-run",
+    },
+  );
+
+  await handlers.beforePromptBuild(
+    { prompt: "File đây nhé", messages: [] },
+    {
+      messageProvider: "telegram",
+      runId: "run-created-later",
+      sessionKey: "session-no-run",
+      senderId: "sender-1",
+      chatId: "chat-1",
+    },
+  );
+
+  assert.equal(bodies.length, 1);
+  assert.equal(bodies[0].attachments.length, 1);
+  assert.equal(bodies[0].attachments[0].filename, "no-run.docx");
+
+  await handlers.beforePromptBuild(
+    { prompt: "alo", messages: [] },
+    {
+      messageProvider: "telegram",
+      runId: "run-next",
+      sessionKey: "session-no-run",
+      senderId: "sender-1",
+      chatId: "chat-1",
+    },
+  );
+
+  assert.equal(bodies.length, 2);
+  assert.equal("attachments" in bodies[1], false);
+});
