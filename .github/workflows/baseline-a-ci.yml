@@ -34,6 +34,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: OpenClaw attachment normalizer
+        working-directory: integrations/openclaw-anh-duong-core
+        run: node --test test/attachments.test.js
+      - name: OpenClaw same-turn attachment bridge
+        working-directory: integrations/openclaw-anh-duong-core
+        run: node --test test/attachment-bridge.test.js
       - name: Existing OpenClaw plugin regression
         working-directory: integrations/openclaw-anh-duong-core
         run: npm test
