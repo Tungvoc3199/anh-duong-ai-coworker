@@ -12,8 +12,8 @@ from pydantic import (
 )
 
 from app.capabilities.models import CapabilityDecision
-from app.policy import DecisionKind, RiskLevel
 from app.persona.models import PersonaSnapshot
+from app.policy import DecisionKind, RiskLevel
 from app.routing.models import RouteDecision
 
 
