@@ -351,10 +351,6 @@ export default {
   description: "Fail-closed Core preparation gate for ordinary Telegram agent turns.",
   register(api) {
     const handlers = createPluginHandlers({ api });
-    api.on("message_received", handlers.messageReceived, {
-      priority: 100,
-      timeoutMs: MESSAGE_HOOK_TIMEOUT_MS,
-    });
     api.on("before_agent_reply", handlers.beforeAgentReply, {
       priority: 100,
       timeoutMs: WORKFLOW_HOOK_TIMEOUT_MS,
@@ -368,6 +364,10 @@ export default {
       timeoutMs: GATE_HOOK_TIMEOUT_MS,
     });
     if (typeof api?.runtime?.system?.runCommandWithTimeout === "function") {
+      api.on("message_received", handlers.messageReceived, {
+        priority: 100,
+        timeoutMs: MESSAGE_HOOK_TIMEOUT_MS,
+      });
       api.on("message_sent", handlers.messageSent, {
         priority: 100,
         timeoutMs: MESSAGE_HOOK_TIMEOUT_MS,
