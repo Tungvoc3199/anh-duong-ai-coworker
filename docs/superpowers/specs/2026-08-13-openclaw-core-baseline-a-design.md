@@ -44,7 +44,7 @@ OpenClaw `v2026.7.1` typed plugin hooks include:
 - `before_tool_call`, for tool policy enforcement;
 - message/session lifecycle hooks.
 
-Therefore Core must not implement Telegram file download, MIME/media staging, channel delivery, model execution, or general tool execution when OpenClaw already owns those surfaces.
+Therefore Core must not implement Telegram file download, channel delivery, model execution or general tool execution when OpenClaw already owns those surfaces. For MIME classification, document extraction, image/audio/video understanding and other higher-level media behavior, implementation must reuse OpenClaw only after the exact deployed runtime proves that specific capability; otherwise only the proven missing gap may be added at the appropriate boundary.
 
 Primary references:
 
@@ -56,8 +56,8 @@ Primary references:
 ### OpenClaw owns
 
 1. Telegram/Zalo/channel transport and channel-specific quirks.
-2. Inbound attachment receipt, download/staging, temp paths and provider references.
-3. Native media handling/understanding surfaces already provided by the deployed runtime.
+2. Inbound attachment receipt, download/staging, temp paths and provider references when exposed by the deployed runtime.
+3. Native attachment/media handling capabilities actually verified in the deployed runtime.
 4. Conversation session/runtime context.
 5. Agent loop and model resolution/execution.
 6. Provider/model transport and 9Router-facing execution path.
@@ -118,13 +118,13 @@ Telegram / Zalo
 
 Core receives **facts/references**, not raw binary media by default.
 
-The initial backward-compatible extension is an optional collection on `CoreRequest`, conceptually:
+The canonical backward-compatible Core extension is:
 
 ```text
 attachments: tuple[AttachmentFact, ...] = ()
 ```
 
-The exact field name may be `attachments` unless source/runtime inspection reveals a stronger existing convention. No DB migration is required for the first implementation because request attachment facts are ephemeral unless a later durable-workflow requirement proves persistence necessary.
+The integration plugin may map different OpenClaw-version-specific media fields into this stable Core field, but the Core contract remains `attachments`. No DB migration is required for the first implementation because request attachment facts are ephemeral unless a later durable-workflow requirement proves persistence necessary.
 
 ### 6.2 AttachmentFact minimum fields
 
@@ -136,7 +136,7 @@ filename             optional user-visible file name
 local_ref            optional safe staged-local reference
 provider_ref         optional provider/pseudo URL/reference
 transcript           optional bounded OpenClaw-produced transcript
-content_summary      optional bounded OpenClaw-produced digest/description
+content_summary      optional bounded verified-runtime-produced digest/description
 staged               whether the local reference is known readable by OpenClaw
 source_message_id    correlation only
 ```
@@ -149,6 +149,7 @@ Rules:
 - Do not log raw file contents or secrets.
 - Bound transcript/summary length before Core context assembly.
 - A local path/reference is evidence, not permission; execution remains under OpenClaw file/tool policy.
+- `content_summary` is populated only when the deployed OpenClaw/runtime path actually produces one; the bridge does not create a replacement media engine just to fill the field.
 
 ## 7. Routing semantics
 
@@ -225,7 +226,7 @@ A deny/block at either layer wins.
 | `integrations/openclaw-anh-duong-core` | REDESIGN BRIDGE | typed OpenClaw → Core translation |
 | image-envelope parsing in plugin | DEPRECATE AFTER PROOF | compatibility fallback only |
 | Telegram download/client logic in Core | DO NOT BUILD | OpenClaw owns it |
-| media/Office/PDF parser engine in Core | DO NOT BUILD by default | reuse OpenClaw/native execution surface |
+| media/Office/PDF parser engine in Core | DO NOT BUILD by default | reuse only verified native/runtime capability; otherwise reassess the gap |
 | provider/model transport in Core | DO NOT BUILD | OpenClaw + 9Router own it |
 | `app/openclaw/executor.py` | KEEP BOUNDARY, REVIEW CONTRACT | Core may invoke OpenClaw for durable workflow execution |
 | `app/openclaw/notifier.py` | KEEP BOUNDARY, REVIEW NATIVE SURFACE | delivery stays through OpenClaw |
@@ -305,7 +306,7 @@ The system should distinguish:
 - attachment metadata unavailable;
 - local media staging pending/missing;
 - unsupported attachment kind;
-- OpenClaw native extraction/understanding failure;
+- verified OpenClaw extraction/understanding path failure when such a path is in use;
 - model/tool execution failure.
 
 Do not map every media issue to the generic `Ánh Dương Core hiện chưa sẵn sàng...` message. The user-facing fallback should reflect the actual bounded failure category without leaking internal paths/tokens.
@@ -328,7 +329,7 @@ Baseline A implementation is acceptable only when all are true:
 
 1. Existing plain-text Telegram conversation path remains behaviorally compatible.
 2. Production remains available during development.
-3. DOCX/PDF/image/audio/video turns reach the agent with usable native content/reference and the correct caption correlation.
+3. DOCX/PDF/image/audio/video turns reach the agent with a usable verified-runtime content/reference path and the correct caption correlation.
 4. `File đây nhé` plus a document is routed as a content-bearing request, not a text-only ambiguous request.
 5. Core does not implement Telegram file download or a duplicate general media engine.
 6. Attachment presence alone does not incorrectly create a side-effect workflow.
