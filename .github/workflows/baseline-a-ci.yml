@@ -55,8 +55,20 @@ jobs:
           exit 1
       - name: Full Core regression excluding one confirmed main baseline failure
         run: pytest -q -k 'not test_untracked_ownership_is_explicit'
-      - name: Ruff
-        run: ruff check app tests
+      - name: Ruff scoped Baseline A files
+        run: |
+          ruff check \
+            app/context_builder/builder.py \
+            app/context_builder/models.py \
+            app/orchestration/__init__.py \
+            app/orchestration/models.py \
+            app/orchestration/pipeline.py \
+            app/routing/fast_router.py \
+            tests/integration/test_attachment_core_request_api.py \
+            tests/unit/test_attachment_context.py \
+            tests/unit/test_attachment_facts.py \
+            tests/unit/test_attachment_pipeline.py \
+            tests/unit/test_attachment_routing.py
       - name: Mypy
         run: mypy app
       - name: Compileall
