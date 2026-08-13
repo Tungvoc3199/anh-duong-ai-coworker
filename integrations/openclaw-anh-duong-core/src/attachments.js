@@ -5,6 +5,14 @@ const MAX_CONTENT_TYPE = 255;
 const MAX_FILENAME = 512;
 const MAX_REF = 2048;
 const MAX_MESSAGE_ID = 128;
+const ATTACHMENT_KINDS = new Set([
+  "image",
+  "audio",
+  "video",
+  "document",
+  "file",
+  "unknown",
+]);
 
 function boundedString(value, maxLength) {
   if (typeof value !== "string") {
@@ -41,6 +49,14 @@ function classifyKind(contentType) {
   return value ? "file" : "unknown";
 }
 
+function normalizedKind(kind, contentType) {
+  const supplied = boundedString(kind, 32)?.toLowerCase();
+  if (supplied && ATTACHMENT_KINDS.has(supplied)) {
+    return supplied;
+  }
+  return classifyKind(contentType);
+}
+
 function filenameFromPath(localRef) {
   if (typeof localRef !== "string" || localRef.length === 0) {
     return undefined;
@@ -48,7 +64,40 @@ function filenameFromPath(localRef) {
   return boundedString(basename(localRef), MAX_FILENAME);
 }
 
-export function normalizeInboundAttachmentFacts(event, ctx = {}) {
+function objectArray(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter(
+    (item) => item && typeof item === "object" && !Array.isArray(item),
+  );
+}
+
+function normalizeCanonicalFacts(items, event, ctx, { locallyStaged }) {
+  return items.slice(0, MAX_ATTACHMENTS).map((item, index) => {
+    const contentType = boundedString(item.contentType, MAX_CONTENT_TYPE);
+    const localRef = locallyStaged ? boundedString(item.path, MAX_REF) : undefined;
+    const providerRef = boundedString(item.url, MAX_REF);
+    const filename = locallyStaged ? filenameFromPath(localRef) : undefined;
+    const sourceMessageId = boundedString(
+      item.messageId ?? event?.messageId ?? ctx?.messageId,
+      MAX_MESSAGE_ID,
+    );
+
+    return {
+      index,
+      kind: normalizedKind(item.kind, contentType),
+      ...(contentType ? { content_type: contentType } : {}),
+      ...(filename ? { filename } : {}),
+      ...(localRef ? { local_ref: localRef } : {}),
+      ...(providerRef ? { provider_ref: providerRef } : {}),
+      staged: Boolean(localRef),
+      ...(sourceMessageId ? { source_message_id: sourceMessageId } : {}),
+    };
+  });
+}
+
+function normalizeLegacyFacts(event, ctx) {
   const metadata =
     event?.metadata && typeof event.metadata === "object" && !Array.isArray(event.metadata)
       ? event.metadata
@@ -97,4 +146,22 @@ export function normalizeInboundAttachmentFacts(event, ctx = {}) {
   }
 
   return facts;
+}
+
+export function normalizeInboundAttachmentFacts(event, ctx = {}) {
+  const stagedMedia = objectArray(event?.media);
+  if (stagedMedia.length > 0) {
+    return normalizeCanonicalFacts(stagedMedia, event, ctx, { locallyStaged: true });
+  }
+
+  if (event?.mediaStagingPending === true) {
+    const originalMedia = objectArray(event?.originalMedia);
+    if (originalMedia.length > 0) {
+      return normalizeCanonicalFacts(originalMedia, event, ctx, {
+        locallyStaged: false,
+      });
+    }
+  }
+
+  return normalizeLegacyFacts(event, ctx);
 }
