@@ -416,11 +416,11 @@ export default {
       priority: 100,
       timeoutMs: GATE_HOOK_TIMEOUT_MS,
     });
+    api.on("message_received", handlers.messageReceived, {
+      priority: 100,
+      timeoutMs: MESSAGE_HOOK_TIMEOUT_MS,
+    });
     if (typeof api?.runtime?.system?.runCommandWithTimeout === "function") {
-      api.on("message_received", handlers.messageReceived, {
-        priority: 100,
-        timeoutMs: MESSAGE_HOOK_TIMEOUT_MS,
-      });
       api.on("message_sent", handlers.messageSent, {
         priority: 100,
         timeoutMs: MESSAGE_HOOK_TIMEOUT_MS,
