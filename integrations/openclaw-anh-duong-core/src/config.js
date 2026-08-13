@@ -25,7 +25,23 @@ function configurationError() {
   return new CoreIntegrationError("configuration");
 }
 
-export function readCoreConfig(env = process.env) {
+function validatedBaseUrl(value) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw configurationError();
+  }
+  if ((url.protocol !== "http:" && url.protocol !== "https:") || url.username || url.password) {
+    throw configurationError();
+  }
+  if (url.pathname !== "/" || url.search || url.hash) {
+    throw configurationError();
+  }
+  return url.origin;
+}
+
+export function readCoreConfig(env = process.env, pluginConfig = {}) {
   const enabled = env.ANH_DUONG_CORE_ENABLED;
   if (enabled === "false") {
     return { enabled: false };
@@ -39,18 +55,15 @@ export function readCoreConfig(env = process.env) {
     throw configurationError();
   }
 
-  let url;
-  try {
-    url = new URL(env.ANH_DUONG_CORE_BASE_URL);
-  } catch {
+  const pluginBaseUrl = pluginConfig?.coreBaseUrl;
+  if (pluginBaseUrl !== undefined && typeof pluginBaseUrl !== "string") {
     throw configurationError();
   }
-  if ((url.protocol !== "http:" && url.protocol !== "https:") || url.username || url.password) {
-    throw configurationError();
-  }
-  if (url.pathname !== "/" || url.search || url.hash) {
-    throw configurationError();
-  }
+  const baseUrl = validatedBaseUrl(
+    typeof pluginBaseUrl === "string" && pluginBaseUrl.length > 0
+      ? pluginBaseUrl
+      : env.ANH_DUONG_CORE_BASE_URL,
+  );
 
   const timeoutSeconds = Number(env.ANH_DUONG_CORE_TIMEOUT_SECONDS);
   if (!Number.isInteger(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > 30) {
@@ -59,7 +72,7 @@ export function readCoreConfig(env = process.env) {
 
   return {
     enabled: true,
-    baseUrl: url.origin,
+    baseUrl,
     token,
     timeoutMs: timeoutSeconds * 1_000,
   };
