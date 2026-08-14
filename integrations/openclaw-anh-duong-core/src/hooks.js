@@ -313,6 +313,7 @@ export function createAnhDuongCoreHooks({
         senderId: ctx?.senderId,
         chatId: ctx?.chatId,
         sessionKey: ctx?.sessionKey,
+        attachments: event?.attachments,
       });
       requestId = request.request_id;
       const prepared = await prepareCoreRequest({ config, request, fetchImpl });

@@ -90,7 +90,6 @@ export function createPluginHandlers({
   scheduleWorkflowCleanup = (task) => { void task; },
 } = {}) {
   const replyContext = new AsyncLocalStorage();
-  const prepareContext = new AsyncLocalStorage();
   const pendingProgress = new Map();
   const inboundAttachments = new Map();
   const pendingSessionAttachments = new Map();
@@ -127,40 +126,18 @@ export function createPluginHandlers({
   }
 
   async function trackedFetch(url, init = {}) {
-    let effectiveInit = init;
-    const prepareCall = prepareContext.getStore();
-    if (
-      prepareCall?.attachments?.length > 0 &&
-      init?.method === "POST" &&
-      String(url).endsWith("/api/internal/requests/prepare") &&
-      typeof init.body === "string"
-    ) {
-      try {
-        const payload = JSON.parse(init.body);
-        effectiveInit = {
-          ...init,
-          body: JSON.stringify({
-            ...payload,
-            attachments: prepareCall.attachments,
-          }),
-        };
-      } catch {
-        // Core client validation remains authoritative for malformed request bodies.
-      }
-    }
-
-    const response = await fetchImpl(url, effectiveInit);
+    const response = await fetchImpl(url, init);
     const call = replyContext.getStore();
     if (
       call &&
-      effectiveInit?.method === "POST" &&
+      init?.method === "POST" &&
       String(url).endsWith("/api/async-tasks") &&
       response?.ok &&
       typeof response.clone === "function"
     ) {
       try {
         const accepted = await response.clone().json();
-        const payload = typeof effectiveInit.body === "string" ? JSON.parse(effectiveInit.body) : {};
+        const payload = typeof init.body === "string" ? JSON.parse(init.body) : {};
         if (
           typeof accepted?.run_id === "string" &&
           accepted.run_id.length > 0 &&
@@ -314,9 +291,9 @@ export function createPluginHandlers({
         }
       }
     }
-    return prepareContext.run(
-      { attachments: state?.attachments ?? [] },
-      () => hooks.beforePromptBuild(event, ctx),
+    return hooks.beforePromptBuild(
+      state?.attachments?.length > 0 ? { ...event, attachments: state.attachments } : event,
+      ctx,
     );
   }
 
