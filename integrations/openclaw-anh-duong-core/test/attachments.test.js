@@ -72,6 +72,24 @@ test("canonical originalMedia stays provider-side while staging is pending", () 
   );
 });
 
+test("pending original media metadata without URL does not expose provider path", () => {
+  const [fact] = normalizeInboundAttachmentFacts({
+    metadata: {
+      originalMediaPaths: ["/provider/not-local/pending.docx"],
+      originalMediaTypes: [DOCX_MIME],
+      mediaStagingPending: true,
+    },
+    messageId: "pending-msg",
+  });
+
+  assert.equal(fact.kind, "document");
+  assert.equal(fact.content_type, DOCX_MIME);
+  assert.equal(fact.staged, false);
+  assert.equal(fact.source_message_id, "pending-msg");
+  assert.equal("provider_ref" in fact, false);
+  assert.equal("local_ref" in fact, false);
+});
+
 test("normalizes legacy media metadata as compatibility fallback", () => {
   assert.deepEqual(
     normalizeInboundAttachmentFacts(

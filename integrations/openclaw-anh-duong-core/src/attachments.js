@@ -148,6 +148,48 @@ function normalizeLegacyFacts(event, ctx) {
   return facts;
 }
 
+function normalizePendingOriginalMetadataFacts(event, ctx) {
+  const metadata =
+    event?.metadata && typeof event.metadata === "object" && !Array.isArray(event.metadata)
+      ? event.metadata
+      : {};
+
+  const paths = stringArray(metadata.originalMediaPaths);
+  const urls = stringArray(metadata.originalMediaUrls);
+  const types = stringArray(metadata.originalMediaTypes);
+
+  const singlePath = boundedString(metadata.originalMediaPath, MAX_REF);
+  const singleUrl = boundedString(metadata.originalMediaUrl, MAX_REF);
+  const singleType = boundedString(metadata.originalMediaType, MAX_CONTENT_TYPE);
+
+  if (paths.length === 0 && singlePath) paths.push(singlePath);
+  if (urls.length === 0 && singleUrl) urls.push(singleUrl);
+  if (types.length === 0 && singleType) types.push(singleType);
+
+  const count = Math.min(MAX_ATTACHMENTS, Math.max(paths.length, urls.length, types.length));
+  if (count === 0) {
+    return [];
+  }
+
+  const sourceMessageId = boundedString(
+    event?.messageId ?? ctx?.messageId,
+    MAX_MESSAGE_ID,
+  );
+
+  return Array.from({ length: count }, (_item, index) => {
+    const providerRef = boundedString(urls[index], MAX_REF);
+    const contentType = boundedString(types[index], MAX_CONTENT_TYPE);
+    return {
+      index,
+      kind: classifyKind(contentType),
+      ...(contentType ? { content_type: contentType } : {}),
+      ...(providerRef ? { provider_ref: providerRef } : {}),
+      staged: false,
+      ...(sourceMessageId ? { source_message_id: sourceMessageId } : {}),
+    };
+  });
+}
+
 export function normalizeInboundAttachmentFacts(event, ctx = {}) {
   const stagedMedia = objectArray(event?.media);
   if (stagedMedia.length > 0) {
@@ -160,6 +202,15 @@ export function normalizeInboundAttachmentFacts(event, ctx = {}) {
       return normalizeCanonicalFacts(originalMedia, event, ctx, {
         locallyStaged: false,
       });
+    }
+  }
+
+  const metadataStagingPending =
+    event?.mediaStagingPending === true || event?.metadata?.mediaStagingPending === true;
+  if (metadataStagingPending) {
+    const pendingOriginalMetadata = normalizePendingOriginalMetadataFacts(event, ctx);
+    if (pendingOriginalMetadata.length > 0) {
+      return pendingOriginalMetadata;
     }
   }
 

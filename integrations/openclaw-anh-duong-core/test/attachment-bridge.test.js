@@ -169,6 +169,95 @@ test("session correlation carries attachment when message_received has no run id
   assert.equal("attachments" in bodies[1], false);
 });
 
+test("message_received pending original media metadata is injected into Core request", async () => {
+  const bodies = [];
+  const handlers = createRecordingHandlers(bodies);
+
+  await handlers.messageReceived(
+    {
+      from: "telegram:user",
+      content: "File đang chờ staging",
+      messageId: "msg-pending-original",
+      runId: "run-pending-original",
+      sessionKey: "session-pending-original",
+      metadata: {
+        originalMediaPaths: ["/provider/not-local/pending.docx"],
+        originalMediaUrls: ["media://telegram/pending-original"],
+        originalMediaTypes: [DOCX_MIME],
+        mediaStagingPending: true,
+      },
+    },
+    {
+      channelId: "telegram",
+      runId: "run-pending-original",
+      sessionKey: "session-pending-original",
+      messageId: "msg-pending-original",
+    },
+  );
+
+  await handlers.beforePromptBuild(
+    { prompt: "File đang chờ staging", messages: [] },
+    {
+      messageProvider: "telegram",
+      runId: "run-pending-original",
+      sessionKey: "session-pending-original",
+      senderId: "sender-1",
+      chatId: "chat-1",
+    },
+  );
+
+  assert.equal(bodies.length, 1);
+  assert.equal(bodies[0].attachments.length, 1);
+  assert.equal(bodies[0].attachments[0].kind, "document");
+  assert.equal(bodies[0].attachments[0].provider_ref, "media://telegram/pending-original");
+  assert.equal(bodies[0].attachments[0].staged, false);
+  assert.equal("local_ref" in bodies[0].attachments[0], false);
+});
+
+test("message_received pending original media metadata without URL omits path refs", async () => {
+  const bodies = [];
+  const handlers = createRecordingHandlers(bodies);
+
+  await handlers.messageReceived(
+    {
+      from: "telegram:user",
+      content: "File đang chờ staging",
+      messageId: "msg-pending-original-no-url",
+      runId: "run-pending-original-no-url",
+      sessionKey: "session-pending-original-no-url",
+      metadata: {
+        originalMediaPaths: ["/provider/not-local/pending.docx"],
+        originalMediaTypes: [DOCX_MIME],
+        mediaStagingPending: true,
+      },
+    },
+    {
+      channelId: "telegram",
+      runId: "run-pending-original-no-url",
+      sessionKey: "session-pending-original-no-url",
+      messageId: "msg-pending-original-no-url",
+    },
+  );
+
+  await handlers.beforePromptBuild(
+    { prompt: "File đang chờ staging", messages: [] },
+    {
+      messageProvider: "telegram",
+      runId: "run-pending-original-no-url",
+      sessionKey: "session-pending-original-no-url",
+      senderId: "sender-1",
+      chatId: "chat-1",
+    },
+  );
+
+  assert.equal(bodies.length, 1);
+  assert.equal(bodies[0].attachments.length, 1);
+  assert.equal(bodies[0].attachments[0].kind, "document");
+  assert.equal(bodies[0].attachments[0].staged, false);
+  assert.equal("provider_ref" in bodies[0].attachments[0], false);
+  assert.equal("local_ref" in bodies[0].attachments[0], false);
+});
+
 test("staged media replaces pending provider-only state for the same no-run message", async () => {
   const bodies = [];
   const handlers = createRecordingHandlers(bodies);
