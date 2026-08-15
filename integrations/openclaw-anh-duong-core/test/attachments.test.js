@@ -44,6 +44,28 @@ test("prefers canonical v2026.7.1 event.media facts", () => {
   );
 });
 
+test("carries bounded OpenClaw-produced transcript and summary facts", () => {
+  const longTranscript = "t".repeat(9000);
+  const longSummary = "s".repeat(9000);
+
+  const [fact] = normalizeInboundAttachmentFacts({
+    media: [
+      {
+        path: "/tmp/openclaw/inbound/audio.ogg",
+        url: "media://telegram/audio-1",
+        contentType: "audio/ogg",
+        kind: "audio",
+        transcript: longTranscript,
+        contentSummary: longSummary,
+      },
+    ],
+    messageId: "audio-msg",
+  });
+
+  assert.equal(fact.transcript, "t".repeat(8000));
+  assert.equal(fact.content_summary, "s".repeat(8000));
+});
+
 test("canonical originalMedia stays provider-side while staging is pending", () => {
   assert.deepEqual(
     normalizeInboundAttachmentFacts({

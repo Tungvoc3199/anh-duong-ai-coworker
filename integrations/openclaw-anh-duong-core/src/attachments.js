@@ -5,6 +5,8 @@ const MAX_CONTENT_TYPE = 255;
 const MAX_FILENAME = 512;
 const MAX_REF = 2048;
 const MAX_MESSAGE_ID = 128;
+const MAX_TRANSCRIPT = 8000;
+const MAX_SUMMARY = 8000;
 const ATTACHMENT_KINDS = new Set([
   "image",
   "audio",
@@ -79,6 +81,11 @@ function normalizeCanonicalFacts(items, event, ctx, { locallyStaged }) {
     const localRef = locallyStaged ? boundedString(item.path, MAX_REF) : undefined;
     const providerRef = boundedString(item.url, MAX_REF);
     const filename = locallyStaged ? filenameFromPath(localRef) : undefined;
+    const transcript = boundedString(item.transcript, MAX_TRANSCRIPT);
+    const contentSummary = boundedString(
+      item.contentSummary ?? item.content_summary,
+      MAX_SUMMARY,
+    );
     const sourceMessageId = boundedString(
       item.messageId ?? event?.messageId ?? ctx?.messageId,
       MAX_MESSAGE_ID,
@@ -91,6 +98,8 @@ function normalizeCanonicalFacts(items, event, ctx, { locallyStaged }) {
       ...(filename ? { filename } : {}),
       ...(localRef ? { local_ref: localRef } : {}),
       ...(providerRef ? { provider_ref: providerRef } : {}),
+      ...(transcript ? { transcript } : {}),
+      ...(contentSummary ? { content_summary: contentSummary } : {}),
       staged: Boolean(localRef),
       ...(sourceMessageId ? { source_message_id: sourceMessageId } : {}),
     };
