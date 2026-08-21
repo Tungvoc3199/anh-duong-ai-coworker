@@ -1,0 +1,1 @@
+Scope lock: FastRouter/CapabilityRouter/Telegram Core integration behavior only. Preserve casual direct replies. Prevent operational guidance from bypassing controlled execution. No config/provider/model/database/deploy changes.
