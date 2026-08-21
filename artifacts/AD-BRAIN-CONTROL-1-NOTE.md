@@ -1,0 +1,1 @@
+Temporary checkpoint note: source-level root cause confirmed; implementation remains isolated on this branch. No production runtime changes.
