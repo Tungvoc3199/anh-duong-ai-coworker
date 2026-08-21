@@ -1,0 +1,1 @@
+Implementation note: previous checkpoint artifacts are informational only and do not represent production-code changes or verification.
