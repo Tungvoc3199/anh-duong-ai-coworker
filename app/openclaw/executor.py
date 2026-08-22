@@ -18,36 +18,6 @@ from app.openclaw.models import (
 class OpenClawExecutor:
     _HOST_WORKSPACE = PurePosixPath("/mnt/f/AIOS/anh-duong-core")
     _GATEWAY_WORKSPACE = PurePosixPath("/workspaces/anh-duong-core")
-    _COMPLETED_OUTCOMES = {
-        "completed",
-        "success",
-        "succeeded",
-        "done",
-        "ok",
-    }
-    _BLOCKED_OUTCOMES = {
-        "blocked",
-        "blocked_at_safe_gate",
-        "approval_required",
-        "requires_approval",
-        "needs_approval",
-        "pending_approval",
-    }
-    _FAILED_OUTCOMES = {
-        "failed",
-        "failure",
-        "error",
-        "errored",
-    }
-    _SUMMARY_KEYS = (
-        "summary",
-        "answer",
-        "final_answer",
-        "message",
-        "response",
-        "text",
-        "content",
-    )
 
     def __init__(
         self,
@@ -75,7 +45,9 @@ class OpenClawExecutor:
             "Idempotency-Key": request.idempotency_key,
         }
         if self.auth_token:
-            headers["Authorization"] = f"Bearer {self.auth_token}"
+            headers["Authorization"] = (
+                f"Bearer {self.auth_token}"
+            )
 
         gateway_request = request.model_copy(
             update={"workspace": self._gateway_workspace(request.workspace)}
@@ -85,10 +57,9 @@ class OpenClawExecutor:
             "model": "openclaw/default",
             "user": f"async:{request.task_id}",
             "instructions": (
-                "Execute the supplied task within its workspace and constraints. "
-                "Always return a final user-facing answer. If returning JSON, "
-                "include outcome (completed|blocked|failed) and a non-empty "
-                "summary; artifacts and verification are optional."
+                "Execute the supplied task within its workspace and "
+                "constraints. Return JSON with outcome, summary, "
+                "artifacts, and verification."
             ),
             "input": json.dumps(
                 gateway_request.model_dump(mode="json"),
@@ -144,201 +115,33 @@ class OpenClawExecutor:
 
         output_text = self._extract_output_text(body)
         result_payload = self._parse_result_payload(output_text)
-        result_payload = self._normalize_result_payload(
-            result_payload,
-            output_text=output_text,
-        )
+        if result_payload.get("outcome") == "success":
+            result_payload["outcome"] = "completed"
         external_run_id = body.get("id")
         if isinstance(external_run_id, str):
             result_payload["external_run_id"] = external_run_id
 
         try:
             return OpenClawExecutionResult.model_validate(result_payload)
-        except ValidationError:
-            return OpenClawExecutionResult(
-                outcome="failed",
-                summary=self._normalize_summary(
-                    result_payload,
-                    output_text=output_text,
-                ),
-                error_code="result_contract_normalization_failed",
-                external_run_id=(
-                    external_run_id
-                    if isinstance(external_run_id, str)
-                    else None
-                ),
-            )
+        except ValidationError as error:
+            raise OpenClawTransportError(
+                "invalid_response_contract",
+                "OpenClaw returned an invalid execution result contract.",
+                retryable=False,
+                uncertain_side_effect=False,
+                status_code=response.status_code,
+            ) from error
 
-    def _normalize_result_payload(
-        self,
-        payload: dict[str, Any],
-        *,
-        output_text: str,
-    ) -> dict[str, Any]:
-        normalized = dict(payload)
-        nested_result = normalized.get("result")
-        if isinstance(nested_result, dict):
-            for key, value in nested_result.items():
-                normalized.setdefault(key, value)
-
-        normalized["outcome"] = self._normalize_outcome(normalized)
-        normalized["summary"] = self._normalize_summary(
-            normalized,
-            output_text=output_text,
-        )
-        normalized["artifacts"] = self._normalize_detail_field(
-            normalized.get("artifacts")
-        )
-        normalized["verification"] = self._normalize_detail_field(
-            normalized.get("verification")
-        )
-        normalized["files_changed"] = self._normalize_string_items(
-            normalized.get("files_changed")
-        )
-        normalized["commands_run"] = self._normalize_string_items(
-            normalized.get("commands_run")
-        )
-        normalized["tests"] = self._normalize_tests(normalized.get("tests"))
-        normalized["duration_ms"] = self._normalize_duration_ms(
-            normalized.get("duration_ms")
-        )
-        for key in ("model", "provider", "profile", "error_code"):
-            value = normalized.get(key)
-            if value is not None and not isinstance(value, str):
-                normalized[key] = str(value)
-
-        redacted = self.redactor.redact(normalized)
-        if isinstance(redacted, dict):
-            return redacted
-        return normalized
-
-    def _normalize_outcome(self, payload: dict[str, Any]) -> str:
-        raw_outcome: object = payload.get("outcome")
-        if not isinstance(raw_outcome, str):
-            raw_outcome = payload.get("status")
-        if not isinstance(raw_outcome, str):
-            raw_outcome = payload.get("state")
-        # A nested `result` dict from the agent is a stronger signal than a
-        # generic top-level status wrapper (e.g. {"status":"completed",
-        # "result":{"status":"failed",...}} is a genuine failure).
-        nested_result = payload.get("result")
-        if isinstance(nested_result, dict):
-            nested_outcome: object = nested_result.get("outcome")
-            if not isinstance(nested_outcome, str):
-                nested_outcome = nested_result.get("status")
-            if not isinstance(nested_outcome, str):
-                nested_outcome = nested_result.get("state")
-            if isinstance(nested_outcome, str):
-                raw_outcome = nested_outcome
-
-        outcome_text = raw_outcome if isinstance(raw_outcome, str) else None
-        explicit_outcome = outcome_text is not None
-        if outcome_text is not None:
-            value = outcome_text.strip().casefold().replace("-", "_")
-            if value in self._COMPLETED_OUTCOMES:
-                return "completed"
-            if value in self._BLOCKED_OUTCOMES:
-                return "blocked"
-            if value in self._FAILED_OUTCOMES:
-                return "failed"
-
-        if payload.get("approval_required") is True:
-            return "blocked"
-        if payload.get("requires_approval") is True:
-            return "blocked"
-        if payload.get("error") not in (None, "", False):
-            return "failed"
-        if payload.get("error_code") not in (None, ""):
-            return "failed"
-        if explicit_outcome:
-            return "failed"
-        return "completed"
-
-    def _normalize_summary(
-        self,
-        payload: dict[str, Any],
-        *,
-        output_text: str,
-    ) -> str:
-        for key in self._SUMMARY_KEYS:
-            value = payload.get(key)
-            if isinstance(value, str) and value.strip():
-                return str(self.redactor.redact(value.strip()))
-
-        nested_result = payload.get("result")
-        if isinstance(nested_result, dict):
-            for key in self._SUMMARY_KEYS:
-                value = nested_result.get(key)
-                if isinstance(value, str) and value.strip():
-                    return str(self.redactor.redact(value.strip()))
-        elif isinstance(nested_result, str) and nested_result.strip():
-            return str(self.redactor.redact(nested_result.strip()))
-
-        redacted = self.redactor.redact(payload)
-        try:
-            fallback = json.dumps(
-                redacted,
-                ensure_ascii=False,
-                separators=(",", ":"),
-                sort_keys=True,
-            )
-        except (TypeError, ValueError):
-            fallback = output_text
-        return str(self.redactor.redact(fallback)).strip() or "Đã xử lý yêu cầu."
-
-    @staticmethod
-    def _normalize_detail_field(value: object) -> object:
-        if value is None:
-            return ()
-        if isinstance(value, dict):
-            return value
-        if isinstance(value, str):
-            return (value,)
-        if isinstance(value, (list, tuple)):
-            if all(isinstance(item, str) for item in value):
-                return tuple(value)
-            return {"items": list(value)}
-        return {"value": value}
-
-    @staticmethod
-    def _normalize_string_items(value: object) -> tuple[str, ...]:
-        if value is None:
-            return ()
-        if isinstance(value, str):
-            return (value,)
-        if isinstance(value, (list, tuple)):
-            return tuple(str(item) for item in value if item is not None)
-        return (str(value),)
-
-    @staticmethod
-    def _normalize_tests(value: object) -> tuple[dict[str, Any], ...]:
-        if value is None:
-            return ()
-        if isinstance(value, dict):
-            return (value,)
-        if isinstance(value, (list, tuple)):
-            normalized: list[dict[str, Any]] = []
-            for item in value:
-                if isinstance(item, dict):
-                    normalized.append(item)
-                else:
-                    normalized.append({"result": str(item)})
-            return tuple(normalized)
-        return ({"result": str(value)},)
-
-    @staticmethod
-    def _normalize_duration_ms(value: object) -> int | None:
-        if isinstance(value, bool):
+    @classmethod
+    def _gateway_workspace(cls, workspace: str | None) -> str | None:
+        if workspace is None:
             return None
-        if isinstance(value, int):
-            return value if value >= 0 else None
-        if isinstance(value, float):
-            return int(value) if value >= 0 else None
-        if isinstance(value, str):
-            stripped = value.strip()
-            if stripped.isdigit():
-                return int(stripped)
-        return None
+        path = PurePosixPath(workspace)
+        try:
+            relative = path.relative_to(cls._HOST_WORKSPACE)
+        except ValueError:
+            return workspace
+        return str(cls._GATEWAY_WORKSPACE / relative)
 
     def _http_error(
         self,
@@ -381,17 +184,6 @@ class OpenClawExecutor:
         except ValueError:
             body = response.text[:2000]
         return str(self.redactor.redact(body))[:2000]
-
-    @classmethod
-    def _gateway_workspace(cls, workspace: str | None) -> str | None:
-        if workspace is None:
-            return None
-        path = PurePosixPath(workspace)
-        try:
-            relative = path.relative_to(cls._HOST_WORKSPACE)
-        except ValueError:
-            return workspace
-        return str(cls._GATEWAY_WORKSPACE / relative)
 
     @staticmethod
     def _extract_output_text(body: Any) -> str:
@@ -445,11 +237,10 @@ class OpenClawExecutor:
                 "verification": [],
             }
 
-        if isinstance(parsed, dict):
-            return parsed
-        return {
-            "outcome": "completed",
-            "summary": text,
-            "artifacts": [],
-            "verification": [],
-        }
+        if not isinstance(parsed, dict):
+            raise OpenClawTransportError(
+                "invalid_response",
+                "Structured result must be a JSON object.",
+                retryable=False,
+            )
+        return parsed

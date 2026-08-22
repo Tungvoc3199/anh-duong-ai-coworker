@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_ROOT="/home/thadc/AIOS/anh-duong-core"
+PROJECT_ROOT="/mnt/f/AIOS/anh-duong-core"
 CHECK_ROOT="$(mktemp -d /tmp/anh-duong-project-mirror.XXXXXX)"
 
 cleanup() {
@@ -31,8 +31,8 @@ project = Project(
     slug="anh-duong-core-mirror-check",
     status=ProjectStatus.ACTIVE,
     priority=ProjectPriority.HIGH,
-    path_windows=r"/home/thadc/AIOS/anh-duong-core",
-    path_wsl="/home/thadc/AIOS/anh-duong-core",
+    path_windows=r"F:\AIOS\anh-duong-core",
+    path_wsl="/mnt/f/AIOS/anh-duong-core",
     repo_url=None,
     current_phase="Phase 3",
     owner="user",
