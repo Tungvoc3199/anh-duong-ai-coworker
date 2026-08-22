@@ -22,6 +22,7 @@ from app.orchestration.errors import (
     TaskProjectMismatch,
 )
 from app.orchestration.models import (
+    AttachmentFact,
     CoreRequest,
     PersonaReference,
     PreparedRequest,
@@ -94,7 +95,10 @@ class CoreRequestPipeline:
 
     def prepare(self, request: CoreRequest) -> PreparedRequest:
         persona = self._persona_loader()
-        route_decision = self._fast_router.route(request.text)
+        route_decision = self._fast_router.route(
+            request.text,
+            attachments=request.attachments,
+        )
         capability_decision = self._capability_router.route(
             route_decision,
             request.text,
@@ -149,6 +153,7 @@ class CoreRequestPipeline:
                     else None
                 ),
                 memory_scope_id=request.memory_scope_id,
+                attachment_context=self._attachment_context(request.attachments),
             )
         )
         context_source_refs = tuple(
@@ -279,6 +284,44 @@ class CoreRequestPipeline:
             default=str,
         )
 
+    def _attachment_context(
+        self,
+        attachments: tuple[AttachmentFact, ...],
+    ) -> tuple[str, ...]:
+        return tuple(self._attachment_line(item) for item in attachments)
+
+    def _attachment_line(self, item: AttachmentFact) -> str:
+        parts = [f"index={item.index}", f"kind={item.kind}"]
+        for key in (
+            "content_type",
+            "filename",
+            "local_ref",
+            "provider_ref",
+            "source_message_id",
+        ):
+            value = getattr(item, key)
+            if value is not None:
+                parts.append(f"{key}={self._bounded_attachment_text(value, 1024)}")
+        if item.transcript is not None:
+            parts.append(
+                "transcript="
+                + self._bounded_attachment_text(item.transcript, 1200)
+            )
+        if item.content_summary is not None:
+            parts.append(
+                "content_summary="
+                + self._bounded_attachment_text(item.content_summary, 1200)
+            )
+        parts.append(f"staged={'true' if item.staged else 'false'}")
+        return " ".join(parts)[:4096]
+
+    def _bounded_attachment_text(self, value: str, limit: int) -> str:
+        redacted = str(self._redactor.redact(value))
+        normalized = " ".join(redacted.split())
+        if len(normalized) <= limit:
+            return normalized
+        return normalized[: max(0, limit - 1)].rstrip() + "…"
+
     def _redacted_text(self, value: str) -> str:
         return cast(str, self._redactor.redact(value))
 
@@ -307,6 +350,11 @@ class CoreRequestPipeline:
                     "persona_content_hash": prepared.persona.content_hash,
                     "token_estimate": prepared.context.estimated_tokens,
                     "warning_count": len(prepared.warnings),
+                    **(
+                        {"attachment_count": len(request.attachments)}
+                        if request.attachments
+                        else {}
+                    ),
                     **(
                         {
                             "workflow_policy_rule": (

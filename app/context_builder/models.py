@@ -12,8 +12,8 @@ from pydantic import (
 )
 
 from app.capabilities.models import CapabilityDecision
-from app.policy import DecisionKind, RiskLevel
 from app.persona.models import PersonaSnapshot
+from app.policy import DecisionKind, RiskLevel
 from app.routing.models import RouteDecision
 
 
@@ -109,6 +109,7 @@ class ContextBuildRequest(BaseModel):
     runtime_policy: RuntimePolicySnapshot | None = None
     token_budget: ContextTokenBudget = Field(default_factory=ContextTokenBudget)
     memory_scope_id: str | None = None
+    attachment_context: tuple[str, ...] = Field(default=(), max_length=10)
 
     @field_validator("current_request")
     @classmethod
@@ -117,6 +118,22 @@ class ContextBuildRequest(BaseModel):
         if not normalized:
             raise ValueError("current_request cannot be blank")
         return normalized
+
+    @field_validator("attachment_context")
+    @classmethod
+    def validate_attachment_context(
+        cls,
+        value: tuple[str, ...],
+    ) -> tuple[str, ...]:
+        normalized: list[str] = []
+        for item in value:
+            clean = " ".join(item.split())
+            if not clean:
+                raise ValueError("attachment_context items cannot be blank")
+            if len(clean) > 4096:
+                raise ValueError("attachment_context item exceeds 4096 characters")
+            normalized.append(clean)
+        return tuple(normalized)
 
 
 class ContextSection(BaseModel):

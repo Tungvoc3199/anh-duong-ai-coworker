@@ -4,6 +4,7 @@ import {
   WORKFLOW_ACKNOWLEDGMENT,
   createAnhDuongCoreHooks,
 } from "./src/hooks.js";
+import { normalizeInboundAttachmentFacts } from "./src/attachments.js";
 import { getAsyncTaskRun } from "./src/core-client.js";
 import { readCoreConfig } from "./src/config.js";
 
@@ -15,6 +16,7 @@ const GATE_HOOK_TIMEOUT_MS = 2_000;
 const MESSAGE_HOOK_TIMEOUT_MS = 2_000;
 const TELEGRAM_DELETE_TIMEOUT_MS = 10_000;
 const WORKFLOW_PROGRESS_TTL_MS = 5 * 60_000;
+const ATTACHMENT_STATE_TTL_MS = 5 * 60_000;
 const WORKFLOW_PROGRESS_CLEANUP_POLL_MS = 2_000;
 const WORKFLOW_PROGRESS_CLEANUP_MAX_ATTEMPTS = 900;
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "blocked", "cancelled"]);
@@ -39,6 +41,16 @@ function progressKey(sessionKey, chatId) {
     return `session:${sessionKey}`;
   }
   return undefined;
+}
+
+function runIdOf(event, ctx) {
+  const value = event?.runId ?? ctx?.runId;
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function sessionKeyOf(event, ctx) {
+  const value = event?.sessionKey ?? ctx?.sessionKey;
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 export async function deleteTelegramWorkflowProgress(api, { chatId, messageId }) {
@@ -79,9 +91,11 @@ export function createPluginHandlers({
 } = {}) {
   const replyContext = new AsyncLocalStorage();
   const pendingProgress = new Map();
+  const inboundAttachments = new Map();
+  const pendingSessionAttachments = new Map();
   let config;
   try {
-    config = readCoreConfig(env);
+    config = readCoreConfig(env, api?.pluginConfig ?? {});
   } catch {
     config = undefined;
   }
@@ -94,6 +108,19 @@ export function createPluginHandlers({
         pendingProgress.set(key, retained);
       } else {
         pendingProgress.delete(key);
+      }
+    }
+    for (const [runId, state] of inboundAttachments) {
+      if (state.expiresAt <= current) {
+        inboundAttachments.delete(runId);
+      }
+    }
+    for (const [sessionKey, queue] of pendingSessionAttachments) {
+      const retained = queue.filter((item) => item.expiresAt > current);
+      if (retained.length > 0) {
+        pendingSessionAttachments.set(sessionKey, retained);
+      } else {
+        pendingSessionAttachments.delete(sessionKey);
       }
     }
   }
@@ -174,6 +201,102 @@ export function createPluginHandlers({
     return undefined;
   }
 
+  function sourceMessageIdOfAttachmentState(state) {
+    for (const attachment of state?.attachments ?? []) {
+      const value = attachment?.source_message_id;
+      if (typeof value === "string" && value.length > 0) {
+        return value;
+      }
+    }
+    return undefined;
+  }
+
+  function enqueueSessionAttachments(sessionKey, state) {
+    const queue = pendingSessionAttachments.get(sessionKey) ?? [];
+    const sourceMessageId = sourceMessageIdOfAttachmentState(state);
+    if (sourceMessageId) {
+      const existingIndex = queue.findIndex(
+        (item) => sourceMessageIdOfAttachmentState(item) === sourceMessageId,
+      );
+      if (existingIndex >= 0) {
+        queue[existingIndex] = state;
+        pendingSessionAttachments.set(sessionKey, queue);
+        return;
+      }
+    }
+    queue.push(state);
+    pendingSessionAttachments.set(sessionKey, queue);
+  }
+
+  function takeSessionAttachments(sessionKey) {
+    const queue = pendingSessionAttachments.get(sessionKey);
+    if (!queue?.length) {
+      return undefined;
+    }
+    const state = queue.shift();
+    if (queue.length > 0) {
+      pendingSessionAttachments.set(sessionKey, queue);
+    } else {
+      pendingSessionAttachments.delete(sessionKey);
+    }
+    return state;
+  }
+
+  async function messageReceived(event, ctx) {
+    if (ctx?.channelId !== "telegram") {
+      return undefined;
+    }
+    sweepPending();
+    const attachments = normalizeInboundAttachmentFacts(event, ctx);
+    if (attachments.length === 0) {
+      return undefined;
+    }
+    const runId = runIdOf(event, ctx);
+    const sessionKey = sessionKeyOf(event, ctx);
+    const state = {
+      attachments,
+      expiresAt: Date.now() + ATTACHMENT_STATE_TTL_MS,
+    };
+    if (runId) {
+      inboundAttachments.set(runId, state);
+    } else if (sessionKey) {
+      enqueueSessionAttachments(sessionKey, state);
+    } else {
+      safeLog(api?.logger, "warn", {
+        event: "anh_duong_core_attachment_uncorrelated",
+        attachment_count: attachments.length,
+        attachment_kinds: attachments.map((item) => item.kind),
+      });
+      return undefined;
+    }
+    safeLog(api?.logger, "info", {
+      event: "anh_duong_core_attachment_observed",
+      correlation: runId ? "run" : "session",
+      attachment_count: attachments.length,
+      attachment_kinds: attachments.map((item) => item.kind),
+    });
+    return undefined;
+  }
+
+  async function beforePromptBuild(event, ctx) {
+    sweepPending();
+    const runId = runIdOf(event, ctx);
+    let state = runId ? inboundAttachments.get(runId) : undefined;
+    if (!state) {
+      const sessionKey = sessionKeyOf(event, ctx);
+      if (sessionKey) {
+        state = takeSessionAttachments(sessionKey);
+        if (state && runId) {
+          inboundAttachments.set(runId, state);
+        }
+      }
+    }
+    return hooks.beforePromptBuild(
+      state?.attachments?.length > 0 ? { ...event, attachments: state.attachments } : event,
+      ctx,
+    );
+  }
+
   async function beforeAgentReply(event, ctx) {
     const call = {};
     const result = await replyContext.run(call, () => hooks.beforeAgentReply(event, ctx));
@@ -252,12 +375,24 @@ export function createPluginHandlers({
     return undefined;
   }
 
+  async function agentEnd(event, ctx) {
+    try {
+      return await hooks.agentEnd(event, ctx);
+    } finally {
+      const runId = runIdOf(event, ctx);
+      if (runId) {
+        inboundAttachments.delete(runId);
+      }
+    }
+  }
+
   return {
     beforeAgentReply,
-    beforePromptBuild: hooks.beforePromptBuild,
+    beforePromptBuild,
     beforeAgentRun: hooks.beforeAgentRun,
+    messageReceived,
     messageSent,
-    agentEnd: hooks.agentEnd,
+    agentEnd,
   };
 }
 
@@ -279,6 +414,12 @@ export default {
       priority: 100,
       timeoutMs: GATE_HOOK_TIMEOUT_MS,
     });
+    if (api?.runtime !== undefined) {
+      api.on("message_received", handlers.messageReceived, {
+        priority: 100,
+        timeoutMs: MESSAGE_HOOK_TIMEOUT_MS,
+      });
+    }
     if (typeof api?.runtime?.system?.runCommandWithTimeout === "function") {
       api.on("message_sent", handlers.messageSent, {
         priority: 100,

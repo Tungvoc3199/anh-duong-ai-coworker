@@ -9,6 +9,13 @@
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
-    "properties": {}
+    "properties": {
+      "coreBaseUrl": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2048,
+        "description": "Optional plugin-local Core endpoint override for isolated/shadow runtime validation. Secrets remain environment-managed."
+      }
+    }
   }
 }

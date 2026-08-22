@@ -78,7 +78,14 @@ function requireNullableString(value, requestId, options) {
   return value === null ? null : requireString(value, requestId, options);
 }
 
-export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey }) {
+export function buildCoreRequest({
+  prompt,
+  runId,
+  senderId,
+  chatId,
+  sessionKey,
+  attachments = [],
+}) {
   if (typeof prompt !== "string" || prompt.trim().length === 0 || prompt.length > 20_000) {
     throw validationError();
   }
@@ -107,6 +114,9 @@ export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey }
       ? { source_session_id: sessionKey }
       : {}),
     source_message_id: sourceMessageId,
+    ...(Array.isArray(attachments) && attachments.length > 0
+      ? { attachments: attachments.map((attachment) => ({ ...attachment })) }
+      : {}),
   };
 }
 
