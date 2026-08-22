@@ -7,10 +7,10 @@ Wants=network-online.target
 Type=simple
 User=thadc
 Group=thadc
-WorkingDirectory=/home/thadc/AIOS/anh-duong-core
+WorkingDirectory=/mnt/f/AIOS/anh-duong-core
 EnvironmentFile=/home/thadc/.config/anh-duong-core/.env
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/home/thadc/AIOS/anh-duong-core/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8790
+ExecStart=/mnt/f/AIOS/anh-duong-core/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8790
 Restart=always
 RestartSec=5
 TimeoutStopSec=20
