@@ -177,24 +177,6 @@ _ADVISORY_PHRASES = (
     "why",
     "advice",
 )
-_OPERATIONAL_ENTITY_PHRASES = (
-    "openclaw",
-    "docker",
-    "docker compose",
-    "wsl",
-    "systemd",
-    "9router",
-    "gateway",
-)
-_OPERATIONAL_QUERY_PHRASES = (
-    "o dau",
-    "dang chay",
-    "duong dan",
-    "path",
-    "where",
-    "which command",
-    "what command",
-)
 _GREETING_PATTERN = re.compile(
     r"^(?:xin chao|chao|chao buoi sang|hello|hi|hey|good morning|"
     r"good afternoon|good evening)"
@@ -228,18 +210,6 @@ class FastRouter:
             )
 
         advisory_request = self._is_advisory_request(normalized)
-        if self._is_operational_guidance_request(
-            normalized,
-            advisory_request,
-        ):
-            return RouteDecision(
-                route=FastRoute.WORKFLOW,
-                rule_id="routing.workflow.operational_guidance",
-                reason=(
-                    "Operational guidance requires runtime-verified workflow "
-                    "handling."
-                ),
-            )
         if (
             self._contains_any(normalized, _WORKFLOW_PHRASES)
             and (
@@ -311,19 +281,6 @@ class FastRouter:
     @classmethod
     def _is_advisory_request(cls, normalized: str) -> bool:
         return cls._contains_any(normalized, _ADVISORY_PHRASES)
-
-    @classmethod
-    def _is_operational_guidance_request(
-        cls,
-        normalized: str,
-        advisory_request: bool,
-    ) -> bool:
-        if not cls._contains_any(normalized, _OPERATIONAL_ENTITY_PHRASES):
-            return False
-        return advisory_request or cls._contains_any(
-            normalized,
-            _OPERATIONAL_QUERY_PHRASES,
-        )
 
     @classmethod
     def _has_sequential_execution_intent(cls, normalized: str) -> bool:
