@@ -19,7 +19,7 @@ Persona được nạp theo đúng thứ tự:
 ## Kiểm tra
 
 ```bash
-cd /mnt/f/AIOS/anh-duong-core
+cd /home/thadc/AIOS/anh-duong-core
 ./scripts/check_persona.sh
 pytest tests/unit/test_persona_loader.py tests/unit/test_persona_content.py -q
 ```

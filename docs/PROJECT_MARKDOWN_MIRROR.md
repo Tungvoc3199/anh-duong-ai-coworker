@@ -8,7 +8,7 @@ backup và kết nối với các công cụ như Obsidian.
 Mirror root vận hành:
 
 ```text
-/mnt/f/AIOS/anh-duong-data/projects
+/home/thadc/AIOS/anh-duong-data/projects
 ```
 
 Mỗi project dùng một thư mục theo slug:
@@ -67,7 +67,7 @@ from pathlib import Path
 from app.projects import ProjectMirror
 
 mirror = ProjectMirror(
-    Path("/mnt/f/AIOS/anh-duong-data/projects")
+    Path("/home/thadc/AIOS/anh-duong-data/projects")
 )
 project_dir = mirror.write_snapshot(project)
 ```
@@ -75,7 +75,7 @@ project_dir = mirror.write_snapshot(project)
 ## Kiểm tra
 
 ```bash
-cd /mnt/f/AIOS/anh-duong-core
+cd /home/thadc/AIOS/anh-duong-core
 source .venv/bin/activate
 
 ./scripts/check_project_mirror.sh

@@ -30,6 +30,21 @@ _SYSTEM_ACTION_SIGNALS = (
     "update",
     "deploy",
     "trien khai",
+    "mo",
+    "open",
+    "chay",
+    "run",
+    "kiem tra",
+    "check",
+    "xem",
+    "view",
+    "huong dan",
+    "cach",
+    "nhu nao",
+    "the nao",
+    "o dau",
+    "cho anh lenh",
+    "cho toi lenh",
 )
 _SYSTEM_TARGET_SIGNALS = (
     "runtime config",
@@ -44,6 +59,19 @@ _SYSTEM_TARGET_SIGNALS = (
     "he thong",
     "system",
     "runtime",
+    "openclaw",
+    "docker",
+    "docker compose",
+    "wsl",
+    "linux",
+    "container",
+    "gateway",
+    "9router",
+    "browser",
+    "chrome",
+    "cli",
+    "terminal",
+    "shell",
 )
 
 _EXTERNAL_INHERENT_SIGNALS = (
@@ -435,4 +463,3 @@ class CapabilityRouter:
             reason_code=reason_code,
             matched_signals=matched_signals,
         )
-
