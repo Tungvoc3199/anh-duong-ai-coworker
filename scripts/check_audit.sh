@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_ROOT="/home/thadc/AIOS/anh-duong-core"
+PROJECT_ROOT="/mnt/f/AIOS/anh-duong-core"
 STATE_DIR="/home/thadc/.local/state/anh-duong-core"
 AUDIT_FILE="${STATE_DIR}/audit-check.jsonl"
 
