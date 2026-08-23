@@ -4,7 +4,7 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STATE_DIR="/home/thadc/.local/state/anh-duong-core"
 CONFIG_DIR="/home/thadc/.config/anh-duong-core"
-DATA_DIR="/mnt/f/AIOS/anh-duong-data"
+DATA_DIR="/home/thadc/AIOS/anh-duong-data"
 
 mkdir -p "${STATE_DIR}" "${CONFIG_DIR}" "${DATA_DIR}"/{persona,policy,projects,memory}
 chmod 700 "${STATE_DIR}" "${CONFIG_DIR}"
