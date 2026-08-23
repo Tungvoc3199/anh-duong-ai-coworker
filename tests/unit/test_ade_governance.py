@@ -43,8 +43,19 @@ def test_container_core_path_denied_as_writable_workspace() -> None:
     assert result["reason"] == "GOVERNANCE_FAILURE"
 
 
-def test_valid_registered_worktree_accepted() -> None:
-    result = core.validate_workspace(ROOT, writable=True)
+def test_valid_registered_worktree_accepted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    worktree_root = tmp_path / "worktrees"
+    worktree = worktree_root / "candidate"
+    worktree.mkdir(parents=True)
+    (worktree / ".git").write_text(
+        f"gitdir: {core.PRODUCTION_CORE_ROOT}/.git/worktrees/candidate\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(core, "CORE_WORKTREE_ROOT", worktree_root)
+
+    result = core.validate_workspace(worktree, writable=True)
+
     assert result["status"] == "ALLOW"
     assert result["workspace_kind"] == "isolated_worktree"
 
