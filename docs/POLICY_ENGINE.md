@@ -43,7 +43,7 @@ print(decision.rule_id)
 ## Kiểm tra
 
 ```bash
-cd /home/thadc/AIOS/anh-duong-core
+cd /mnt/f/AIOS/anh-duong-core
 source .venv/bin/activate
 
 pytest \
