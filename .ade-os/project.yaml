@@ -7,5 +7,11 @@
   "service": "anh-duong-core.service",
   "health_endpoints": ["http://127.0.0.1:8790/health", "http://127.0.0.1:8790/ready"],
   "deprecated_paths": ["/mnt/f/AIOS/anh-duong-core"],
-  "protected_files": ["app/async_tasks/worker.py", "app/openclaw/executor.py", "tests/integration/test_async_task_worker.py", "tests/unit/test_openclaw_executor.py"]
+  "protected_files": ["app/async_tasks/worker.py", "app/openclaw/executor.py", "tests/integration/test_async_task_worker.py", "tests/unit/test_openclaw_executor.py"],
+  "ownership": {
+    "core": {"path": "/home/thadc/AIOS/anh-duong-core", "role": "canonical brain/governance"},
+    "openclaw": {"path": "/home/thadc/AIOS/openclaw", "role": "channel/execution/delivery"},
+    "9router": {"path": null, "role": "provider/model router"},
+    "ade_os": {"path": ".ade-os", "role": "engineering governance/control"}
+  }
 }
