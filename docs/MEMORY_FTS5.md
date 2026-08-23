@@ -105,7 +105,7 @@ results = repository.search_fts(
 ## Kiểm tra trên máy anh
 
 ```bash
-cd /mnt/f/AIOS/anh-duong-core
+cd /home/thadc/AIOS/anh-duong-core
 source .venv/bin/activate
 
 alembic upgrade head
