@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class OpenClawChecklistItem(BaseModel):
@@ -77,10 +77,7 @@ class OpenClawExecutionResult(BaseModel):
         value: object,
     ) -> object:
         if isinstance(value, dict) and "checklist" in value:
-            try:
-                return OpenClawWorkflowArtifacts.model_validate(value)
-            except ValidationError:
-                return value
+            return OpenClawWorkflowArtifacts.model_validate(value)
         return value
 
     @field_validator("verification", mode="before")
@@ -90,18 +87,15 @@ class OpenClawExecutionResult(BaseModel):
         value: object,
     ) -> object:
         required_keys = {
-            "method",
-            "commands_run",
-            "files_changed",
-            "config_changed",
-            "services_restarted",
-            "notes",
+                "method",
+                "commands_run",
+                "files_changed",
+                "config_changed",
+                "services_restarted",
+                "notes",
         }
         if isinstance(value, dict) and required_keys.issubset(value):
-            try:
-                return OpenClawWorkflowVerification.model_validate(value)
-            except ValidationError:
-                return value
+            return OpenClawWorkflowVerification.model_validate(value)
         return value
 
 

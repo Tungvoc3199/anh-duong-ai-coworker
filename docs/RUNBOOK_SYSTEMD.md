@@ -10,7 +10,7 @@
 ## Cài lần đầu
 
 ```bash
-cd /home/thadc/AIOS/anh-duong-core
+cd /mnt/f/AIOS/anh-duong-core
 chmod +x scripts/*.sh
 ./scripts/install_systemd.sh
 ```
