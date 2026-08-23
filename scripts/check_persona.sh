@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_ROOT="/home/thadc/AIOS/anh-duong-core"
+PROJECT_ROOT="/mnt/f/AIOS/anh-duong-core"
 cd "${PROJECT_ROOT}"
 source .venv/bin/activate
 

@@ -34,7 +34,7 @@ Mỗi transition hợp lệ:
 ## Kiểm tra
 
 ```bash
-cd /home/thadc/AIOS/anh-duong-core
+cd /mnt/f/AIOS/anh-duong-core
 source .venv/bin/activate
 
 ./scripts/check_projects.sh
