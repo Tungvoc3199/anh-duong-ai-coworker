@@ -4,7 +4,7 @@ Phase 0–1 foundation for the Python “brain” service.
 
 ## Runtime paths
 
-- Source: `/mnt/f/AIOS/anh-duong-core`
+- Source: `/home/thadc/AIOS/anh-duong-core`
 - SQLite URL: `sqlite+pysqlite:////home/thadc/.local/state/anh-duong-core/anh_duong.db`
 - Human-readable data mirror: `/mnt/f/AIOS/anh-duong-data`
 

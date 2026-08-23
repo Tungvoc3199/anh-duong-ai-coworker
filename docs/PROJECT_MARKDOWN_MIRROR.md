@@ -75,7 +75,7 @@ project_dir = mirror.write_snapshot(project)
 ## Kiểm tra
 
 ```bash
-cd /mnt/f/AIOS/anh-duong-core
+cd /home/thadc/AIOS/anh-duong-core
 source .venv/bin/activate
 
 ./scripts/check_project_mirror.sh

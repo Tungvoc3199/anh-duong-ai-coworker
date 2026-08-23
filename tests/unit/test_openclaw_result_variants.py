@@ -81,6 +81,17 @@ def _executor(payload: object) -> OpenClawExecutor:
             "Kết quả lồng nhau.",
         ),
         (
+            {
+                "status": "completed",
+                "result": {
+                    "status": "failed",
+                    "summary": "Agent báo lỗi thật sự.",
+                },
+            },
+            "failed",
+            "Agent báo lỗi thật sự.",
+        ),
+        (
             {"outcome": "provider_custom_state", "text": "Vẫn có final."},
             "failed",
             "Vẫn có final.",
