@@ -1,6 +1,0 @@
-ImportError while loading conftest '/workspaces/anh-duong-core/tests/conftest.py'.
-tests/conftest.py:11: in <module>
-    from app.db.session import create_db_engine
-app/db/session.py:11: in <module>
-    from app.config import get_settings
-E   PermissionError: [Errno 13] Permission denied: '/workspaces/anh-duong-core/app/config.py'

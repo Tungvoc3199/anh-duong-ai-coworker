@@ -26,32 +26,6 @@ def _request() -> OpenClawExecutionRequest:
         constraints=("Do not deploy",),
     )
 
-def _json_transport(
-    payload: object,
-    *,
-    response_id: str = "resp_1",
-) -> httpx.MockTransport:
-    def handler(_request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            200,
-            json={
-                "id": response_id,
-                "output": [
-                    {
-                        "type": "message",
-                        "content": [
-                            {
-                                "type": "output_text",
-                                "text": json.dumps(payload, ensure_ascii=False),
-                            }
-                        ],
-                    }
-                ],
-            },
-        )
-
-    return httpx.MockTransport(handler)
-
 
 @pytest.mark.asyncio
 async def test_executor_posts_openresponses_request() -> None:
@@ -294,38 +268,59 @@ async def test_executor_accepts_readonly_health_ready_result_objects() -> None:
     assert result.verification["health"]["status"] == "ok"
 
 @pytest.mark.asyncio
-async def test_executor_preserves_final_when_known_artifacts_are_partial() -> None:
-    payload = {
-        "outcome": "success",
-        "summary": "Đã làm xong và đây là báo cáo.",
-        "artifacts": {
-            "checklist": [
-                {
-                    "step": 1,
-                    "name": "Partial item from agent",
-                }
-            ]
-        },
-        "verification": {
-            "method": "static_review_only",
-            "commands_run": 0,
-            "files_changed": 0,
-            "config_changed": False,
-            "services_restarted": False,
-            "notes": "No commands were run.",
-        },
-    }
+async def test_executor_rejects_malformed_workflow_artifacts() -> None:
+    secret = "token-super-secret"
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "output": [
+                    {
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": json.dumps(
+                                    {
+                                        "outcome": "success",
+                                        "summary": secret,
+                                        "artifacts": {
+                                            "checklist": [
+                                                {
+                                                    "step": 1,
+                                                    "name": "Missing required fields",
+                                                }
+                                            ]
+                                        },
+                                        "verification": {
+                                            "method": "static_review_only",
+                                            "commands_run": 0,
+                                            "files_changed": 0,
+                                            "config_changed": False,
+                                            "services_restarted": False,
+                                            "notes": "No commands were run.",
+                                        },
+                                    }
+                                ),
+                            }
+                        ]
+                    }
+                ]
+            },
+        )
+
     executor = OpenClawExecutor(
         base_url="http://127.0.0.1:18789",
-        transport=_json_transport(payload),
+        transport=httpx.MockTransport(handler),
     )
 
-    result = await executor.execute(_request())
+    with pytest.raises(OpenClawTransportError) as captured:
+        await executor.execute(_request())
 
-    assert result.outcome == "completed"
-    assert result.summary == "Đã làm xong và đây là báo cáo."
-    assert isinstance(result.artifacts, dict)
-    assert result.artifacts["checklist"][0]["name"] == "Partial item from agent"
+    assert captured.value.code == "invalid_response_contract"
+    assert captured.value.retryable is False
+    assert captured.value.uncertain_side_effect is False
+    assert secret not in str(captured.value)
 
 
 @pytest.mark.asyncio
@@ -425,13 +420,42 @@ async def test_executor_normalizes_success_outcome_to_completed() -> None:
 
 
 @pytest.mark.asyncio
-async def test_executor_answer_only_json_becomes_completed_final_reply() -> None:
+async def test_executor_contains_invalid_result_contract() -> None:
+    secret = "token-super-secret"
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "output": [
+                    {
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": json.dumps(
+                                    {
+                                        "outcome": "unexpected_value",
+                                        "summary": secret,
+                                        "artifacts": [],
+                                        "verification": [],
+                                    }
+                                ),
+                            }
+                        ]
+                    }
+                ]
+            },
+        )
+
     executor = OpenClawExecutor(
         base_url="http://127.0.0.1:18789",
-        transport=_json_transport({"answer": "Em đã sửa xong, kiểm tra PASS."}),
+        transport=httpx.MockTransport(handler),
     )
 
-    result = await executor.execute(_request())
+    with pytest.raises(OpenClawTransportError) as captured:
+        await executor.execute(_request())
 
-    assert result.outcome == "completed"
-    assert result.summary == "Em đã sửa xong, kiểm tra PASS."
+    assert captured.value.code == "invalid_response_contract"
+    assert captured.value.retryable is False
+    assert captured.value.uncertain_side_effect is False
+    assert secret not in str(captured.value)

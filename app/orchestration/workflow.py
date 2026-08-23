@@ -29,24 +29,6 @@ _STATUS_CHECK_MARKERS = (
     "/ready",
 )
 
-_OPERATIONAL_GUIDANCE_MARKERS = (
-    "hướng dẫn",
-    "cách",
-    "thế nào",
-    "như nào",
-    "cho anh lệnh",
-    "cho tôi lệnh",
-    "nói anh cách",
-    "nói tôi cách",
-    "ở đâu",
-    "how to",
-    "guide me",
-    "tell me how",
-    "where is",
-    "which command",
-    "what command",
-)
-
 
 class WorkflowResolver:
     """Build an async envelope without delegating policy to OpenClaw."""
@@ -150,28 +132,6 @@ class WorkflowResolver:
             and has_no_config_change
             and has_no_restart
         )
-        has_operational_guidance = (
-            capability is CapabilityKind.SYSTEM_OPERATION
-            and any(
-                marker in folded
-                for marker in _OPERATIONAL_GUIDANCE_MARKERS
-            )
-        )
-        if has_operational_guidance:
-            return (
-                "view_status",
-                RiskLevel.READ_ONLY,
-                (
-                    "read_only",
-                    "verify_runtime_before_guidance",
-                    "no_unverified_operational_commands",
-                    "no_file_changes",
-                    "no_config_changes",
-                    "no_service_restart",
-                    "no_package_install",
-                    "no_deploy",
-                ),
-            )
         if (
             has_legacy_read_only_boundaries and has_no_restart
         ) or has_bounded_no_side_effect or has_read_only_status_check:
