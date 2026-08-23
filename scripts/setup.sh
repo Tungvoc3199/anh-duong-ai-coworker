@@ -12,7 +12,6 @@ chmod 700 "${STATE_DIR}" "${CONFIG_DIR}"
 cd "${PROJECT_ROOT}"
 python3.12 -m venv .venv
 source .venv/bin/activate
-python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 
 if [[ ! -f "${CONFIG_DIR}/.env" ]]; then

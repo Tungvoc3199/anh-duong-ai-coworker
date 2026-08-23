@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-ROOT = Path("/home/thadc/AIOS/anh-duong-core")
+ROOT = Path(__file__).resolve().parents[2]
 BACKUP = Path("/mnt/f/AIOS/anh-duong-checkpoints/ADE-OS-backup-20260806T174329Z")
 ARTIFACTS = Path("/mnt/f/AIOS/anh-duong-checkpoints")
 PROTECTED = (
@@ -45,10 +45,21 @@ def copy_path(source: Path, target: Path) -> None:
     else: shutil.copy2(source, target)
 
 def files(root: Path) -> dict[str, str]:
-    return {str(path.relative_to(root)): digest(path) for path in sorted(root.rglob("*")) if path.is_file()}
+    return {
+        str(path.relative_to(root)): digest(path)
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
 
 def untracked(root: Path) -> tuple[str, ...]:
-    completed = subprocess.run(["git", "status", "--porcelain=v1", "--untracked-files=all"], cwd=root, check=True, capture_output=True, text=True)
+    completed = subprocess.run(
+        ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     return tuple(line[3:] for line in completed.stdout.splitlines() if line.startswith("?? "))
 
 def allowed_untracked(path: str) -> bool:

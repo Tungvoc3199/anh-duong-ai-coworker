@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_ROOT="/home/thadc/AIOS/anh-duong-core"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CHECK_ROOT="$(mktemp -d /tmp/anh-duong-project-mirror.XXXXXX)"
 
 cleanup() {
@@ -12,7 +12,7 @@ trap cleanup EXIT
 cd "${PROJECT_ROOT}"
 source .venv/bin/activate
 
-CHECK_ROOT="${CHECK_ROOT}" python - <<'PY'
+CHECK_ROOT="${CHECK_ROOT}" PROJECT_ROOT="${PROJECT_ROOT}" python - <<'PY'
 import os
 from datetime import UTC, datetime
 from pathlib import Path
@@ -32,7 +32,7 @@ project = Project(
     status=ProjectStatus.ACTIVE,
     priority=ProjectPriority.HIGH,
     path_windows=r"F:\AIOS\anh-duong-core",
-    path_wsl="/home/thadc/AIOS/anh-duong-core",
+    path_wsl=os.environ["PROJECT_ROOT"],
     repo_url=None,
     current_phase="Phase 3",
     owner="user",

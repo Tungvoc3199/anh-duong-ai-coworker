@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_ROOT="/home/thadc/AIOS/anh-duong-core"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STATE_DIR="/home/thadc/.local/state/anh-duong-core"
 CHECK_DB="${STATE_DIR}/memory-fts-check.db"
 CHECK_URL="sqlite+pysqlite:////home/thadc/.local/state/anh-duong-core/memory-fts-check.db"

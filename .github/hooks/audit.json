@@ -3,16 +3,16 @@
     "PreToolUse": [
       {
         "type": "command",
-        "command": "/home/thadc/AIOS/anh-duong-core/.venv/bin/python /home/thadc/AIOS/anh-duong-core/scripts/agent/audit_hook.py",
-        "cwd": "/home/thadc/AIOS/anh-duong-core",
+        "command": "/home/thadc/AIOS/releases/anh-duong-core/current/.venv/bin/python /home/thadc/AIOS/releases/anh-duong-core/current/scripts/agent/audit_hook.py",
+        "cwd": "/home/thadc/AIOS/releases/anh-duong-core/current",
         "timeout": 10
       }
     ],
     "PostToolUse": [
       {
         "type": "command",
-        "command": "/home/thadc/AIOS/anh-duong-core/.venv/bin/python /home/thadc/AIOS/anh-duong-core/scripts/agent/audit_hook.py",
-        "cwd": "/home/thadc/AIOS/anh-duong-core",
+        "command": "/home/thadc/AIOS/releases/anh-duong-core/current/.venv/bin/python /home/thadc/AIOS/releases/anh-duong-core/current/scripts/agent/audit_hook.py",
+        "cwd": "/home/thadc/AIOS/releases/anh-duong-core/current",
         "timeout": 10
       }
     ]
