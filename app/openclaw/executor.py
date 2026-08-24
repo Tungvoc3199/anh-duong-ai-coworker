@@ -212,9 +212,13 @@ class OpenClawExecutor:
         self,
         request: OpenClawExecutionRequest,
     ) -> OpenClawExecutionResult:
+        effective_ws = (
+            request.governed_coding.workspace
+            if request.governed_coding is not None and request.governed_coding.workspace
+            else request.workspace
+        )
         if request.governed_coding is not None:
-            raw_ws = request.workspace or request.governed_coding.workspace
-            mapped_ws = self._gateway_workspace(raw_ws)
+            mapped_ws = self._gateway_workspace(effective_ws)
             if mapped_ws in {
                 "/workspaces/anh-duong-core",
                 "/home/thadc/AIOS/anh-duong-core",
@@ -234,7 +238,7 @@ class OpenClawExecutor:
             headers["Authorization"] = f"Bearer {self.auth_token}"
 
         gateway_request = request.model_copy(
-            update={"workspace": self._gateway_workspace(request.workspace)}
+            update={"workspace": self._gateway_workspace(effective_ws)}
         )
 
         payload = {

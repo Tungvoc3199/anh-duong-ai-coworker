@@ -12,7 +12,7 @@ from app.async_tasks.models import (
 )
 from app.async_tasks.repository import AsyncTaskRepository
 from app.audit import AuditWriter
-from app.openclaw import OpenClawTransportError
+from app.openclaw.errors import OpenClawTransportError
 
 MAX_NOTIFICATION_ATTEMPTS = 5
 

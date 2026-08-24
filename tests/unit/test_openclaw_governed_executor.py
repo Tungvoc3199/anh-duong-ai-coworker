@@ -41,7 +41,13 @@ def _assignment() -> CodingAssignment:
 def _governed_request(
     *,
     workspace: str | None = None,
+    governed_workspace: str | None = None,
 ) -> OpenClawExecutionRequest:
+    assignment = _assignment()
+    if governed_workspace is not None:
+        assignment = assignment.model_copy(update={"workspace": governed_workspace})
+    elif workspace is not None:
+        assignment = assignment.model_copy(update={"workspace": workspace})
     return OpenClawExecutionRequest(
         task_id="task_gov",
         run_id="run_gov",
@@ -52,7 +58,7 @@ def _governed_request(
         mode="build",
         workspace=workspace,
         constraints=("no_deploy",),
-        governed_coding=_assignment(),
+        governed_coding=assignment,
     )
 
 
@@ -258,3 +264,65 @@ async def test_executor_leaves_plain_results_without_governance() -> None:
 
     assert result.outcome == "completed"
     assert result.governance_result is None
+
+
+@pytest.mark.asyncio
+async def test_executor_prefers_governed_workspace_over_project_workspace() -> None:
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        captured["input"] = json.loads(body["input"])
+        return httpx.Response(
+            200,
+            json={
+                "id": "resp_gov_pref",
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": json.dumps(
+                                    {
+                                        "outcome": "success",
+                                        "summary": "Governed coding task complete.",
+                                        "governance_result": {
+                                            "status": "success",
+                                            "changed_files": ["app/example.py"],
+                                            "commit_sha": "c" * 40,
+                                            "test_summary": "1 passed",
+                                            "reviewer_outcome": "APPROVED",
+                                            "review_notes": "LGTM",
+                                            "manifest_digest": "b" * 64,
+                                            "failure_classification": "NONE",
+                                            "attempt_count": 1,
+                                        },
+                                    }
+                                ),
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+
+    executor = _executor(httpx.MockTransport(handler))
+    result = await executor.execute(
+        OpenClawExecutionRequest(
+            task_id="task_pref",
+            run_id="run_pref",
+            attempt=1,
+            idempotency_key="run_pref:1",
+            project_id="proj_pref",
+            goal="Implement governed change.",
+            mode="build",
+            workspace="/home/thadc/AIOS/anh-duong-core",
+            constraints=("no_deploy",),
+            governed_coding=_assignment(),
+        )
+    )
+
+    assert result.outcome == "completed"
+    request_payload = cast(dict[str, Any], captured["input"])
+    assert request_payload["workspace"] == "/home/thadc/AIOS/anh-duong-core.worktrees/exec-1"

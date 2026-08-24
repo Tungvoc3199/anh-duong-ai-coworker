@@ -19,11 +19,13 @@ from app.async_tasks.policy import (
 )
 from app.async_tasks.repository import AsyncTaskRepository
 from app.audit import AuditWriter
-from app.openclaw import (
-    OpenClawExecutionRequest,
-    OpenClawExecutionResult,
-    OpenClawTransportError,
-)
+from app.openclaw.errors import OpenClawTransportError
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from app.openclaw.models import (
+        OpenClawExecutionRequest,
+        OpenClawExecutionResult,
+    )
 from app.orchestration.coding_governance import (
     GovernanceContractError,
     validate_coding_completion,
@@ -168,6 +170,7 @@ class AsyncTaskWorker:
             )
             return True
 
+        from app.openclaw.models import OpenClawExecutionRequest
         execution_request = OpenClawExecutionRequest(
             task_id=run.task_id,
             run_id=run.id,
@@ -256,6 +259,7 @@ class AsyncTaskWorker:
                 "Ánh Dương Core bằng kiểm tra read-only nội bộ."
             )
         )
+        from app.openclaw.models import OpenClawExecutionResult
         return OpenClawExecutionResult(
             outcome=outcome,
             summary=summary,
