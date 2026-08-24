@@ -238,6 +238,9 @@ export function buildAsyncTaskCreate(prepared) {
     idempotency_key: workflow.idempotency_key,
     correlation_id: workflow.correlation_id,
     constraints: workflow.constraints,
+    ...(workflow.governed_coding !== undefined
+      ? { governed_coding: workflow.governed_coding }
+      : {}),
   };
 }
 
