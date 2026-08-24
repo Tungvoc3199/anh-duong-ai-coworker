@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from app.async_tasks import AsyncTaskCreate
 from app.audit import AuditEvent
 from app.capabilities import CapabilityKind, CapabilityRouter
 from app.context_builder import ContextBuilder, ContextSectionKind
@@ -570,6 +571,38 @@ def test_explicit_execution_requests_create_workflow(text: str) -> None:
     assert prepared.route_decision.route is FastRoute.WORKFLOW
     assert prepared.execution_required is True
     assert prepared.workflow is not None
+
+
+def test_code_operation_workflow_carries_governed_async_assignment() -> None:
+    project = _project()
+    prepared = _pipeline(
+        project_reader=ProjectReader((project,)),
+    ).prepare(
+        CoreRequest(
+            text="Fix the bug in app/parser.py and run tests.",
+            request_id="ad-l5-05-bridge",
+            channel="telegram",
+            actor="telegram:user",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id="message-42",
+        )
+    )
+
+    assert prepared.workflow is not None
+    assert prepared.capability_decision.capability is CapabilityKind.CODE_OPERATION
+    assignment = prepared.workflow.governed_coding
+    assert assignment is not None
+    assert assignment.checkpoint_id == "AD-L5-05"
+    assert assignment.correlation_id == prepared.request_id
+    assert assignment.workspace.endswith(
+        "anh-duong-core.worktrees/ad-l5-05"
+    )
+    assert "/anh-duong-core.worktrees/" in assignment.workspace
+
+    async_request = AsyncTaskCreate.from_prepared_request(prepared)
+    assert async_request.governed_coding == assignment
+    assert async_request.correlation_id == prepared.request_id
 
 
 @pytest.mark.parametrize(

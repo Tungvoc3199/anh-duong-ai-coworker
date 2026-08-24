@@ -1,9 +1,14 @@
+from __future__ import annotations
+
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
-from app.async_tasks.models import AsyncTaskCreate, AsyncTaskMode
 from app.policy.path_scope import WorkspacePathPolicy
+
+if TYPE_CHECKING:
+    from app.async_tasks.models import AsyncTaskCreate
 
 
 SAFE_STEPS_WITHOUT_APPROVAL: tuple[str, ...] = (
@@ -56,7 +61,7 @@ class AsyncTaskPolicyGate:
             )
 
         if (
-            request.mode is AsyncTaskMode.BUILD
+            str(request.mode) == "build"
             and request.workspace is None
         ):
             return AsyncPolicyDecision(

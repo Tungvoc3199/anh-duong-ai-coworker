@@ -27,6 +27,9 @@ from app.async_tasks import (
     NotificationStatus,
 )
 from app.audit import AuditWriter
+from app.capabilities.models import CapabilityKind
+from app.capabilities.router import CapabilityRouter
+from app.routing.fast_router import FastRouter
 from app.tasks import (
     TaskRepository,
     TaskService,
@@ -117,6 +120,21 @@ def create_async_task(
                 "tasks."
             ),
         )
+
+    if payload.governed_coding is None:
+        fast_route_decision = FastRouter().route(payload.goal)
+        capability_decision = CapabilityRouter().route(
+            fast_route_decision,
+            payload.goal,
+        )
+        if capability_decision.capability is CapabilityKind.CODE_OPERATION:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    "Code operation tasks require a governed_coding "
+                    "assignment in an isolated worktree."
+                ),
+            )
 
     with _session(request) as session:
         service = AsyncTaskService(

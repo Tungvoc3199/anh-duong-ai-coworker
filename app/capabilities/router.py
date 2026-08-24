@@ -127,6 +127,7 @@ _CODE_ACTION_SIGNALS = (
     "write",
     "sua",
     "edit",
+    "fix",
     "cap nhat",
     "update",
     "tao",

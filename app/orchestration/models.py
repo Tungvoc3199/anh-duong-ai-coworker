@@ -13,6 +13,7 @@ from pydantic import (
 
 from app.capabilities.models import CapabilityDecision
 from app.context_builder.models import ContextBundle
+from app.orchestration.coding_governance import CodingAssignment
 from app.policy import DecisionKind, RiskLevel
 from app.routing.models import RouteDecision
 
@@ -115,6 +116,7 @@ class WorkflowEnvelope(BaseModel):
     policy_decision: DecisionKind
     policy_rule_id: str = Field(min_length=1, max_length=128)
     policy_reason: str = Field(min_length=1, max_length=2000)
+    governed_coding: CodingAssignment | None = None
 
 
 class PreparedRequest(BaseModel):

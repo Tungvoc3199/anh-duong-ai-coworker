@@ -24,6 +24,10 @@ from app.openclaw import (
     OpenClawExecutionResult,
     OpenClawTransportError,
 )
+from app.orchestration.coding_governance import (
+    GovernanceContractError,
+    validate_coding_completion,
+)
 from app.tasks import TaskRepository, TaskService, TaskStatus
 
 RETRY_DELAYS_SECONDS = (5, 30)
@@ -83,6 +87,32 @@ class AsyncTaskWorker:
             request = AsyncTaskCreate.model_validate_json(
                 run.request_json
             )
+
+            if request.governed_coding is not None:
+                try:
+                    request.governed_coding.validate_workspace()
+                except GovernanceContractError as error:
+                    repository.transition(
+                        run.id,
+                        AsyncRunStatus.BLOCKED,
+                        now=now,
+                        error_code="governance_contract_violation",
+                        error_message=str(error),
+                    )
+                    task_service.transition(
+                        task.id,
+                        TaskStatus.BLOCKED,
+                        result_summary=str(error),
+                    )
+                    self._mark_terminal_notification(
+                        repository,
+                        run.id,
+                        run.source_chat_id,
+                        now,
+                    )
+                    session.commit()
+                    return True
+
             decision = self.policy_gate.evaluate(request)
 
             if not decision.allowed:
@@ -148,6 +178,7 @@ class AsyncTaskWorker:
             mode=request.mode.value,
             workspace=request.workspace,
             constraints=self._execution_constraints(request),
+            governed_coding=request.governed_coding,
         )
 
         try:
@@ -369,6 +400,69 @@ class AsyncTaskWorker:
                 return
 
             task_service = self._task_service(session)
+            request = AsyncTaskCreate.model_validate_json(
+                current.request_json
+            )
+
+            # Completion gate for governed coding assignments
+            if request.governed_coding is not None:
+                if result.outcome == "completed":
+                    if result.governance_result is None:
+                        err_code = "governance_result_missing"
+                        err_msg = "Completed governed coding run missing governance_result."
+                        repository.transition(
+                            run_id,
+                            AsyncRunStatus.BLOCKED,
+                            now=now,
+                            result_json=result_json,
+                            external_run_id=result.external_run_id,
+                            error_code=err_code,
+                            error_message=err_msg,
+                        )
+                        task_service.transition(
+                            task_id,
+                            TaskStatus.BLOCKED,
+                            result_summary=err_msg,
+                        )
+                        self._mark_terminal_notification(
+                            repository,
+                            run_id,
+                            current.source_chat_id,
+                            now,
+                        )
+                        session.commit()
+                        return
+                    try:
+                        validate_coding_completion(
+                            request.governed_coding,
+                            result.governance_result,
+                        )
+                    except GovernanceContractError as error:
+                        err_code = "governance_contract_violation"
+                        err_msg = str(error)
+                        repository.transition(
+                            run_id,
+                            AsyncRunStatus.BLOCKED,
+                            now=now,
+                            result_json=result_json,
+                            external_run_id=result.external_run_id,
+                            error_code=err_code,
+                            error_message=err_msg,
+                        )
+                        task_service.transition(
+                            task_id,
+                            TaskStatus.BLOCKED,
+                            result_summary=err_msg,
+                        )
+                        self._mark_terminal_notification(
+                            repository,
+                            run_id,
+                            current.source_chat_id,
+                            now,
+                        )
+                        session.commit()
+                        return
+
             repository.transition(
                 run_id,
                 AsyncRunStatus.VERIFYING,

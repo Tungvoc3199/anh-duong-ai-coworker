@@ -13,6 +13,7 @@ from app.openclaw.models import (
     OpenClawExecutionResult,
     OpenClawTransportError,
 )
+from app.orchestration.coding_governance import CodingResultContract
 
 
 class OpenClawExecutor:
@@ -211,6 +212,20 @@ class OpenClawExecutor:
         self,
         request: OpenClawExecutionRequest,
     ) -> OpenClawExecutionResult:
+        if request.governed_coding is not None:
+            raw_ws = request.workspace or request.governed_coding.workspace
+            mapped_ws = self._gateway_workspace(raw_ws)
+            if mapped_ws in {
+                "/workspaces/anh-duong-core",
+                "/home/thadc/AIOS/anh-duong-core",
+                "/mnt/f/AIOS/anh-duong-core",
+            }:
+                raise OpenClawTransportError(
+                    "governance_contract_violation",
+                    "Governed coding execution cannot target the production workspace.",
+                    retryable=False,
+                )
+
         headers = {
             "Content-Type": "application/json",
             "Idempotency-Key": request.idempotency_key,
@@ -344,6 +359,13 @@ class OpenClawExecutor:
             value = normalized.get(key)
             if value is not None and not isinstance(value, str):
                 normalized[key] = str(value)
+
+        gov_res = normalized.get("governance_result")
+        if isinstance(gov_res, dict):
+            try:
+                normalized["governance_result"] = CodingResultContract.model_validate(gov_res)
+            except ValidationError:
+                normalized["governance_result"] = None
 
         redacted = self.redactor.redact(normalized)
         if isinstance(redacted, dict):

@@ -12,6 +12,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.orchestration.coding_governance import CodingAssignment
 from app.tasks.models import TaskPriority
 
 
@@ -122,6 +123,33 @@ class AsyncTaskCreate(BaseModel):
     )
     deadline: datetime | None = None
     constraints: tuple[str, ...] = ()
+    governed_coding: CodingAssignment | None = None
+
+    @classmethod
+    def from_prepared_request(cls, prepared: object) -> AsyncTaskCreate:
+        """Build a durable async task from a Core-prepared workflow envelope."""
+        workflow = getattr(prepared, "workflow", None)
+        if workflow is None:
+            raise ValueError("prepared request does not require async execution")
+        return cls(
+            project_id=workflow.project_id,
+            title=workflow.title,
+            goal=workflow.goal,
+            mode=workflow.mode,
+            priority=workflow.priority,
+            risk_level=int(workflow.risk_level),
+            approval_required=workflow.approval_required,
+            workspace=workflow.workspace,
+            requested_by=workflow.requested_by,
+            source_channel=workflow.source_channel,
+            source_chat_id=workflow.source_chat_id,
+            source_session_id=workflow.source_session_id,
+            source_message_id=workflow.source_message_id,
+            correlation_id=workflow.correlation_id,
+            idempotency_key=workflow.idempotency_key,
+            constraints=workflow.constraints,
+            governed_coding=workflow.governed_coding,
+        )
 
     @field_validator(
         "project_id",

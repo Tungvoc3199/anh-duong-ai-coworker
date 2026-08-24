@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from app.capabilities import CapabilityKind
+from app.orchestration.coding_governance import build_coding_assignment
 from app.orchestration.errors import WorkflowPreparationFailed
 from app.orchestration.models import CoreRequest, WorkflowEnvelope
 from app.policy import DecisionKind, PolicyAction, PolicyEngine, RiskLevel
@@ -92,6 +93,18 @@ class WorkflowResolver:
         constraints = tuple(
             self._stringify(item) for item in project.constraints
         ) + safety_constraints
+        governed_coding = (
+            build_coding_assignment(
+                checkpoint_id="AD-L5-05",
+                correlation_id=request_id,
+                project_workspace=project.path_wsl,
+                constraints=constraints,
+                approval_required=decision.kind is not DecisionKind.ALLOW,
+            )
+            if capability is CapabilityKind.CODE_OPERATION
+            and project.path_wsl is not None
+            else None
+        )
         return WorkflowEnvelope(
             project_id=project.id,
             title=normalized_text[:255],
@@ -116,6 +129,7 @@ class WorkflowResolver:
             policy_decision=decision.kind,
             policy_rule_id=decision.rule_id,
             policy_reason=decision.reason,
+            governed_coding=governed_coding,
         )
 
     @staticmethod

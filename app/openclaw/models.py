@@ -4,6 +4,11 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from app.orchestration.coding_governance import (
+    CodingAssignment,
+    CodingResultContract,
+)
+
 
 class OpenClawChecklistItem(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -43,6 +48,7 @@ class OpenClawExecutionRequest(BaseModel):
     mode: Literal["quick", "build"]
     workspace: str | None = None
     constraints: tuple[str, ...] = ()
+    governed_coding: CodingAssignment | None = None
 
 
 class OpenClawExecutionResult(BaseModel):
@@ -69,6 +75,7 @@ class OpenClawExecutionResult(BaseModel):
     duration_ms: int | None = Field(default=None, ge=0)
     error_code: str | None = None
     external_run_id: str | None = None
+    governance_result: CodingResultContract | None = None
 
     @field_validator("artifacts", mode="before")
     @classmethod
