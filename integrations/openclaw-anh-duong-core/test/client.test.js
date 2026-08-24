@@ -122,6 +122,33 @@ test("request mapping emits only the strict Core contract and pseudonymizes acto
   );
 });
 
+test("request mapping carries explicit attachment facts for Core", () => {
+  const request = buildCoreRequest({
+    prompt: "File đây nhé",
+    runId: "run-attachment",
+    senderId: "sender",
+    attachments: [
+      {
+        index: 0,
+        kind: "document",
+        filename: "a.docx",
+        local_ref: "/tmp/openclaw/a.docx",
+        staged: true,
+      },
+    ],
+  });
+
+  assert.deepEqual(request.attachments, [
+    {
+      index: 0,
+      kind: "document",
+      filename: "a.docx",
+      local_ref: "/tmp/openclaw/a.docx",
+      staged: true,
+    },
+  ]);
+});
+
 test("oversized run IDs become bounded deterministic correlations", () => {
   const first = buildCoreRequest({ prompt: "hello", runId: "x".repeat(300), senderId: undefined });
   const second = buildCoreRequest({ prompt: "hello", runId: "x".repeat(300), senderId: undefined });

@@ -25,6 +25,34 @@ test("enabled integration normalizes a valid finite configuration", () => {
   });
 });
 
+test("plugin-local coreBaseUrl overrides only the Core endpoint", () => {
+  assert.deepEqual(
+    readCoreConfig(VALID_ENV, {
+      coreBaseUrl: "http://host.docker.internal:8791/",
+    }),
+    {
+      enabled: true,
+      baseUrl: "http://host.docker.internal:8791",
+      token: "unit-test-secret",
+      timeoutMs: 10_000,
+    },
+  );
+});
+
+test("plugin-local coreBaseUrl cannot contain credentials or a path", () => {
+  for (const coreBaseUrl of [
+    "http://user:pass@host.docker.internal:8791/",
+    "http://host.docker.internal:8791/api",
+  ]) {
+    assert.throws(
+      () => readCoreConfig(VALID_ENV, { coreBaseUrl }),
+      (error) =>
+        error?.name === "CoreIntegrationError" &&
+        error?.failureClass === "configuration",
+    );
+  }
+});
+
 for (const [name, override] of [
   ["missing enabled flag", { ANH_DUONG_CORE_ENABLED: undefined }],
   ["invalid enabled flag", { ANH_DUONG_CORE_ENABLED: "yes" }],

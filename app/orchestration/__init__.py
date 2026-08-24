@@ -7,6 +7,7 @@ from app.orchestration.errors import (
     WorkflowPreparationFailed,
 )
 from app.orchestration.models import (
+    AttachmentFact,
     CoreRequest,
     PersonaReference,
     PreparedRequest,
@@ -21,6 +22,7 @@ from app.orchestration.pipeline import (
 from app.orchestration.wiring import create_core_request_pipeline
 
 __all__ = [
+    "AttachmentFact",
     "CoreRequest",
     "CoreRequestPipeline",
     "CoreRequestPipelineError",

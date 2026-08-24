@@ -1,0 +1,336 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { createPluginHandlers } from "../index.js";
+
+const ENV = {
+  ANH_DUONG_CORE_ENABLED: "true",
+  ANH_DUONG_CORE_BASE_URL: "http://core.local:8790",
+  ANH_DUONG_CORE_INTERNAL_TOKEN: "attachment-test-token",
+  ANH_DUONG_CORE_TIMEOUT_SECONDS: "1",
+};
+
+const DOCX_MIME =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+function preparedFixture(requestId) {
+  return {
+    request_id: requestId,
+    normalized_text: "File đây nhé",
+    persona: { version: "1", content_hash: "a".repeat(64) },
+    route_decision: {
+      route: "direct",
+      rule_id: "routing.direct.attachment_context",
+      reason: "attachment context",
+    },
+    capability_decision: {
+      capability: "conversational_response",
+      source_route: "direct",
+      reason_code: "attachment_context",
+      matched_signals: [],
+    },
+    context: { rendered_context: "prepared attachment context" },
+    project_id: null,
+    task_id: null,
+    execution_required: false,
+    workflow: null,
+    warnings: [],
+    provenance: {
+      persona_version: "1",
+      persona_content_hash: "a".repeat(64),
+      route_rule_id: "routing.direct.attachment_context",
+      capability_reason_code: "attachment_context",
+      project_version: null,
+      task_version: null,
+      context_source_refs: ["attachment:0"],
+    },
+    created_at: "2026-08-13T09:00:00Z",
+  };
+}
+
+function createRecordingHandlers(bodies) {
+  return createPluginHandlers({
+    api: { logger: {} },
+    env: ENV,
+    fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      bodies.push(body);
+      return new Response(JSON.stringify(preparedFixture(body.request_id)), { status: 200 });
+    },
+  });
+}
+
+test("message_received media facts are injected into the same Core prepare request only", async () => {
+  const bodies = [];
+  const handlers = createRecordingHandlers(bodies);
+
+  await handlers.messageReceived(
+    {
+      from: "telegram:user",
+      content: "File đây nhé",
+      messageId: "msg-1",
+      runId: "run-1",
+      sessionKey: "session-1",
+      metadata: {
+        mediaPath: "/tmp/openclaw/a.docx",
+        mediaUrl: "media://telegram/a",
+        mediaType: DOCX_MIME,
+      },
+    },
+    {
+      channelId: "telegram",
+      runId: "run-1",
+      sessionKey: "session-1",
+      messageId: "msg-1",
+    },
+  );
+
+  await handlers.beforePromptBuild(
+    { prompt: "File đây nhé", messages: [] },
+    {
+      messageProvider: "telegram",
+      runId: "run-1",
+      sessionKey: "session-1",
+      senderId: "sender-1",
+      chatId: "chat-1",
+    },
+  );
+
+  assert.equal(bodies.length, 1);
+  assert.equal(bodies[0].attachments.length, 1);
+  assert.equal(bodies[0].attachments[0].kind, "document");
+  assert.equal(bodies[0].attachments[0].filename, "a.docx");
+  assert.equal(bodies[0].attachments[0].local_ref, "/tmp/openclaw/a.docx");
+
+  await handlers.beforePromptBuild(
+    { prompt: "alo", messages: [] },
+    {
+      messageProvider: "telegram",
+      runId: "run-2",
+      sessionKey: "session-1",
+      senderId: "sender-1",
+      chatId: "chat-1",
+    },
+  );
+
+  assert.equal(bodies.length, 2);
+  assert.equal("attachments" in bodies[1], false);
+});
+
+test("session correlation carries attachment when message_received has no run id", async () => {
+  const bodies = [];
+  const handlers = createRecordingHandlers(bodies);
+
+  await handlers.messageReceived(
+    {
+      from: "telegram:user",
+      content: "File đây nhé",
+      messageId: "msg-no-run",
+      sessionKey: "session-no-run",
+      metadata: {
+        mediaPath: "/tmp/openclaw/no-run.docx",
+        mediaType: DOCX_MIME,
+      },
+    },
+    {
+      channelId: "telegram",
+      sessionKey: "session-no-run",
+      messageId: "msg-no-run",
+    },
+  );
+
+  await handlers.beforePromptBuild(
+    { prompt: "File đây nhé", messages: [] },
+    {
+      messageProvider: "telegram",
+      runId: "run-created-later",
+      sessionKey: "session-no-run",
+      senderId: "sender-1",
+      chatId: "chat-1",
+    },
+  );
+
+  assert.equal(bodies.length, 1);
+  assert.equal(bodies[0].attachments.length, 1);
+  assert.equal(bodies[0].attachments[0].filename, "no-run.docx");
+
+  await handlers.beforePromptBuild(
+    { prompt: "alo", messages: [] },
+    {
+      messageProvider: "telegram",
+      runId: "run-next",
+      sessionKey: "session-no-run",
+      senderId: "sender-1",
+      chatId: "chat-1",
+    },
+  );
+
+  assert.equal(bodies.length, 2);
+  assert.equal("attachments" in bodies[1], false);
+});
+
+test("message_received pending original media metadata is injected into Core request", async () => {
+  const bodies = [];
+  const handlers = createRecordingHandlers(bodies);
+
+  await handlers.messageReceived(
+    {
+      from: "telegram:user",
+      content: "File đang chờ staging",
+      messageId: "msg-pending-original",
+      runId: "run-pending-original",
+      sessionKey: "session-pending-original",
+      metadata: {
+        originalMediaPaths: ["/provider/not-local/pending.docx"],
+        originalMediaUrls: ["media://telegram/pending-original"],
+        originalMediaTypes: [DOCX_MIME],
+        mediaStagingPending: true,
+      },
+    },
+    {
+      channelId: "telegram",
+      runId: "run-pending-original",
+      sessionKey: "session-pending-original",
+      messageId: "msg-pending-original",
+    },
+  );
+
+  await handlers.beforePromptBuild(
+    { prompt: "File đang chờ staging", messages: [] },
+    {
+      messageProvider: "telegram",
+      runId: "run-pending-original",
+      sessionKey: "session-pending-original",
+      senderId: "sender-1",
+      chatId: "chat-1",
+    },
+  );
+
+  assert.equal(bodies.length, 1);
+  assert.equal(bodies[0].attachments.length, 1);
+  assert.equal(bodies[0].attachments[0].kind, "document");
+  assert.equal(bodies[0].attachments[0].provider_ref, "media://telegram/pending-original");
+  assert.equal(bodies[0].attachments[0].staged, false);
+  assert.equal("local_ref" in bodies[0].attachments[0], false);
+});
+
+test("message_received pending original media metadata without URL omits path refs", async () => {
+  const bodies = [];
+  const handlers = createRecordingHandlers(bodies);
+
+  await handlers.messageReceived(
+    {
+      from: "telegram:user",
+      content: "File đang chờ staging",
+      messageId: "msg-pending-original-no-url",
+      runId: "run-pending-original-no-url",
+      sessionKey: "session-pending-original-no-url",
+      metadata: {
+        originalMediaPaths: ["/provider/not-local/pending.docx"],
+        originalMediaTypes: [DOCX_MIME],
+        mediaStagingPending: true,
+      },
+    },
+    {
+      channelId: "telegram",
+      runId: "run-pending-original-no-url",
+      sessionKey: "session-pending-original-no-url",
+      messageId: "msg-pending-original-no-url",
+    },
+  );
+
+  await handlers.beforePromptBuild(
+    { prompt: "File đang chờ staging", messages: [] },
+    {
+      messageProvider: "telegram",
+      runId: "run-pending-original-no-url",
+      sessionKey: "session-pending-original-no-url",
+      senderId: "sender-1",
+      chatId: "chat-1",
+    },
+  );
+
+  assert.equal(bodies.length, 1);
+  assert.equal(bodies[0].attachments.length, 1);
+  assert.equal(bodies[0].attachments[0].kind, "document");
+  assert.equal(bodies[0].attachments[0].staged, false);
+  assert.equal("provider_ref" in bodies[0].attachments[0], false);
+  assert.equal("local_ref" in bodies[0].attachments[0], false);
+});
+
+test("staged media replaces pending provider-only state for the same no-run message", async () => {
+  const bodies = [];
+  const handlers = createRecordingHandlers(bodies);
+  const ctx = {
+    channelId: "telegram",
+    sessionKey: "session-stage",
+    messageId: "msg-stage",
+  };
+
+  await handlers.messageReceived(
+    {
+      content: "Đọc file này",
+      messageId: "msg-stage",
+      sessionKey: "session-stage",
+      mediaStagingPending: true,
+      originalMedia: [
+        {
+          path: "/provider/not-local/stage.docx",
+          url: "media://telegram/stage",
+          contentType: DOCX_MIME,
+          kind: "document",
+          messageId: "msg-stage",
+        },
+      ],
+    },
+    ctx,
+  );
+
+  await handlers.messageReceived(
+    {
+      content: "Đọc file này",
+      messageId: "msg-stage",
+      sessionKey: "session-stage",
+      media: [
+        {
+          path: "/tmp/openclaw/stage.docx",
+          url: "media://telegram/stage",
+          contentType: DOCX_MIME,
+          kind: "document",
+          messageId: "msg-stage",
+        },
+      ],
+    },
+    ctx,
+  );
+
+  await handlers.beforePromptBuild(
+    { prompt: "Đọc file này", messages: [] },
+    {
+      messageProvider: "telegram",
+      runId: "run-after-staging",
+      sessionKey: "session-stage",
+      senderId: "sender-1",
+      chatId: "chat-1",
+    },
+  );
+
+  assert.equal(bodies.length, 1);
+  assert.equal(bodies[0].attachments.length, 1);
+  assert.equal(bodies[0].attachments[0].staged, true);
+  assert.equal(bodies[0].attachments[0].filename, "stage.docx");
+  assert.equal(bodies[0].attachments[0].local_ref, "/tmp/openclaw/stage.docx");
+
+  await handlers.beforePromptBuild(
+    { prompt: "alo", messages: [] },
+    {
+      messageProvider: "telegram",
+      runId: "run-after-stage-next",
+      sessionKey: "session-stage",
+      senderId: "sender-1",
+      chatId: "chat-1",
+    },
+  );
+  assert.equal(bodies.length, 2);
+  assert.equal("attachments" in bodies[1], false);
+});

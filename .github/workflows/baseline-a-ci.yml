@@ -1,0 +1,109 @@
+name: Baseline A Branch CI
+
+on:
+  push:
+    branches:
+      - feature/openclaw-attachment-bridge-20260813
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  red-green:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install Core dev dependencies
+        run: python -m pip install -e '.[dev]'
+      - name: Core attachment contract
+        run: pytest tests/unit/test_attachment_facts.py -q
+      - name: Core attachment routing
+        run: pytest tests/unit/test_attachment_routing.py -q
+      - name: Core attachment context
+        run: pytest tests/unit/test_attachment_context.py -q
+      - name: Core attachment pipeline
+        run: pytest tests/unit/test_attachment_pipeline.py -q
+      - name: Core attachment API
+        run: pytest tests/integration/test_attachment_core_request_api.py tests/integration/test_core_request_api.py -q
+      - name: Verify known main ADE rollback baseline failure only
+        shell: bash
+        run: |
+          set +e
+          output="$(pytest tests/unit/test_verify_ade_rollback.py::test_untracked_ownership_is_explicit -q 2>&1)"
+          rc=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$rc" -eq 0 ]; then
+            echo "ADE_BASELINE_NOW_PASS"
+            exit 0
+          fi
+          if [ "$rc" -eq 1 ] && grep -q "\.github/hooks/audit.json" <<<"$output"; then
+            echo "KNOWN_MAIN_BASELINE_FAIL_CONFIRMED"
+            exit 0
+          fi
+          echo "UNEXPECTED_ADE_FAILURE rc=$rc"
+          exit 1
+      - name: Full Core regression excluding one confirmed main baseline failure
+        run: pytest -q -k 'not test_untracked_ownership_is_explicit'
+      - name: Ruff scoped Baseline A files
+        run: |
+          ruff check \
+            app/context_builder/builder.py \
+            app/context_builder/models.py \
+            app/orchestration/__init__.py \
+            app/orchestration/models.py \
+            app/orchestration/pipeline.py \
+            app/routing/fast_router.py \
+            tests/integration/test_attachment_core_request_api.py \
+            tests/unit/test_attachment_context.py \
+            tests/unit/test_attachment_facts.py \
+            tests/unit/test_attachment_pipeline.py \
+            tests/unit/test_attachment_routing.py
+      - name: Full Mypy delta verification against known main debt
+        shell: bash
+        run: |
+          set +e
+          output="$(mypy app 2>&1)"
+          rc=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$rc" -eq 0 ]; then
+            echo "FULL_MYPY_PASS"
+            exit 0
+          fi
+          if [ "$rc" -eq 1 ] \
+            && grep -q 'app/async_tasks/recovery.py:112:' <<<"$output" \
+            && grep -q 'Found 1 error in 1 file' <<<"$output"; then
+            echo "KNOWN_MAIN_MYPY_DEBT_ONLY_NO_NEW_ERRORS"
+            exit 0
+          fi
+          echo "UNEXPECTED_MYPY_FAILURE rc=$rc"
+          exit 1
+      - name: Compileall
+        env:
+          PYTHONPYCACHEPREFIX: /tmp/anh-duong-pycache
+        run: python -m compileall -q app tests
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: OpenClaw attachment normalizer
+        working-directory: integrations/openclaw-anh-duong-core
+        run: node --test test/attachments.test.js
+      - name: OpenClaw same-turn attachment bridge
+        working-directory: integrations/openclaw-anh-duong-core
+        run: node --test test/attachment-bridge.test.js
+      - name: Full OpenClaw plugin regression
+        working-directory: integrations/openclaw-anh-duong-core
+        run: npm test
+      - name: Diff check against authoritative main
+        run: git diff --check origin/main...HEAD

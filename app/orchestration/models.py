@@ -17,6 +17,32 @@ from app.orchestration.coding_governance import CodingAssignment
 from app.policy import DecisionKind, RiskLevel
 from app.routing.models import RouteDecision
 
+AttachmentKind = Literal[
+    "image",
+    "audio",
+    "video",
+    "document",
+    "file",
+    "unknown",
+]
+
+
+class AttachmentFact(BaseModel):
+    """Bounded, immutable facts about one inbound attachment."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    index: int = Field(ge=0, le=99)
+    kind: AttachmentKind
+    content_type: str | None = Field(default=None, max_length=255)
+    filename: str | None = Field(default=None, max_length=512)
+    local_ref: str | None = Field(default=None, max_length=2048)
+    provider_ref: str | None = Field(default=None, max_length=2048)
+    transcript: str | None = Field(default=None, max_length=8000)
+    content_summary: str | None = Field(default=None, max_length=8000)
+    staged: bool = False
+    source_message_id: str | None = Field(default=None, max_length=128)
+
 
 class CoreRequest(BaseModel):
     """Immutable natural-language request accepted by the Core pipeline."""
@@ -33,6 +59,7 @@ class CoreRequest(BaseModel):
     source_chat_id: str | None = Field(default=None, max_length=128)
     source_session_id: str | None = Field(default=None, max_length=128)
     source_message_id: str | None = Field(default=None, max_length=128)
+    attachments: tuple[AttachmentFact, ...] = Field(default=(), max_length=10)
 
     @field_validator("text")
     @classmethod
