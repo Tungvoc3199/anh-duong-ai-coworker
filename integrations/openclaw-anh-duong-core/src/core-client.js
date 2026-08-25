@@ -309,6 +309,40 @@ export async function prepareCoreRequest({ config, request, fetchImpl = fetch })
   }
 }
 
+export function parseApprovalIntent(text) {
+  if (typeof text !== "string") return undefined;
+  const match = text.trim().match(/^approve\\s+([A-Za-z0-9_-]{1,64})\\s+([\\s\\S]+)$/i);
+  if (!match) return undefined;
+  return { approvalId: match[1], action: match[2].trim() };
+}
+
+export async function resolveApproval({ config, approvalId, payload, fetchImpl = fetch }) {
+  const requestId = payload?.correlation_id;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+  try {
+    const response = await fetchImpl(
+      `${config.baseUrl}/api/async-tasks/approvals/${encodeURIComponent(approvalId)}/resolve`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      },
+    );
+    if (!response || typeof response.status !== "number" || typeof response.json !== "function") {
+      throw validationError(requestId);
+    }
+    if (!response.ok) throw new CoreIntegrationError(response.status === 401 ? "authentication" : "http", { status: response.status, requestId });
+    return validateAsyncTaskRun(await response.json(), requestId);
+  } catch (error) {
+    if (error instanceof CoreIntegrationError) throw error;
+    throw new CoreIntegrationError(controller.signal.aborted ? "timeout" : "connection", { requestId });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function submitAsyncTask({ config, payload, fetchImpl = fetch }) {
   const requestId = payload?.correlation_id;
   const controller = new AbortController();

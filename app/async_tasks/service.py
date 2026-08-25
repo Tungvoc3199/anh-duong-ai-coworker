@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import uuid4
 
+from app.approvals import ApprovalService
 from app.async_tasks.models import (
     AsyncRunStatus,
     AsyncTaskAccepted,
@@ -9,6 +11,7 @@ from app.async_tasks.models import (
 )
 from app.async_tasks.policy import AsyncTaskPolicyGate
 from app.async_tasks.repository import AsyncTaskRepository
+from app.db.models import ApprovalRow, WorkflowRow
 from app.tasks import TaskCreate, TaskService, TaskStatus
 
 
@@ -23,6 +26,38 @@ class AsyncTaskService:
         self.task_service = task_service
         self.repository = repository
         self.policy_gate = policy_gate
+
+    def resolve_approval(
+        self,
+        approval_id: str,
+        *,
+
+        resolved_by: str,
+        approved: bool,
+        action: str,
+    ) -> ApprovalRow:
+        session = self.repository.session
+        approval = session.get(ApprovalRow, approval_id)
+        if approval is None:
+            raise ValueError("Approval not found.")
+        resolved = ApprovalService(session).resolve(
+            approval_id,
+            workflow_id=approval.workflow_id,
+            task_id=approval.task_id,
+            action=action,
+            resolved_by=resolved_by,
+            approved=approved,
+        )
+        if approved:
+            self.repository.transition(
+                approval.workflow_id,
+                AsyncRunStatus.PENDING,
+                now=datetime.now(UTC),
+            )
+            task = self.task_service.get(approval.task_id)
+            if task.status is not TaskStatus.QUEUED:
+                self.task_service.transition(approval.task_id, TaskStatus.QUEUED)
+        return resolved
 
     def create(
         self,
@@ -94,6 +129,18 @@ class AsyncTaskService:
                 decision.message if not decision.allowed else None
             ),
         )
+        if request.approval_required:
+            session = self.repository.session
+            session.add(WorkflowRow(id=run.id, task_id=task.id, status="blocked"))
+            session.flush()
+            ApprovalService(session).create(
+                workflow_id=run.id,
+                task_id=task.id,
+                action=request.goal,
+                risk_level=request.risk_level,
+                reason=decision.message,
+                preview={'title': request.title, 'goal': request.goal},
+            )
         return AsyncTaskAccepted(
             task_id=task.id,
             run_id=run.id,

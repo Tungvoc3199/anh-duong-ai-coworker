@@ -1,5 +1,6 @@
 from app.async_tasks.models import (
     ASYNC_RUN_TRANSITIONS,
+    ApprovalResolveRequest,
     AsyncExecutionCheckpoint,
     AsyncExecutionResult,
     AsyncRunError,
@@ -45,6 +46,7 @@ __all__ = [
     "AsyncRunError",
     "AsyncRunNotFound",
     "AsyncRunStatus",
+    "ApprovalResolveRequest",
     "AsyncTaskAccepted",
     "AsyncTaskCreate",
     "AsyncTaskExecutor",

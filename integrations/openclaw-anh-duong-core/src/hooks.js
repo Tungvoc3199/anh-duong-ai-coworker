@@ -4,7 +4,9 @@ import {
   buildAsyncTaskCreate,
   getAsyncTaskRun,
   buildCoreRequest,
+  parseApprovalIntent,
   prepareCoreRequest,
+  resolveApproval,
   submitAsyncTask,
 } from "./core-client.js";
 import { buildPreparedContext } from "./prompt.js";
@@ -14,7 +16,20 @@ export const SAFE_MESSAGE =
 
 export const WORKFLOW_ACKNOWLEDGMENT =
   "Em đã nhận việc và đang xử lý. Em sẽ báo lại ngay khi hoàn tất.";
-
+export async function deleteTelegramWorkflowProgress(api, { chatId, messageId }) {
+  const runner = api?.runtime?.system?.runCommandWithTimeout;
+  if (typeof runner !== "function") {
+    throw new Error("OpenClaw runtime command helper is unavailable.");
+  }
+  const result = await runner([
+    process.execPath, "/app/openclaw.mjs", "message", "delete",
+    "--channel", "telegram", "--target", String(chatId),
+    "--message-id", String(messageId),
+  ], { timeoutMs: 10_000, cwd: "/app" });
+  if (result?.code !== 0) {
+    throw new Error("OpenClaw Telegram progress deletion failed.");
+  }
+}
 const STATE_TTL_MS = 5 * 60 * 1_000;
 const WORKFLOW_PROGRESS_DELAY_MS = 1_500;
 const TERMINAL_RUN_STATUSES = new Set([
@@ -147,6 +162,9 @@ export function createAnhDuongCoreHooks({
   now = () => Date.now(),
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   workflowProgressDelayMs = WORKFLOW_PROGRESS_DELAY_MS,
+  workflowProgressCleanupPollMs = 1000,
+  deleteWorkflowProgress,
+  scheduleWorkflowCleanup,
 } = {}) {
   let config;
   let configFailure;
@@ -158,6 +176,7 @@ export function createAnhDuongCoreHooks({
 
   const explicitlyDisabled = config?.enabled === false;
   const states = new Map();
+  const progress = new Map();
 
   function sweep() {
     const current = now();
@@ -229,6 +248,26 @@ export function createAnhDuongCoreHooks({
 
   async function beforePromptBuild(event, ctx) {
     sweep();
+    if (isTelegram(ctx)) {
+      const approval = parseApprovalIntent(event?.prompt ?? event?.cleanedBody);
+      if (approval) {
+        try {
+          const run = await resolveApproval({
+            config,
+            approvalId: approval.approvalId,
+            payload: {
+              action: approval.action,
+              resolved_by: ctx?.senderId ?? "telegram",
+              approved: true,
+            },
+          });
+          return { prependContext: `Approval ${approval.approvalId} accepted; resumed run ${run.id}.` };
+        } catch (error) {
+          safeLog(logger, "warn", { event: "anh_duong_core_approval", outcome: "failure", failure_class: failureClassOf(error) });
+          return { prependContext: SAFE_MESSAGE };
+        }
+      }
+    }
     if (explicitlyDisabled || !isTelegram(ctx)) {
       return undefined;
     }
@@ -413,6 +452,10 @@ export function createAnhDuongCoreHooks({
         accepted,
         expiresAt: now() + STATE_TTL_MS,
       });
+      progress.set(`${state.sessionKey ?? ""}:${state.chatId ?? ""}`, {
+        runId: accepted.run_id,
+        requestId: state.requestId,
+      });
       safeLog(logger, "info", {
         event: "anh_duong_core_async_submit",
         outcome: accepted.replayed ? "replayed" : "accepted",
@@ -496,6 +539,31 @@ export function createAnhDuongCoreHooks({
       });
       return { terminal: false };
     }
+  }
+
+  async function messageSent(event, ctx) {
+    const channel = ctx?.channelId ?? ctx?.channel ?? event?.channelId ?? event?.channel;
+    const content = event?.content ?? event?.text;
+    const success = event?.success ?? event?.ok;
+    const messageId = event?.messageId ?? event?.receipt?.primaryPlatformMessageId;
+    const to = event?.to ?? event?.chatId ?? ctx?.conversationId;
+    const sessionKey = event?.sessionKey ?? ctx?.sessionKey;
+    if (channel !== "telegram" || content !== WORKFLOW_ACKNOWLEDGMENT || success === false || !messageId) return;
+    const key = `${sessionKey ?? ""}:${to ?? ""}`;
+    const item = progress.get(key);
+    if (!item) return;
+    const cleanup = deleteWorkflowProgress ?? ((target) => deleteTelegramWorkflowProgress(ctx?.api ?? {}, target));
+    const task = (async () => {
+      for (let i = 0; i < 60; i += 1) {
+        const run = await getAsyncTaskRun({ config, runId: item.runId, requestId: item.requestId, fetchImpl });
+        if (TERMINAL_RUN_STATUSES.has(run.status)) {
+          await cleanup({ chatId: to, messageId });
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, Number(workflowProgressCleanupPollMs) || 0));
+      }
+    })();
+    (scheduleWorkflowCleanup ?? ((promise) => promise))(task);
   }
 
   async function beforeAgentRun(_event, ctx) {

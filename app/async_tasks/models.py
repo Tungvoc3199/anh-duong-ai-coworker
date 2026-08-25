@@ -184,6 +184,13 @@ class AsyncTaskCreate(BaseModel):
         return self
 
 
+class ApprovalResolveRequest(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    action: str = Field(min_length=1, max_length=255)
+    resolved_by: str = Field(min_length=1, max_length=128)
+    approved: bool = True
+
 class AsyncTaskAccepted(BaseModel):
     model_config = ConfigDict(frozen=True)
 
