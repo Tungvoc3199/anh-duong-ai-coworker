@@ -16,6 +16,7 @@ from fastapi import (
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.async_tasks import (
+    ApprovalResolveRequest,
     AsyncRunNotFound,
     AsyncRunStatus,
     AsyncTaskAccepted,
@@ -27,6 +28,7 @@ from app.async_tasks import (
     NotificationStatus,
 )
 from app.audit import AuditWriter
+from app.db.models import ApprovalRow
 from app.tasks import (
     TaskRepository,
     TaskService,
@@ -134,6 +136,36 @@ def create_async_task(
         session.commit()
         return accepted
 
+
+@router.post(
+    "/approvals/{approval_id}/resolve",
+    response_model=AsyncTaskRun,
+    dependencies=[Depends(require_internal_bearer)],
+)
+def resolve_async_approval(
+    approval_id: str,
+    payload: ApprovalResolveRequest,
+    request: Request,
+) -> AsyncTaskRun:
+    with _session(request) as session:
+        service = AsyncTaskService(
+            task_service=TaskService(TaskRepository(session), _audit(request)),
+            repository=AsyncTaskRepository(session, audit_writer=_audit(request)),
+            policy_gate=_policy(request),
+        )
+        try:
+            service.resolve_approval(
+                approval_id,
+                resolved_by=payload.resolved_by,
+                approved=payload.approved,
+                action=payload.action,
+            )
+            session.commit()
+            approval = session.get(ApprovalRow, approval_id)
+            assert approval is not None
+            return service.repository.get(approval.workflow_id)
+        except ValueError as error:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
 
 @router.get(
     "/{run_id}",

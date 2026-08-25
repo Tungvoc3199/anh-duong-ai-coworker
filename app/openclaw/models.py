@@ -45,11 +45,27 @@ class OpenClawExecutionRequest(BaseModel):
     constraints: tuple[str, ...] = ()
 
 
+class GovernanceResult(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    decision: Literal["allow", "require_approval", "deny", "escalate"]
+    status: Literal["verified", "pending", "approved", "denied", "failed"]
+    reason: str
+    checkpoint_id: str | None = None
+    correlation_id: str | None = None
+    files_changed: tuple[str, ...] = ()
+    commands_run: tuple[str, ...] = ()
+    tests: tuple[dict[str, Any], ...] = ()
+    production_write: bool = False
+    database_write: bool = False
+    service_restart: bool = False
+
 class OpenClawExecutionResult(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     outcome: Literal["completed", "blocked", "failed"]
     summary: str
+    governance_result: GovernanceResult | None = None
     artifacts: (
         tuple[str, ...]
         | OpenClawWorkflowArtifacts

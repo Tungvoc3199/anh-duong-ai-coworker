@@ -5,7 +5,6 @@ from pydantic import BaseModel, ConfigDict
 from app.async_tasks.models import AsyncTaskCreate, AsyncTaskMode
 from app.policy.path_scope import WorkspacePathPolicy
 
-
 SAFE_STEPS_WITHOUT_APPROVAL: tuple[str, ...] = (
     "web_search_read",
     "summarize",

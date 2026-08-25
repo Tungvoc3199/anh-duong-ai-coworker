@@ -20,6 +20,7 @@ from app.async_tasks.policy import (
 from app.async_tasks.repository import AsyncTaskRepository
 from app.audit import AuditWriter
 from app.openclaw import (
+    GovernanceResult,
     OpenClawExecutionRequest,
     OpenClawExecutionResult,
     OpenClawTransportError,
@@ -367,6 +368,8 @@ class AsyncTaskWorker:
             current = repository.get(run_id)
             if current.status is AsyncRunStatus.CANCELLED:
                 return
+            request = AsyncTaskCreate.model_validate_json(current.request_json)
+            governed = request.governed_coding is not None
 
             task_service = self._task_service(session)
             repository.transition(
@@ -381,7 +384,22 @@ class AsyncTaskWorker:
                 TaskStatus.VERIFYING,
             )
 
-            if result.outcome == "completed":
+            if (
+                governed
+                and result.outcome == "completed"
+                and not self._completed_governance_valid(result)
+            ):
+                result = result.model_copy(
+                    update={
+                        "outcome": "failed",
+                        "summary": "Governance result missing or not verified; run failed closed.",
+                        "error_code": "governance_result_invalid",
+                    }
+                )
+                result_json = result.model_dump_json()
+                run_status = AsyncRunStatus.FAILED
+                task_status = TaskStatus.FAILED
+            elif result.outcome == "completed":
                 run_status = AsyncRunStatus.COMPLETED
                 task_status = TaskStatus.COMPLETED
             elif result.outcome == "blocked":
@@ -410,6 +428,14 @@ class AsyncTaskWorker:
                 now,
             )
             session.commit()
+
+    @staticmethod
+    def _completed_governance_valid(result: OpenClawExecutionResult) -> bool:
+        governance = result.governance_result
+        return isinstance(governance, GovernanceResult) and (
+            governance.decision == "allow"
+            and governance.status in {"verified", "approved"}
+        )
 
     @staticmethod
     def _mark_terminal_notification(
