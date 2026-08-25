@@ -88,8 +88,16 @@ async def test_governed_request_binds_instructions_to_exact_workspace() -> None:
         "correlation_id='corr_123'",
         f"manifest_digest={'a' * 64!r}",
         "Do not write to production",
+        "entire final response must be exactly one bare JSON object",
+        "first non-whitespace character must be `{`",
+        "final non-whitespace character must be `}`",
+        "Do not use a Markdown code fence, prose, preamble, epilogue",
+        "user-facing summary inside the JSON object's `summary` field",
+        "For outcome `completed`, return `outcome`, `summary`, and a complete",
         "read-only reviewer outcome of PASS",
         "exactly `MERGE_READY`",
+        "return exactly one valid JSON object with outcome `blocked` or `failed`",
+        "never fabricate missing evidence or add text outside the object",
     ):
         assert required in instructions
     assert result.outcome == "blocked"

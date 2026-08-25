@@ -115,7 +115,13 @@ class OpenClawExecutor:
             "Use real file operations and real commands/tests, and report "
             "their evidence; do not claim evidence that tools did not produce. "
             "Do not write to production, restart services, or write to any "
-            "database. Return JSON containing a complete governance_result "
+            "database. Your entire final response must be exactly one bare "
+            "JSON object and nothing else: the first non-whitespace character "
+            "must be `{` and the final non-whitespace character must be `}`. "
+            "Do not use a Markdown code fence, prose, preamble, epilogue, or "
+            "diagnostic text outside that object. Put the user-facing summary "
+            "inside the JSON object's `summary` field. For outcome `completed`, "
+            "return `outcome`, `summary`, and a complete governance_result "
             "matching this assignment exactly: "
             f"checkpoint_id={assignment.checkpoint_id!r}, "
             f"correlation_id={assignment.correlation_id!r}, "
@@ -127,8 +133,11 @@ class OpenClawExecutor:
             "reviewer_outcome, reviewer_read_only, approval_granted, and "
             "repair_round. When reviewer_required is true, obtain a read-only "
             "reviewer outcome of PASS. Set outcome `completed` only when "
-            "governance_result.status is exactly `MERGE_READY`; otherwise "
-            "return `blocked` or `failed` as appropriate."
+            "governance_result.status is exactly `MERGE_READY`. If any required "
+            "evidence cannot be completed truthfully, return exactly one valid "
+            "JSON object with outcome `blocked` or `failed`, a non-empty "
+            "`summary`, an `error_code`, and only evidence actually obtained; "
+            "never fabricate missing evidence or add text outside the object."
         )
 
     @overload
