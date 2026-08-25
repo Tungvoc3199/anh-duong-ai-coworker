@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-import subprocess
 
 import pytest
 from sqlalchemy import create_engine
