@@ -13,7 +13,10 @@ from app.openclaw.models import (
     OpenClawExecutionResult,
     OpenClawTransportError,
 )
-from app.orchestration.coding_governance import CodingResultContract
+from app.orchestration.coding_governance import (
+    CodingAssignment,
+    CodingResultContract,
+)
 
 
 class OpenClawExecutor:
@@ -89,6 +92,43 @@ class OpenClawExecutor:
             "include outcome (completed|blocked|failed) and a non-empty "
             "summary; artifacts and verification are optional. "
             + self._RUNTIME_EVIDENCE_POLICY
+        )
+
+    def _governed_instructions(
+        self,
+        assignment: CodingAssignment,
+        *,
+        mapped_workspace: str,
+    ) -> str:
+        return (
+            f"{self._instructions()} GOVERNED CODING REQUIREMENTS: Work only "
+            f"in the exact mapped workspace `{mapped_workspace}`. Your first "
+            "action must use a fresh tool call to run `pwd`; its output must "
+            f"equal `{mapped_workspace}` exactly. Validate with fresh tool "
+            "evidence that this directory is an isolated git worktree before "
+            "making changes. Never fall back to $OPENCLAW_HOME, "
+            "/home/node/.openclaw/workspace, or any default workspace. If the "
+            "exact workspace is inaccessible, `pwd` differs, or isolated "
+            "worktree validation fails, return outcome `blocked` without "
+            "changing files. Restrict every changed file to these "
+            f"repository-relative allowed_paths: {assignment.allowed_paths!r}. "
+            "Use real file operations and real commands/tests, and report "
+            "their evidence; do not claim evidence that tools did not produce. "
+            "Do not write to production, restart services, or write to any "
+            "database. Return JSON containing a complete governance_result "
+            "matching this assignment exactly: "
+            f"checkpoint_id={assignment.checkpoint_id!r}, "
+            f"correlation_id={assignment.correlation_id!r}, "
+            f"manifest_digest={assignment.manifest_digest!r}. The complete "
+            "CodingResultContract must include checkpoint_id, correlation_id, "
+            "status, classification, manifest_digest, files_changed, "
+            "commands_run, tests, model, provider, profile, duration_ms, "
+            "error_code, production_write, service_restart, database_write, "
+            "reviewer_outcome, reviewer_read_only, approval_granted, and "
+            "repair_round. When reviewer_required is true, obtain a read-only "
+            "reviewer outcome of PASS. Set outcome `completed` only when "
+            "governance_result.status is exactly `MERGE_READY`; otherwise "
+            "return `blocked` or `failed` as appropriate."
         )
 
     @overload
@@ -240,11 +280,24 @@ class OpenClawExecutor:
         gateway_request = request.model_copy(
             update={"workspace": self._gateway_workspace(effective_ws)}
         )
+        instructions = self._instructions()
+        if request.governed_coding is not None:
+            mapped_workspace = gateway_request.workspace
+            if mapped_workspace is None:
+                raise OpenClawTransportError(
+                    "governance_contract_violation",
+                    "Governed coding execution requires a mapped workspace.",
+                    retryable=False,
+                )
+            instructions = self._governed_instructions(
+                request.governed_coding,
+                mapped_workspace=mapped_workspace,
+            )
 
         payload = {
             "model": "openclaw/default",
             "user": f"async:{request.task_id}",
-            "instructions": self._instructions(),
+            "instructions": instructions,
             "input": json.dumps(
                 gateway_request.model_dump(mode="json"),
                 ensure_ascii=False,
