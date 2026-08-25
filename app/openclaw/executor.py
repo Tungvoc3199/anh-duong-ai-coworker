@@ -351,7 +351,10 @@ class OpenClawExecutor:
             ) from error
 
         output_text = self._extract_output_text(body)
-        result_payload = self._parse_result_payload(output_text)
+        result_payload = self._parse_result_payload(
+            output_text,
+            governed=request.governed_coding is not None,
+        )
         result_payload = self._normalize_result_payload(
             result_payload,
             output_text=output_text,
@@ -659,10 +662,23 @@ class OpenClawExecutor:
         return "\n".join(texts).strip()
 
     @staticmethod
-    def _parse_result_payload(text: str) -> dict[str, Any]:
-        try:
-            parsed = json.loads(text)
-        except json.JSONDecodeError:
+    def _parse_result_payload(
+        text: str,
+        *,
+        governed: bool = False,
+    ) -> dict[str, Any]:
+        if not governed:
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError:
+                return {
+                    "outcome": "completed",
+                    "summary": text,
+                    "artifacts": [],
+                    "verification": [],
+                }
+            if isinstance(parsed, dict):
+                return parsed
             return {
                 "outcome": "completed",
                 "summary": text,
@@ -670,11 +686,33 @@ class OpenClawExecutor:
                 "verification": [],
             }
 
-        if isinstance(parsed, dict):
-            return parsed
-        return {
-            "outcome": "completed",
-            "summary": text,
-            "artifacts": [],
-            "verification": [],
-        }
+        candidate = text.lstrip()
+        try:
+            parsed, end = json.JSONDecoder().raw_decode(candidate)
+        except json.JSONDecodeError:
+            return {
+                "outcome": "failed",
+                "summary": "Governed execution returned malformed output.",
+                "error_code": "invalid_response_contract",
+            }
+
+        if not isinstance(parsed, dict):
+            return {
+                "outcome": "failed",
+                "summary": "Governed execution result must be a JSON object.",
+                "error_code": "invalid_response_contract",
+            }
+        if candidate[end:].strip():
+            outcome = parsed.get("outcome")
+            if not isinstance(outcome, str) or outcome.casefold() not in {
+                "blocked",
+                "failed",
+            }:
+                return {
+                    "outcome": "failed",
+                    "summary": (
+                        "Governed execution returned trailing diagnostic output."
+                    ),
+                    "error_code": "invalid_response_contract",
+                }
+        return parsed
