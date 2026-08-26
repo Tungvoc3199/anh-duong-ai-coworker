@@ -169,6 +169,27 @@ def test_workflow_contract_action_variants(
 ) -> None:
     assert _route(text).capability is expected_capability
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Tạo app/multiply.py và chạy test. Không deploy; không sửa dependency.",
+        "Create a Python module. Do not deploy; do not modify dependencies.",
+    ],
+)
+def test_prohibitions_do_not_create_positive_system_intent(text: str) -> None:
+    assert _route(text).capability is CapabilityKind.CODE_OPERATION
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Deploy the API service.",
+        "Sửa dependency của service.",
+        "Khởi động lại service Core.",
+    ],
+)
+def test_genuine_system_requests_remain_system_operations(text: str) -> None:
+    assert _route(text).capability is CapabilityKind.SYSTEM_OPERATION
+
 def test_empty_input_fails_closed() -> None:
     decision = _route(" \n\t ")
 

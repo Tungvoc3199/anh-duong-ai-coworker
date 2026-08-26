@@ -10,6 +10,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 from pydantic import ValidationError
@@ -36,6 +37,7 @@ from app.orchestration.coding_governance import (
     CodingAssignment,
     CodingResultContract,
     FailureClassification,
+    GovernedTestEvidence,
     ReviewerOutcome,
 )
 
@@ -489,8 +491,20 @@ async def test_worker_completes_only_on_valid_merge_ready_contract(
         tmp_path=tmp_path,
         executor=executor,
     )
+    workspace = tmp_path / "anh-duong-core.worktrees" / "bridge-1"
+    evidence = GovernedTestEvidence(
+        executable=str(workspace / ".venv" / "bin" / "python"),
+        argv=("-m", "pytest", "tests", "-q"),
+        workspace=str(workspace),
+        return_code=0,
+        passed=1,
+    )
 
-    processed = await worker.run_once()
+    with patch(
+        "app.async_tasks.worker.verify_governed_tests",
+        return_value=evidence,
+    ):
+        processed = await worker.run_once()
 
     with session_factory() as session:
         run = AsyncTaskRepository(session).get(run_id)

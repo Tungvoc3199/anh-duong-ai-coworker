@@ -153,6 +153,7 @@ _CODE_TARGET_SIGNALS = (
     "typescript",
     "module",
     "function",
+    "ham",
     "class",
     "api",
     "pytest",
@@ -266,7 +267,22 @@ class CapabilityRouter:
             )
         if route_decision.route is FastRoute.CORE_READ:
             return self._route_core_read(route_decision.route, normalized)
-        return self._route_workflow(route_decision.route, normalized)
+        return self._route_workflow(
+            route_decision.route,
+            self._normalize_affirmative_clauses(request),
+        )
+
+    @classmethod
+    def _normalize_affirmative_clauses(cls, request: str) -> str:
+        clauses = re.split(r"[.;\n]+", request)
+        return " ".join(
+            normalized
+            for clause in clauses
+            if (normalized := cls._normalize(clause))
+            and not normalized.startswith(
+                ("khong ", "do not ", "dont ", "never ")
+            )
+        )
 
     def _route_core_read(
         self,

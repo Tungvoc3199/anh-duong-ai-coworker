@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 from enum import StrEnum
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -30,6 +31,29 @@ class ReviewerOutcome(StrEnum):
     BLOCKED = "BLOCKED"
 
 
+class GovernedTestRuntime(BaseModel):
+    """Exact existing project runtime used by Core without PATH fallback."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    executable: str = Field(min_length=1, max_length=1024)
+    argv: tuple[str, ...] = Field(min_length=1)
+    timeout_seconds: int = Field(ge=1, le=900)
+    allow_fallback: Literal[False] = False
+
+
+class GovernedTestEvidence(BaseModel):
+    """Evidence produced by the Core-owned host-side test invocation."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    executable: str
+    argv: tuple[str, ...]
+    workspace: str
+    return_code: int
+    passed: int = Field(ge=1)
+
+
 class CodingAssignment(BaseModel):
     """Core-authoritative identity and bounds for one coding execution."""
 
@@ -43,6 +67,7 @@ class CodingAssignment(BaseModel):
     reviewer_required: bool
     approval_required: bool
     max_semantic_repair_rounds: int = Field(ge=0, le=2)
+    test_runtime: GovernedTestRuntime | None = None
 
     @field_validator("workspace")
     @classmethod
@@ -111,6 +136,12 @@ def build_coding_assignment(
         reviewer_required=True,
         approval_required=approval_required,
         max_semantic_repair_rounds=2,
+        test_runtime=GovernedTestRuntime(
+            executable=str(workspace / ".venv" / "bin" / "python"),
+            argv=("-m", "pytest", "tests", "-q"),
+            timeout_seconds=900,
+            allow_fallback=False,
+        ),
     )
 
 

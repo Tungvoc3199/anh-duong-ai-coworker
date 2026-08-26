@@ -1,8 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+import os
+import re
+import subprocess
+from collections.abc import Awaitable, Callable, Mapping
 from datetime import UTC, datetime
-from typing import Any, Literal, Protocol
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 import httpx
 from sqlalchemy.orm import Session, sessionmaker
@@ -20,19 +24,116 @@ from app.async_tasks.policy import (
 from app.async_tasks.repository import AsyncTaskRepository
 from app.audit import AuditWriter
 from app.openclaw.errors import OpenClawTransportError
-from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from app.openclaw.models import (
         OpenClawExecutionRequest,
         OpenClawExecutionResult,
     )
 from app.orchestration.coding_governance import (
+    CodingAssignment,
     GovernanceContractError,
+    GovernedTestEvidence,
     validate_coding_completion,
 )
 from app.tasks import TaskRepository, TaskService, TaskStatus
 
 RETRY_DELAYS_SECONDS = (5, 30)
+_PYTEST_PASSED_PATTERN = re.compile(
+    r"^(?P<count>[1-9][0-9]*) passed in [0-9]+(?:\.[0-9]+)?s$"
+)
+
+
+def _validate_governed_test_argv(
+    assignment: CodingAssignment,
+    argv: tuple[str, ...],
+) -> None:
+    if len(argv) < 3 or argv[:2] != ("-m", "pytest"):
+        raise GovernanceContractError("governed test argv must invoke pytest")
+    targets = argv[2:-1] if argv[-1] == "-q" else argv[2:]
+    flags = argv[len(targets) + 2 :]
+    if not targets or any(flag != "-q" for flag in flags):
+        raise GovernanceContractError("governed pytest options are not approved")
+    allowed_test_paths = {
+        value.rstrip("/")
+        for value in assignment.allowed_paths
+        if value.startswith("tests/")
+    }
+    for target in targets:
+        path = Path(target)
+        target_is_allowed = target == "tests" or target.rstrip("/") in allowed_test_paths
+        if (
+            target.startswith("-")
+            or path.is_absolute()
+            or ".." in path.parts
+            or not target_is_allowed
+        ):
+            raise GovernanceContractError("governed pytest target is not approved")
+
+def verify_governed_tests(
+    assignment: CodingAssignment,
+) -> GovernedTestEvidence:
+    """Run declared tests with the exact existing venv and no PATH fallback."""
+    runtime = assignment.test_runtime
+    if runtime is None:
+        raise GovernanceContractError("governed test runtime is not declared")
+    if runtime.allow_fallback:
+        raise GovernanceContractError("governed test runtime fallback is forbidden")
+    workspace = Path(assignment.workspace).resolve(strict=False)
+    executable = Path(runtime.executable).resolve(strict=False)
+    expected_executable = (workspace / ".venv" / "bin" / "python").resolve(
+        strict=False
+    )
+    if executable != expected_executable:
+        raise GovernanceContractError("test executable is not the workspace venv")
+    _validate_governed_test_argv(assignment, runtime.argv)
+    if not executable.is_file() or not os.access(executable, os.X_OK):
+        raise GovernanceContractError("declared test executable is unavailable")
+    try:
+        completed = subprocess.run(
+            [str(executable), *runtime.argv],
+            cwd=str(workspace),
+            capture_output=True,
+            text=True,
+            timeout=runtime.timeout_seconds,
+            check=False,
+            shell=False,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise GovernanceContractError(
+            "declared governed tests could not execute"
+        ) from error
+    lines = completed.stdout.strip().splitlines()
+    summaries = [
+        match
+        for line in lines
+        if (match := _PYTEST_PASSED_PATTERN.fullmatch(line.strip())) is not None
+    ]
+    if (
+        completed.returncode != 0
+        or len(summaries) != 1
+        or summaries[0].group(0) != lines[-1].strip()
+    ):
+        raise GovernanceContractError("declared governed tests did not pass")
+    return GovernedTestEvidence(
+        executable=str(executable),
+        argv=runtime.argv,
+        workspace=str(workspace),
+        return_code=completed.returncode,
+        passed=int(summaries[0].group("count")),
+    )
+
+
+def merge_governed_test_evidence(
+    verification: object,
+    evidence: GovernedTestEvidence,
+) -> dict[str, Any]:
+    """Preserve reported verification while adding core test evidence."""
+    merged = dict(verification) if isinstance(verification, Mapping) else {
+        "reported": verification
+    }
+    merged["core_governed_tests"] = evidence.model_dump(mode="json")
+    return merged
 
 
 class AsyncTaskExecutor(Protocol):
@@ -441,6 +542,18 @@ class AsyncTaskWorker:
                             request.governed_coding,
                             result.governance_result,
                         )
+                        test_evidence = verify_governed_tests(
+                            request.governed_coding
+                        )
+                        result = result.model_copy(
+                            update={
+                                "verification": merge_governed_test_evidence(
+                                    result.verification,
+                                    test_evidence,
+                                )
+                            }
+                        )
+                        result_json = result.model_dump_json()
                     except GovernanceContractError as error:
                         err_code = "governance_contract_violation"
                         err_msg = str(error)
