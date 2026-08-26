@@ -311,7 +311,7 @@ export async function prepareCoreRequest({ config, request, fetchImpl = fetch })
 
 export function parseApprovalIntent(text) {
   if (typeof text !== "string") return undefined;
-  const match = text.trim().match(/^approve\\s+([A-Za-z0-9_-]{1,64})\\s+([\\s\\S]+)$/i);
+  const match = text.trim().match(/^approve\s+([A-Za-z0-9_-]{1,64})\s+([\s\S]+)$/i);
   if (!match) return undefined;
   return { approvalId: match[1], action: match[2].trim() };
 }
