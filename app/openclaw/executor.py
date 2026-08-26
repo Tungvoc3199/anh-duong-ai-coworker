@@ -22,6 +22,12 @@ from app.orchestration.coding_governance import (
 class OpenClawExecutor:
     _HOST_WORKSPACE = PurePosixPath("/mnt/f/AIOS/anh-duong-core")
     _GATEWAY_WORKSPACE = PurePosixPath("/workspaces/anh-duong-core")
+    _HOST_GOVERNED_WORKTREE_ROOT = PurePosixPath(
+        "/home/thadc/.openclaw-workspace/governed-worktrees"
+    )
+    _GATEWAY_GOVERNED_WORKTREE_ROOT = PurePosixPath(
+        "/home/node/.openclaw/workspace/governed-worktrees"
+    )
     _COMPLETED_OUTCOMES = {
         "completed",
         "success",
@@ -624,11 +630,20 @@ class OpenClawExecutor:
         if workspace is None:
             return None
         path = PurePosixPath(workspace)
-        try:
-            relative = path.relative_to(cls._HOST_WORKSPACE)
-        except ValueError:
-            return workspace
-        return str(cls._GATEWAY_WORKSPACE / relative)
+        mappings = (
+            (
+                cls._HOST_GOVERNED_WORKTREE_ROOT,
+                cls._GATEWAY_GOVERNED_WORKTREE_ROOT,
+            ),
+            (cls._HOST_WORKSPACE, cls._GATEWAY_WORKSPACE),
+        )
+        for host_root, gateway_root in mappings:
+            try:
+                relative = path.relative_to(host_root)
+            except ValueError:
+                continue
+            return str(gateway_root / relative)
+        return workspace
 
     @staticmethod
     def _extract_output_text(body: Any) -> str:

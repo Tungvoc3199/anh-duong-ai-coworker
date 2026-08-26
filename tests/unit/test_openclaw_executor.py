@@ -57,6 +57,24 @@ def _json_transport(
     return httpx.MockTransport(handler)
 
 
+def test_gateway_workspace_maps_governed_worktree_mount() -> None:
+    workspace = (
+        "/home/thadc/.openclaw-workspace/governed-worktrees/"
+        "ad-l5-05-runtime"
+    )
+
+    assert OpenClawExecutor._gateway_workspace(workspace) == (
+        "/home/node/.openclaw/workspace/governed-worktrees/"
+        "ad-l5-05-runtime"
+    )
+
+
+def test_gateway_workspace_does_not_map_governed_root_sibling() -> None:
+    workspace = "/home/thadc/.openclaw-workspace/not-governed/candidate"
+
+    assert OpenClawExecutor._gateway_workspace(workspace) == workspace
+
+
 @pytest.mark.asyncio
 async def test_executor_posts_openresponses_request() -> None:
     captured: dict[str, object] = {}
