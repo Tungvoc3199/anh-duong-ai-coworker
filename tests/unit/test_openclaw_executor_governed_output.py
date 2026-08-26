@@ -61,8 +61,8 @@ async def _execute(text: str) -> Any:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("outcome", ("blocked", "failed"))
-async def test_governed_blocked_or_failed_json_survives_diagnostic_suffix(
+@pytest.mark.parametrize("outcome", ("completed", "blocked", "failed"))
+async def test_governed_diagnostic_suffix_is_rejected_for_every_outcome(
     outcome: str,
 ) -> None:
     payload = {
@@ -75,9 +75,8 @@ async def test_governed_blocked_or_failed_json_survives_diagnostic_suffix(
         json.dumps(payload) + "\n⚠️ 🛠️ Exec failed: git rev-parse exited 128"
     )
 
-    assert result.outcome == outcome
-    assert result.summary == payload["summary"]
-    assert result.error_code == payload["error_code"]
+    assert result.outcome == "failed"
+    assert result.error_code == "invalid_response_contract"
 
 
 @pytest.mark.asyncio
@@ -85,8 +84,17 @@ async def test_governed_blocked_or_failed_json_survives_diagnostic_suffix(
     "text",
     (
         "not json",
+        "```json\n{\"outcome\":\"blocked\",\"summary\":\"Stop\"}\n```",
+        'prefix {"outcome":"blocked","summary":"Stop"}',
+        '{"outcome":"blocked","summary":"Stop"} suffix',
+        '{"outcome":"blocked","summary":"First"}'
+        '{"outcome":"failed","summary":"Second"}',
+        '{"outcome":"blocked","summary":',
+        '"completed"',
+        "42",
+        "true",
         '["completed"]',
-        '{"outcome":"completed","summary":"Done"}\ntrailing diagnostic',
+        "null",
     ),
 )
 async def test_malformed_governed_output_never_defaults_to_completed(
@@ -107,6 +115,24 @@ async def test_valid_governed_json_preserves_normal_result() -> None:
     assert result.outcome == "blocked"
     assert result.summary == "Approval required"
 
+
+@pytest.mark.asyncio
+async def test_valid_failed_governed_json_preserves_normal_result() -> None:
+    result = await _execute(
+        json.dumps({"outcome": "failed", "summary": "Execution failed"})
+    )
+
+    assert result.outcome == "failed"
+    assert result.summary == "Execution failed"
+
+@pytest.mark.asyncio
+async def test_governed_json_allows_leading_and_trailing_whitespace() -> None:
+    result = await _execute(
+        ' \n\t{"outcome":"blocked","summary":"Approval required"}\r\n  '
+    )
+
+    assert result.outcome == "blocked"
+    assert result.summary == "Approval required"
 
 @pytest.mark.asyncio
 async def test_valid_complete_governance_result_can_complete() -> None:

@@ -712,16 +712,9 @@ class OpenClawExecutor:
                 "error_code": "invalid_response_contract",
             }
         if candidate[end:].strip():
-            outcome = parsed.get("outcome")
-            if not isinstance(outcome, str) or outcome.casefold() not in {
-                "blocked",
-                "failed",
-            }:
-                return {
-                    "outcome": "failed",
-                    "summary": (
-                        "Governed execution returned trailing diagnostic output."
-                    ),
-                    "error_code": "invalid_response_contract",
-                }
+            return {
+                "outcome": "failed",
+                "summary": "Governed execution returned trailing diagnostic output.",
+                "error_code": "invalid_response_contract",
+            }
         return parsed
