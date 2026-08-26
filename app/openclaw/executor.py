@@ -22,6 +22,13 @@ from app.orchestration.coding_governance import (
 class OpenClawExecutor:
     _HOST_WORKSPACE = PurePosixPath("/mnt/f/AIOS/anh-duong-core")
     _GATEWAY_WORKSPACE = PurePosixPath("/workspaces/anh-duong-core")
+    _ACTIVE_HOST_PROJECT_ROOT = PurePosixPath(
+        "/home/thadc/AIOS/anh-duong-core"
+    )
+    _ACTIVE_GATEWAY_PROJECT_ROOT = PurePosixPath(
+        "/home/node/.openclaw/workspace/governed-worktrees/"
+        "ad-l5-05-runtime"
+    )
     _HOST_GOVERNED_WORKTREE_ROOT = PurePosixPath(
         "/home/thadc/.openclaw-workspace/governed-worktrees"
     )
@@ -273,8 +280,10 @@ class OpenClawExecutor:
             else request.workspace
         )
         if request.governed_coding is not None:
-            mapped_ws = self._gateway_workspace(effective_ws)
-            if mapped_ws in {
+            # A governed assignment must already name its isolated workspace.
+            # Project-root projection applies only to the resolver-supplied
+            # top-level workspace and must not weaken this contract.
+            if effective_ws in {
                 "/workspaces/anh-duong-core",
                 "/home/thadc/AIOS/anh-duong-core",
                 "/mnt/f/AIOS/anh-duong-core",
@@ -630,6 +639,11 @@ class OpenClawExecutor:
         if workspace is None:
             return None
         path = PurePosixPath(workspace)
+        # WorkflowResolver supplies a project root, not an arbitrary path
+        # within a project. Keep this projection exact so descendants and
+        # prefix-confusion paths cannot acquire governed-worktree access.
+        if path == cls._ACTIVE_HOST_PROJECT_ROOT:
+            return str(cls._ACTIVE_GATEWAY_PROJECT_ROOT)
         mappings = (
             (
                 cls._HOST_GOVERNED_WORKTREE_ROOT,

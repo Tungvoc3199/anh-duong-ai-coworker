@@ -57,6 +57,29 @@ def _json_transport(
     return httpx.MockTransport(handler)
 
 
+def test_gateway_workspace_maps_exact_active_project_root() -> None:
+    workspace = "/home/thadc/AIOS/anh-duong-core"
+
+    assert OpenClawExecutor._gateway_workspace(workspace) == (
+        "/home/node/.openclaw/workspace/governed-worktrees/"
+        "ad-l5-05-runtime"
+    )
+
+
+@pytest.mark.parametrize(
+    "workspace",
+    (
+        "/home/thadc/AIOS/anh-duong-core/app",
+        "/home/thadc/AIOS/anh-duong-core-sibling",
+        "/home/thadc/AIOS/anh-duong-core-prefix/confused",
+    ),
+)
+def test_gateway_workspace_active_project_mapping_is_exact_only(
+    workspace: str,
+) -> None:
+    assert OpenClawExecutor._gateway_workspace(workspace) == workspace
+
+
 def test_gateway_workspace_maps_governed_worktree_mount() -> None:
     workspace = (
         "/home/thadc/.openclaw-workspace/governed-worktrees/"
