@@ -1,0 +1,180 @@
+diff --git a/src/gateway/openresponses-http.test.ts b/src/gateway/openresponses-http.test.ts
+index 0dfe10f5130..cd2a3427f2f 100644
+--- a/src/gateway/openresponses-http.test.ts
++++ b/src/gateway/openresponses-http.test.ts
+@@ -6,6 +6,7 @@ import path from "node:path";
+ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+ import { createClientToolNameConflictError } from "../agents/agent-tool-definition-adapter.js";
+ import { FailoverError } from "../agents/failover-error.js";
++import { setReplyPayloadMetadata, type ReplyPayload } from "../auto-reply/reply-payload.js";
+ import { HISTORY_CONTEXT_MARKER } from "../auto-reply/reply/history.js";
+ import { CURRENT_MESSAGE_MARKER } from "../auto-reply/reply/mentions.js";
+ import { resetConfigRuntimeState } from "../config/config.js";
+@@ -260,7 +261,7 @@ async function expectInvalidRequest(
+ describe("OpenResponses HTTP API (e2e)", () => {
+   it("handles OpenResponses request parsing and validation", async () => {
+     const port = enabledPort;
+-    const mockAgentOnce = (payloads: Array<{ text: string }>, meta?: unknown) => {
++    const mockAgentOnce = (payloads: ReplyPayload[], meta?: unknown) => {
+       agentCommand.mockClear();
+       agentCommand.mockResolvedValueOnce({ payloads, meta } as never);
+     };
+@@ -868,6 +869,54 @@ describe("OpenResponses HTTP API (e2e)", () => {
+       expect(content[0]?.text).toBe("hello");
+       await ensureResponseConsumed(resShape);
+ 
++      const governedJson = JSON.stringify({
++        outcome: "completed",
++        governance_result: { verified: true },
++      });
++      const diagnostic = setReplyPayloadMetadata(
++        { text: "tool execution diagnostic", isError: true },
++        { nonTerminalToolErrorWarning: true },
++      );
++      mockAgentOnce([{ text: governedJson }, diagnostic]);
++      const resGovernedBoundary = await postResponses(port, {
++        stream: false,
++        model: "openclaw",
++        input: "hi",
++      });
++      expect(resGovernedBoundary.status).toBe(200);
++      const governedBoundaryJson = (await resGovernedBoundary.json()) as {
++        output?: Array<{ content?: Array<{ text?: string }> }>;
++      };
++      const governedOutputText = governedBoundaryJson.output?.[0]?.content?.[0]?.text;
++      expect(governedOutputText).toBe(governedJson);
++      expect(JSON.parse(governedOutputText ?? "")).toEqual({
++        outcome: "completed",
++        governance_result: { verified: true },
++      });
++      await ensureResponseConsumed(resGovernedBoundary);
++
++      mockAgentOnce([{ text: "first" }, { text: "second" }]);
++      const resMultiplePayloads = await postResponses(port, {
++        stream: false,
++        model: "openclaw",
++        input: "hi",
++      });
++      const multiplePayloadsJson = (await resMultiplePayloads.json()) as {
++        output?: Array<{ content?: Array<{ text?: string }> }>;
++      };
++      expect(multiplePayloadsJson.output?.[0]?.content?.[0]?.text).toBe("first\n\nsecond");
++
++      mockAgentOnce([{ text: "terminal error", isError: true }]);
++      const resGeneralError = await postResponses(port, {
++        stream: false,
++        model: "openclaw",
++        input: "hi",
++      });
++      const generalErrorJson = (await resGeneralError.json()) as {
++        output?: Array<{ content?: Array<{ text?: string }> }>;
++      };
++      expect(generalErrorJson.output?.[0]?.content?.[0]?.text).toBe("terminal error");
++
+       const resNoUser = await postResponses(port, {
+         model: "openclaw",
+         input: [{ type: "message", role: "system", content: "yo" }],
+@@ -950,6 +999,24 @@ describe("OpenResponses HTTP API (e2e)", () => {
+       expect(fallbackText).toContain("[DONE]");
+       expect(fallbackText).toContain("hello");
+ 
++      const streamedDiagnostic = setReplyPayloadMetadata(
++        { text: "streamed tool diagnostic", isError: true },
++        { nonTerminalToolErrorWarning: true },
++      );
++      agentCommand.mockClear();
++      agentCommand.mockResolvedValueOnce({
++        payloads: [{ text: "governed stream result" }, streamedDiagnostic],
++      } as never);
++
++      const resGovernedFallback = await postResponses(port, {
++        stream: true,
++        model: "openclaw",
++        input: "hi",
++      });
++      const governedFallbackText = await resGovernedFallback.text();
++      expect(governedFallbackText).toContain("governed stream result");
++      expect(governedFallbackText).not.toContain("streamed tool diagnostic");
++
+       agentCommand.mockClear();
+       agentCommand.mockResolvedValueOnce({
+         payloads: [{ text: "hello" }],
+diff --git a/src/gateway/openresponses-http.ts b/src/gateway/openresponses-http.ts
+index 39347ef5576..56fcd1a9a19 100644
+--- a/src/gateway/openresponses-http.ts
++++ b/src/gateway/openresponses-http.ts
+@@ -12,6 +12,10 @@ import { resolveIntegerOption } from "@openclaw/normalization-core/number-coerci
+ import { isClientToolNameConflictError } from "../agents/agent-tool-definition-adapter.js";
+ import type { ImageContent } from "../agents/command/types.js";
+ import type { ClientToolDefinition } from "../agents/embedded-agent-runner/run/params.js";
++import {
++  isReplyPayloadNonTerminalToolErrorWarning,
++  type ReplyPayload,
++} from "../auto-reply/reply-payload.js";
+ import { createDefaultDeps } from "../cli/deps.js";
+ import type { CliDeps } from "../cli/deps.types.js";
+ import { agentCommandFromIngress } from "../commands/agent.js";
+@@ -392,6 +396,17 @@ function resolveStopReasonAndPendingToolCalls(meta: unknown): {
+   return { stopReason: record.stopReason, pendingToolCalls: record.pendingToolCalls };
+ }
+ 
++function projectResponsePayloadText(payloads: ReplyPayload[] | undefined): string {
++  if (!Array.isArray(payloads)) {
++    return "";
++  }
++  return payloads
++    .filter((payload) => !isReplyPayloadNonTerminalToolErrorWarning(payload))
++    .map((payload) => (typeof payload.text === "string" ? payload.text : ""))
++    .filter(Boolean)
++    .join("\n\n");
++}
++
+ function createResponseResource(params: {
+   id: string;
+   model: string;
+@@ -795,13 +810,7 @@ export async function handleOpenResponsesHttpRequest(
+       // pending call was emitted, so multi-tool turns lost every call but
+       // the leading one.
+       if (stopReason === "tool_calls" && pendingToolCalls && pendingToolCalls.length > 0) {
+-        const assistantText =
+-          Array.isArray(payloads) && payloads.length > 0
+-            ? payloads
+-                .map((p) => (typeof p.text === "string" ? p.text : ""))
+-                .filter(Boolean)
+-                .join("\n\n")
+-            : "";
++        const assistantText = projectResponsePayloadText(payloads);
+ 
+         const output: OutputItem[] = [];
+         if (assistantText) {
+@@ -837,13 +846,7 @@ export async function handleOpenResponsesHttpRequest(
+         return true;
+       }
+ 
+-      const content =
+-        Array.isArray(payloads) && payloads.length > 0
+-          ? payloads
+-              .map((p) => (typeof p.text === "string" ? p.text : ""))
+-              .filter(Boolean)
+-              .join("\n\n")
+-          : "No response from OpenClaw.";
++      const content = projectResponsePayloadText(payloads) || "No response from OpenClaw.";
+ 
+       const response = createResponseResource({
+         id: responseId,
+@@ -1130,13 +1133,8 @@ export async function handleOpenResponsesHttpRequest(
+ 
+       // Check for pending client tool calls BEFORE maybeFinalize() because the
+       // lifecycle:end event may already have requested finalization.
+-      const resultAny = result as { payloads?: Array<{ text?: string }>; meta?: unknown };
+-      const resultPayloadText = Array.isArray(resultAny.payloads)
+-        ? resultAny.payloads
+-            .map((p) => (typeof p.text === "string" ? p.text : ""))
+-            .filter(Boolean)
+-            .join("\n\n")
+-        : "";
++      const resultAny = result as { payloads?: ReplyPayload[]; meta?: unknown };
++      const resultPayloadText = projectResponsePayloadText(resultAny.payloads);
+       const meta = resultAny.meta;
+       const { stopReason, pendingToolCalls } = resolveStopReasonAndPendingToolCalls(meta);
+ 

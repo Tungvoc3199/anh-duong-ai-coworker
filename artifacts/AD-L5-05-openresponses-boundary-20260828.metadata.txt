@@ -1,0 +1,63 @@
+# AD-L5-05 — Reproducibility metadata (authoritative copy, canonical layout)
+
+Checkpoint: AD-L5-05 (OpenClaw OpenResponses producer-boundary preservation)
+Timestamp (UTC): 2026-08-28T07:45Z
+Status: CLOSED
+
+## Provenance
+UPSTREAM_BASE_SHA=2d2ddc43d0dcf71f31283d780f9fe9ff4cc04fe4
+UPSTREAM_VERSION=v2026.7.1
+REPAIR_COMMIT_SHA=66f6d346759b5bdc323b18ae805b664145c711cc
+REPAIR_COMMIT_MESSAGE=fix(gateway): preserve OpenResponses payload boundary
+PATCH_FILE=artifacts/ad-l5-05-openresponses-boundary-20260827.patch
+PATCH_SHA256=5e9e047894fda857b218499943f76fd259c90a4baace1586cd7d5ad921fc32a2
+
+## Changed files (exactly 2)
+src/gateway/openresponses-http.ts
+src/gateway/openresponses-http.test.ts
+
+## Build / runtime
+IMAGE=openclaw:2026.7.1-ad-l5-05-boundary-20260827
+IMAGE_ID=sha256:9425d0892ec8c85a820998ae1b85f7075e35e2ef29043d347ca72d612e1ca92d
+NODE_VERSION=v24.16.0
+OPENCLAW_VERSION=2026.7.1
+ROLLBACK_IMAGE=openclaw:2026.7.1-codex-runtime-verified-local
+ROLLBACK_IMAGE_ID=sha256:86b8cffc648507e11bb7f8e4e1900b2534e4da5f496ecc927a3628c80bd016a7
+
+## Test evidence
+FOCUSED=93/93 GREEN (Vitest v4.1.9)
+BASELINE_RED=3 failed / 90 passed (genuine: new tests fail on base)
+GATEWAY_REGRESSION=62/62 GREEN
+OXFMT=PASS
+OXLINT=0 warnings
+PATCH_APPLIES_TO_BASE=PASS (git archive <base> | git apply --check)
+
+## Verification gates (all PASS)
+GATEWAY_HEALTH=200 {"ok":true,"status":"live"}
+CORE_HEALTH=200 {"status":"ok",...}
+CORE_READY=200 {"status":"ready","database":"ok"}
+SOURCE_WORKSPACE_MOUNT=ro
+GOVERNED_WORKTREE_MOUNT=rw
+RUNTIME_PROVENANCE=PASS (deployed dist openresponses-http-*.js contains projectResponsePayloadText + nonTerminalToolErrorWarning predicate)
+
+## Real Telegram E2E
+RESULT=PASS
+E2E_EVIDENCE=/mnt/f/AIOS/anh-duong-checkpoints/AD-L5-05/AD-L5-05-REAL-TELEGRAM-E2E-20260828.md
+DELIVERED_TEXT_CLEAN=yes (no concatenated diagnostic; NO_DIAGNOSTIC_STRINGS_FOUND)
+RUN_EXAMPLE=resp_7b2ebd88-6ce7-4250-8b92-328036627c5b
+
+## Independent review
+RESULT=PASS (manual strict read-only: scope=2 files, metadata-only filter,
+no mutation/heuristics, all 3 flattening sites covered, no Core parser change,
+no secrets, rollback available)
+NOTE: subagent "Ánh Dương Review" was infra-rejected (identity guard); manual
+review substituted and recorded honestly.
+
+## Canonical GitHub main (fresh verify at closure)
+ORIGIN_REMOTE=https://github.com/Tungvoc3199/anh-duong-ai-coworker.git
+ORIGIN_MAIN=e5364d5cc216e44b2bd394a84ce43357617ddc68
+ORIGIN_MAIN_SUBJECT=fix: bind governed tests to workspace runtime
+NO_DRIFT=yes
+
+## Full report
+/mnt/f/AIOS/anh-duong-checkpoints/AD-L5-05/AD-L5-05-FINAL-REPORT-20260828.md
