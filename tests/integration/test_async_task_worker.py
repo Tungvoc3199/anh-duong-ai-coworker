@@ -850,3 +850,54 @@ async def test_worker_blocks_corrupt_persisted_plan_before_executor(
     assert run.status is AsyncRunStatus.BLOCKED
     assert run.last_error_code == "replan_plan_invalid"
     assert task.status is TaskStatus.BLOCKED
+
+
+@pytest.mark.asyncio
+async def test_worker_natural_health_ready_uses_local_readonly_probe(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="natural-core-health-ready",
+        goal=(
+            "Kiểm tra giúp anh trạng thái hiện tại của Ánh Dương Core. "
+            "Nếu hệ thống đang ổn thì báo ngắn gọn health, ready và kết "
+            "luận có thể tiếp tục làm việc hay không. Chỉ kiểm tra "
+            "read-only, không sửa file, không restart service, không đổi "
+            "cấu hình."
+        ),
+    )
+    executor = SequenceExecutor(
+        [OpenClawExecutionResult(outcome="completed", summary="unexpected")]
+    )
+
+    async def core_status_probe() -> dict[str, object]:
+        return {
+            "health": {"http_status": 200, "status": "ok"},
+            "ready": {"http_status": 200, "status": "ready"},
+        }
+
+    worker = _worker(
+        session_factory=session_factory,
+        tmp_path=tmp_path,
+        executor=executor,
+        clock=[NOW],
+        core_status_probe=core_status_probe,
+    )
+    processed = await worker.run_once()
+
+    with session_factory() as session:
+        run = AsyncTaskRepository(session).get(run_id)
+        task = TaskService(TaskRepository(session), _audit(tmp_path)).get(task_id)
+
+    assert processed is True
+    assert executor.requests == []
+    assert run.status is AsyncRunStatus.COMPLETED
+    assert task.status is TaskStatus.COMPLETED
+    result_json = json.loads(run.result_json or "{}")
+    assert result_json["artifacts"]["health"]["status"] == "ok"
+    assert result_json["artifacts"]["ready"]["status"] == "ready"
+    assert result_json["commands_run"] == []
+    assert result_json["files_changed"] == []

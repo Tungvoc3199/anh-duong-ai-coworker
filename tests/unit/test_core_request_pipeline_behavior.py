@@ -742,3 +742,38 @@ def test_context_bundle_preserves_required_section_order() -> None:
     assert tuple(section.kind for section in prepared.context.sections) == tuple(
         ContextSectionKind
     )
+
+
+def test_natural_vietnamese_readonly_health_ready_preserves_safety() -> None:
+    project = _project()
+    prepared = _pipeline(
+        project_reader=ProjectReader((project,)),
+    ).prepare(
+        CoreRequest(
+            text=(
+                "Kiểm tra giúp anh trạng thái hiện tại của Ánh Dương Core. "
+                "Nếu hệ thống đang ổn thì báo ngắn gọn health, ready và kết "
+                "luận có thể tiếp tục làm việc hay không. Chỉ kiểm tra "
+                "read-only, không sửa file, không restart service, không đổi "
+                "cấu hình."
+            ),
+            request_id="tg-natural-readonly-health-ready",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id="message-natural-readonly-health-ready",
+        )
+    )
+
+    assert prepared.route_decision.route is FastRoute.WORKFLOW
+    assert prepared.workflow is not None
+    assert prepared.workflow.mode == "quick"
+    assert prepared.workflow.risk_level is RiskLevel.READ_ONLY
+    assert prepared.workflow.approval_required is False
+    assert prepared.workflow.policy_decision is DecisionKind.ALLOW
+    assert "read_only" in prepared.workflow.constraints
+    assert "no_file_changes" in prepared.workflow.constraints
+    assert "no_config_changes" in prepared.workflow.constraints
+    assert "no_service_restart" in prepared.workflow.constraints
+    assert "no_commands" not in prepared.workflow.constraints

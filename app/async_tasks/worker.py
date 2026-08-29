@@ -320,14 +320,28 @@ class AsyncTaskWorker:
         request: AsyncTaskCreate,
     ) -> bool:
         goal = request.goal.casefold()
+        has_core_identity = (
+            "core" in goal or "ánh dương" in goal or "anh duong" in goal
+        )
+        has_read_only_boundary = "read-only" in goal or "chỉ đọc" in goal
+        has_no_restart = (
+            "không restart" in goal or "không khởi động lại" in goal
+        )
+        has_no_config_change = (
+            "không sửa cấu hình" in goal
+            or "không thay đổi cấu hình" in goal
+            or "không đổi cấu hình" in goal
+        )
         return (
-            "/health" in goal
-            and "/ready" in goal
-            and (
-                "core" in goal
-                or "ánh dương" in goal
-                or "anh duong" in goal
-            )
+            has_core_identity
+            and "kiểm tra" in goal
+            and "trạng thái" in goal
+            and "health" in goal
+            and "ready" in goal
+            and has_read_only_boundary
+            and "không sửa file" in goal
+            and has_no_restart
+            and has_no_config_change
         )
 
     async def _execute_core_health_ready_workflow(

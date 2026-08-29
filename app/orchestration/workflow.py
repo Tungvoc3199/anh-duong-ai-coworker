@@ -23,12 +23,6 @@ _NO_SIDE_EFFECT_MARKERS = (
     "no side effect",
 )
 
-_STATUS_CHECK_MARKERS = (
-    "kiểm tra trạng thái",
-    "/health",
-    "/ready",
-)
-
 _OPERATIONAL_GUIDANCE_MARKERS = (
     "hướng dẫn",
     "cách",
@@ -131,6 +125,7 @@ class WorkflowResolver:
         has_no_config_change = (
             "không sửa cấu hình" in folded
             or "không thay đổi cấu hình" in folded
+            or "không đổi cấu hình" in folded
         )
         has_no_side_effect = any(
             marker in folded for marker in _NO_SIDE_EFFECT_MARKERS
@@ -144,8 +139,11 @@ class WorkflowResolver:
             and has_no_side_effect
         )
         has_read_only_status_check = (
-            "read-only" in folded
-            and all(marker in folded for marker in _STATUS_CHECK_MARKERS)
+            ("read-only" in folded or "chỉ đọc" in folded)
+            and "kiểm tra" in folded
+            and "trạng thái" in folded
+            and "health" in folded
+            and "ready" in folded
             and "không sửa file" in folded
             and has_no_config_change
             and has_no_restart
@@ -172,9 +170,22 @@ class WorkflowResolver:
                     "no_deploy",
                 ),
             )
+        if has_read_only_status_check:
+            return (
+                "view_status",
+                RiskLevel.READ_ONLY,
+                (
+                    "read_only",
+                    "no_file_changes",
+                    "no_config_changes",
+                    "no_service_restart",
+                    "no_package_install",
+                    "no_deploy",
+                ),
+            )
         if (
             has_legacy_read_only_boundaries and has_no_restart
-        ) or has_bounded_no_side_effect or has_read_only_status_check:
+        ) or has_bounded_no_side_effect:
             return (
                 "view_status",
                 RiskLevel.READ_ONLY,
