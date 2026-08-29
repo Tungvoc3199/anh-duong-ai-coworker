@@ -12,8 +12,8 @@ from pydantic import (
 )
 
 from app.capabilities.models import CapabilityDecision
-from app.policy import DecisionKind, RiskLevel
 from app.persona.models import PersonaSnapshot
+from app.policy import DecisionKind, RiskLevel
 from app.routing.models import RouteDecision
 
 
@@ -39,14 +39,13 @@ class ContextTokenBudget(BaseModel):
     task_soft_tokens: int = Field(default=3_200, ge=0)
     project_soft_tokens: int = Field(default=2_400, ge=0)
     memory_soft_tokens: int = Field(default=4_400, ge=0)
+    selection_enabled: bool = Field(default=True)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def usable_context_tokens(self) -> int:
         return (
-            self.context_window_tokens
-            - self.response_reserve_tokens
-            - self.runtime_reserve_tokens
+            self.context_window_tokens - self.response_reserve_tokens - self.runtime_reserve_tokens
         )
 
     @model_validator(mode="after")
@@ -147,6 +146,19 @@ class ContextProvenance(BaseModel):
     source_refs: tuple[str, ...]
 
 
+class ContextBudgetMetrics(BaseModel):
+    """Pure in-process, secret-safe reduction observability."""
+
+    model_config = ConfigDict(frozen=True)
+
+    candidate_estimated_tokens: int = Field(default=0, ge=0)
+    selected_estimated_tokens: int = Field(default=0, ge=0)
+    dropped_estimated_tokens: int = Field(default=0, ge=0)
+    reduction_pct: float = Field(default=0.0, ge=0.0, le=1.0)
+    tokens_by_section: dict[ContextSectionKind, int] = Field(default_factory=dict)
+    dropped_by_reason: dict[str, int] = Field(default_factory=dict)
+
+
 class ContextBundle(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -159,6 +171,11 @@ class ContextBundle(BaseModel):
     truncated_items: tuple[ContextItemChange, ...] = ()
     warnings: tuple[str, ...] = ()
     provenance: tuple[ContextProvenance, ...] = ()
+    candidate_estimated_tokens: int = Field(default=0, ge=0)
+    dropped_estimated_tokens: int = Field(default=0, ge=0)
+    reduction_pct: float = Field(default=0.0, ge=0.0, le=1.0)
+    tokens_by_section: dict[ContextSectionKind, int] = Field(default_factory=dict)
+    dropped_by_reason: dict[str, int] = Field(default_factory=dict)
 
 
 class ContextBudgetExceededError(ValueError):
