@@ -901,3 +901,60 @@ async def test_worker_natural_health_ready_uses_local_readonly_probe(
     assert result_json["artifacts"]["ready"]["status"] == "ready"
     assert result_json["commands_run"] == []
     assert result_json["files_changed"] == []
+
+
+@pytest.mark.asyncio
+async def test_worker_exact_multiline_readonly_prompt_never_calls_openclaw(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    goal = (
+        "Kiểm tra trạng thái hệ thống hiện tại bằng chế độ chỉ đọc.\n\n"
+        "Yêu cầu:\n"
+        "Core tự kiểm tra /health và /ready.\n"
+        "Không gọi OpenClaw hoặc model.\n"
+        "Không chạy Git.\n"
+        "Không sửa file hoặc config.\n"
+        "Không restart service.\n"
+        "Không install, deploy hoặc thay đổi hệ thống.\n"
+        "Chỉ trả về kết quả health/ready thực tế và kết luận hệ thống có "
+        "đang sẵn sàng hay không."
+    )
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="ad-bug-readonly-exact",
+        goal=goal,
+    )
+    executor = SequenceExecutor([])
+
+    async def core_status_probe() -> dict[str, object]:
+        return {
+            "health": {"http_status": 200, "status": "ok"},
+            "ready": {"http_status": 200, "status": "ready"},
+        }
+
+    worker = _worker(
+        session_factory=session_factory,
+        tmp_path=tmp_path,
+        executor=executor,
+        clock=[NOW],
+        core_status_probe=core_status_probe,
+    )
+
+    processed = await worker.run_once()
+
+    with session_factory() as session:
+        run = AsyncTaskRepository(session).get(run_id)
+        task = TaskService(TaskRepository(session), _audit(tmp_path)).get(task_id)
+
+    assert processed is True
+    assert executor.requests == []
+    assert run.status is AsyncRunStatus.COMPLETED
+    assert run.external_run_id is None
+    assert task.status is TaskStatus.COMPLETED
+    result_json = json.loads(run.result_json or "{}")
+    assert result_json["commands_run"] == []
+    assert result_json["files_changed"] == []
+    assert result_json["artifacts"]["health"]["http_status"] == 200
+    assert result_json["artifacts"]["ready"]["http_status"] == 200

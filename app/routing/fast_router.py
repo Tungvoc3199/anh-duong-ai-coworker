@@ -125,6 +125,16 @@ _CORE_READ_PHRASES = (
     "get",
 )
 
+_FOLLOW_UP_UTTERANCES = frozenset(
+    {
+        "xong chua",
+        "sao roi",
+        "on chua",
+        "the nao roi",
+    }
+)
+_QUESTION_ONLY_PATTERN = re.compile(r"^\s*[?？]+\s*$")
+
 _DIRECT_UTTERANCES = frozenset(
     {
         "ok",
@@ -214,10 +224,23 @@ class FastRouter:
     def route(self, request: str) -> RouteDecision:
         normalized = self._normalize(request)
         if not normalized:
+            if _QUESTION_ONLY_PATTERN.fullmatch(request) is not None:
+                return RouteDecision(
+                    route=FastRoute.DIRECT,
+                    rule_id="routing.direct.follow_up",
+                    reason="A punctuation-only follow-up has no new execution objective.",
+                )
             return RouteDecision(
                 route=FastRoute.WORKFLOW,
                 rule_id="routing.workflow.empty_input",
                 reason="Empty input is routed to workflow for safe handling.",
+            )
+
+        if normalized in _FOLLOW_UP_UTTERANCES:
+            return RouteDecision(
+                route=FastRoute.DIRECT,
+                rule_id="routing.direct.follow_up",
+                reason="The message is a conversational follow-up without a new objective.",
             )
 
         if self._contains_any(normalized, _WORKFLOW_DIRECTIVE_PHRASES):

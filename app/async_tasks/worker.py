@@ -30,6 +30,7 @@ from app.planning.replanner import PlanReplanner, ReplanDisposition
 from app.planning.repository import PlanPersistenceConflict, PlanRepository
 from app.planning.truth import PlanningTruthError, PlanningTruthInspector
 from app.projects.repository import ProjectRepository
+from app.safety_intent import SafetyConstraint, analyze_safety_intent
 from app.tasks import TaskRepository, TaskService, TaskStatus
 
 RETRY_DELAYS_SECONDS = (5, 30)
@@ -319,29 +320,23 @@ class AsyncTaskWorker:
     def _is_core_health_ready_workflow(
         request: AsyncTaskCreate,
     ) -> bool:
-        goal = request.goal.casefold()
+        safety = analyze_safety_intent(request.goal)
+        goal = safety.normalized_text
+        padded_goal = f" {goal} "
         has_core_identity = (
-            "core" in goal or "ánh dương" in goal or "anh duong" in goal
-        )
-        has_read_only_boundary = "read-only" in goal or "chỉ đọc" in goal
-        has_no_restart = (
-            "không restart" in goal or "không khởi động lại" in goal
-        )
-        has_no_config_change = (
-            "không sửa cấu hình" in goal
-            or "không thay đổi cấu hình" in goal
-            or "không đổi cấu hình" in goal
+            " core " in padded_goal
+            or " anh duong " in padded_goal
         )
         return (
             has_core_identity
-            and "kiểm tra" in goal
-            and "trạng thái" in goal
+            and "kiem tra" in goal
+            and "trang thai" in goal
             and "health" in goal
             and "ready" in goal
-            and has_read_only_boundary
-            and "không sửa file" in goal
-            and has_no_restart
-            and has_no_config_change
+            and safety.has(SafetyConstraint.READ_ONLY)
+            and safety.has(SafetyConstraint.NO_FILE_CHANGES)
+            and safety.has(SafetyConstraint.NO_CONFIG_CHANGES)
+            and safety.has(SafetyConstraint.NO_SERVICE_RESTART)
         )
 
     async def _execute_core_health_ready_workflow(

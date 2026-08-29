@@ -235,13 +235,6 @@ class CapabilityRouter:
         request: str,
     ) -> CapabilityDecision:
         normalized = self._normalize(request)
-        if not normalized:
-            return self._decision(
-                CapabilityKind.UNKNOWN_WORKFLOW,
-                route_decision.route,
-                "capability.workflow.empty_input",
-            )
-
         if FastRouter().route(request) != route_decision:
             return self._decision(
                 CapabilityKind.UNKNOWN_WORKFLOW,
@@ -255,6 +248,13 @@ class CapabilityRouter:
                 route_decision.route,
                 "capability.direct.conversational_response",
                 ("route:direct",),
+            )
+
+        if not normalized:
+            return self._decision(
+                CapabilityKind.UNKNOWN_WORKFLOW,
+                route_decision.route,
+                "capability.workflow.empty_input",
             )
         if route_decision.route is FastRoute.MEMORY:
             return self._decision(

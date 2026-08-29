@@ -777,3 +777,75 @@ def test_natural_vietnamese_readonly_health_ready_preserves_safety() -> None:
     assert "no_config_changes" in prepared.workflow.constraints
     assert "no_service_restart" in prepared.workflow.constraints
     assert "no_commands" not in prepared.workflow.constraints
+
+
+def test_bug_tg_intent_routing_exact_multiline_readonly_is_risk_zero() -> None:
+    project = _project()
+    text = (
+        "Kiểm tra trạng thái hệ thống hiện tại bằng chế độ chỉ đọc.\n\n"
+        "Yêu cầu:\n"
+        "Core tự kiểm tra /health và /ready.\n"
+        "Không gọi OpenClaw hoặc model.\n"
+        "Không chạy Git.\n"
+        "Không sửa file hoặc config.\n"
+        "Không restart service.\n"
+        "Không install, deploy hoặc thay đổi hệ thống.\n"
+        "Chỉ trả về kết quả health/ready thực tế và kết luận hệ thống có "
+        "đang sẵn sàng hay không."
+    )
+    prepared = _pipeline(
+        project_reader=ProjectReader((project,)),
+    ).prepare(
+        CoreRequest(
+            text=text,
+            request_id="ad-bug-tg-intent-routing-2-readonly",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id="message-ad-bug-readonly",
+        )
+    )
+
+    assert prepared.route_decision.route is FastRoute.WORKFLOW
+    assert prepared.execution_required is True
+    assert prepared.workflow is not None
+    assert prepared.workflow.mode == "quick"
+    assert prepared.workflow.risk_level is RiskLevel.READ_ONLY
+    assert prepared.workflow.approval_required is False
+    assert prepared.workflow.policy_decision is DecisionKind.ALLOW
+    assert prepared.workflow.policy_rule_id == "risk.read_only.allow"
+    assert {
+        "read_only",
+        "no_file_changes",
+        "no_config_changes",
+        "no_service_restart",
+        "no_git",
+        "no_openclaw",
+        "no_model",
+        "no_package_install",
+        "no_deploy",
+        "no_system_mutation",
+    }.issubset(set(prepared.workflow.constraints))
+
+
+def test_question_mark_follow_up_does_not_create_execution_workflow() -> None:
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+    ).prepare(
+        CoreRequest(
+            text="?",
+            request_id="ad-bug-tg-intent-routing-2-follow-up",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id="message-ad-bug-follow-up",
+        )
+    )
+
+    assert prepared.route_decision.route is FastRoute.DIRECT
+    assert prepared.capability_decision.capability is CapabilityKind.CONVERSATIONAL_RESPONSE
+    assert prepared.execution_required is False
+    assert prepared.workflow is None
+    assert prepared.project_id is None

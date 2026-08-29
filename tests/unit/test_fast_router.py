@@ -224,3 +224,35 @@ def test_routing_package_exports_public_contract() -> None:
     assert ExportedFastRoute is FastRoute
     assert ExportedFastRouter is FastRouter
     assert ExportedRouteDecision is RouteDecision
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "?",
+        "??",
+        "xong chưa?",
+        "sao rồi?",
+        "ổn chưa?",
+        "thế nào rồi?",
+    ],
+)
+def test_follow_up_without_new_objective_routes_direct(text: str) -> None:
+    decision = FastRouter().route(text)
+
+    assert decision.route is FastRoute.DIRECT
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Em sửa worker.py cho anh nhé?",
+        "Chạy pytest giúp anh được không?",
+        "Deploy bản này ngay nhé?",
+        "Tạo file report.md được chứ?",
+    ],
+)
+def test_question_mark_does_not_hide_real_execution_objective(text: str) -> None:
+    decision = FastRouter().route(text)
+
+    assert decision.route is FastRoute.WORKFLOW
+    assert decision.rule_id == "routing.workflow.explicit_action"

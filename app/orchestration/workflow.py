@@ -10,18 +10,7 @@ from app.orchestration.errors import WorkflowPreparationFailed
 from app.orchestration.models import CoreRequest, WorkflowEnvelope
 from app.policy import DecisionKind, PolicyAction, PolicyEngine, RiskLevel
 from app.projects import Project
-
-_READ_ONLY_MARKERS = (
-    "chỉ đọc",
-    "không chạy lệnh",
-    "không sửa file",
-    "không sửa cấu hình",
-)
-
-_NO_SIDE_EFFECT_MARKERS = (
-    "không thực hiện side effect",
-    "no side effect",
-)
+from app.safety_intent import SafetyConstraint, analyze_safety_intent
 
 _OPERATIONAL_GUIDANCE_MARKERS = (
     "hướng dẫn",
@@ -117,36 +106,18 @@ class WorkflowResolver:
         text: str,
         capability: CapabilityKind,
     ) -> tuple[str, RiskLevel | None, tuple[str, ...]]:
+        safety = analyze_safety_intent(text)
         folded = text.casefold()
-        has_no_restart = (
-            "không restart" in folded
-            or "không khởi động lại" in folded
-        )
-        has_no_config_change = (
-            "không sửa cấu hình" in folded
-            or "không thay đổi cấu hình" in folded
-            or "không đổi cấu hình" in folded
-        )
-        has_no_side_effect = any(
-            marker in folded for marker in _NO_SIDE_EFFECT_MARKERS
-        )
-        has_legacy_read_only_boundaries = all(
-            marker in folded for marker in _READ_ONLY_MARKERS
-        )
-        has_bounded_no_side_effect = (
-            "chỉ đọc" in folded
-            and "không sửa file" in folded
-            and has_no_side_effect
-        )
+        normalized = safety.normalized_text
         has_read_only_status_check = (
-            ("read-only" in folded or "chỉ đọc" in folded)
-            and "kiểm tra" in folded
-            and "trạng thái" in folded
-            and "health" in folded
-            and "ready" in folded
-            and "không sửa file" in folded
-            and has_no_config_change
-            and has_no_restart
+            safety.has(SafetyConstraint.READ_ONLY)
+            and "kiem tra" in normalized
+            and "trang thai" in normalized
+            and "health" in normalized
+            and "ready" in normalized
+            and safety.has(SafetyConstraint.NO_FILE_CHANGES)
+            and safety.has(SafetyConstraint.NO_CONFIG_CHANGES)
+            and safety.has(SafetyConstraint.NO_SERVICE_RESTART)
         )
         has_operational_guidance = (
             capability is CapabilityKind.SYSTEM_OPERATION
@@ -171,32 +142,50 @@ class WorkflowResolver:
                 ),
             )
         if has_read_only_status_check:
-            return (
-                "view_status",
-                RiskLevel.READ_ONLY,
-                (
-                    "read_only",
-                    "no_file_changes",
-                    "no_config_changes",
-                    "no_service_restart",
-                    "no_package_install",
-                    "no_deploy",
-                ),
+            constraints = tuple(
+                dict.fromkeys(
+                    (
+                        SafetyConstraint.READ_ONLY.value,
+                        SafetyConstraint.NO_FILE_CHANGES.value,
+                        SafetyConstraint.NO_CONFIG_CHANGES.value,
+                        SafetyConstraint.NO_SERVICE_RESTART.value,
+                        SafetyConstraint.NO_PACKAGE_INSTALL.value,
+                        SafetyConstraint.NO_DEPLOY.value,
+                        *safety.values(),
+                    )
+                )
             )
-        if (
-            has_legacy_read_only_boundaries and has_no_restart
-        ) or has_bounded_no_side_effect:
-            return (
-                "view_status",
-                RiskLevel.READ_ONLY,
-                (
-                    "read_only",
-                    "no_commands",
-                    "no_file_changes",
-                    "no_config_changes",
-                    "no_service_restart",
-                ),
+            return "view_status", RiskLevel.READ_ONLY, constraints
+
+        has_legacy_read_only_boundaries = all(
+            safety.has(constraint)
+            for constraint in (
+                SafetyConstraint.READ_ONLY,
+                SafetyConstraint.NO_COMMANDS,
+                SafetyConstraint.NO_FILE_CHANGES,
+                SafetyConstraint.NO_CONFIG_CHANGES,
+                SafetyConstraint.NO_SERVICE_RESTART,
             )
+        )
+        has_bounded_no_side_effect = (
+            safety.has(SafetyConstraint.READ_ONLY)
+            and safety.has(SafetyConstraint.NO_FILE_CHANGES)
+            and safety.has(SafetyConstraint.NO_SYSTEM_MUTATION)
+        )
+        if has_legacy_read_only_boundaries or has_bounded_no_side_effect:
+            constraints = tuple(
+                dict.fromkeys(
+                    (
+                        SafetyConstraint.READ_ONLY.value,
+                        SafetyConstraint.NO_COMMANDS.value,
+                        SafetyConstraint.NO_FILE_CHANGES.value,
+                        SafetyConstraint.NO_CONFIG_CHANGES.value,
+                        SafetyConstraint.NO_SERVICE_RESTART.value,
+                        *safety.values(),
+                    )
+                )
+            )
+            return "view_status", RiskLevel.READ_ONLY, constraints
         if capability is CapabilityKind.PLANNING:
             return "create_plan", RiskLevel.SAFE_WRITE, ()
         return f"workflow_{capability.value}", None, ()
