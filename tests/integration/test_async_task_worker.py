@@ -267,6 +267,8 @@ async def test_worker_completes_core_health_ready_workflow_locally(
     assert run.status is AsyncRunStatus.COMPLETED
     assert run.notification_status.value == "pending"
     assert task.status is TaskStatus.COMPLETED
+    checkpoint_message = run.checkpoint_json or ""
+    assert "OpenClaw" not in checkpoint_message
     result_json = json.loads(run.result_json or "{}")
     assert result_json["outcome"] == "completed"
     assert result_json["artifacts"]["health"]["status"] == "ok"

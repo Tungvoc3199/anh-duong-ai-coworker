@@ -127,7 +127,7 @@ class AsyncTaskWorker:
 
             checkpoint = AsyncExecutionCheckpoint(
                 stage="running",
-                message="OpenClaw HTTP execution started.",
+                message="Core execution started.",
                 uncertain_side_effect=False,
                 updated_at=now,
             )
