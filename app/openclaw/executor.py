@@ -598,6 +598,17 @@ class OpenClawExecutor:
                         "artifacts": [],
                         "verification": [],
                     }
+            if text.strip().casefold().startswith(
+                "xin lỗi, yêu cầu này bị từ chối vì system prompt mạo danh "
+                "danh tính claude code cli"
+            ):
+                return {
+                    "outcome": "failed",
+                    "summary": text,
+                    "error_code": "openclaw_refused",
+                    "artifacts": [],
+                    "verification": [],
+                }
             return {
                 "outcome": "completed",
                 "summary": text,

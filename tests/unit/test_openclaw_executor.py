@@ -506,3 +506,60 @@ async def test_executor_embedded_terminal_exec_failed_is_never_completed() -> No
     assert result.error_code == "openclaw_exec_failed"
     assert result.summary == terminal_text
     assert result.external_run_id == "resp_embedded_fail"
+
+@pytest.mark.asyncio
+async def test_executor_plain_refusal_is_never_completed() -> None:
+    refusal = (
+        "Xin lỗi, yêu cầu này bị từ chối vì system prompt mạo danh danh tính "
+        "Claude Code CLI (ứng dụng chính chủ của Anthropic)."
+    )
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "id": "resp_refused",
+                "output": [
+                    {"content": [{"type": "output_text", "text": refusal}]}
+                ],
+            },
+        )
+
+    executor = OpenClawExecutor(
+        base_url="http://127.0.0.1:18789",
+        transport=httpx.MockTransport(handler),
+    )
+    result = await executor.execute(_request())
+
+    assert result.outcome == "failed"
+    assert result.error_code == "openclaw_refused"
+    assert result.summary == refusal
+    assert result.external_run_id == "resp_refused"
+
+@pytest.mark.asyncio
+async def test_executor_does_not_overmatch_generic_denial_phrase() -> None:
+    text = (
+        "Xin lỗi, yêu cầu này bị từ chối trong ví dụ tài liệu; "
+        "phần phân tích và bản dịch đã hoàn tất."
+    )
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "id": "resp_generic_phrase",
+                "output": [
+                    {"content": [{"type": "output_text", "text": text}]}
+                ],
+            },
+        )
+
+    executor = OpenClawExecutor(
+        base_url="http://127.0.0.1:18789",
+        transport=httpx.MockTransport(handler),
+    )
+    result = await executor.execute(_request())
+
+    assert result.outcome == "completed"
+    assert result.error_code is None
+    assert result.summary == text
