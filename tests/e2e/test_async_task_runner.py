@@ -51,6 +51,8 @@ def test_api_to_http_execution_to_http_notification(
         )
         session.commit()
 
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
     paths: list[str] = []
 
     try:
@@ -74,7 +76,7 @@ def test_api_to_http_execution_to_http_notification(
                     goal="Complete through the HTTP gateway",
                     mode="build",
                     risk_level=0,
-                    workspace=str(tmp_path / "workspace"),
+                    workspace=str(workspace),
                     source_channel="telegram",
                     source_chat_id="chat-test",
                     idempotency_key="telegram:e2e",

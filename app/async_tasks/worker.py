@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal, Protocol
 
 import httpx
+from pydantic import ValidationError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.async_tasks.models import (
@@ -25,6 +26,10 @@ from app.openclaw import (
     OpenClawExecutionResult,
     OpenClawTransportError,
 )
+from app.planning.replanner import PlanReplanner, ReplanDisposition
+from app.planning.repository import PlanPersistenceConflict, PlanRepository
+from app.planning.truth import PlanningTruthError, PlanningTruthInspector
+from app.projects.repository import ProjectRepository
 from app.tasks import TaskRepository, TaskService, TaskStatus
 
 RETRY_DELAYS_SECONDS = (5, 30)
@@ -108,6 +113,17 @@ class AsyncTaskWorker:
                 session.commit()
                 return True
 
+            if self._reconcile_plan_before_execution(
+                session=session,
+                repository=repository,
+                task_service=task_service,
+                run=run,
+                request=request,
+                now=now,
+            ):
+                session.commit()
+                return True
+
             checkpoint = AsyncExecutionCheckpoint(
                 stage="running",
                 message="OpenClaw HTTP execution started.",
@@ -169,6 +185,122 @@ class AsyncTaskWorker:
             result,
         )
         return True
+
+    def _reconcile_plan_before_execution(
+        self,
+        *,
+        session: Session,
+        repository: AsyncTaskRepository,
+        task_service: TaskService,
+        run: Any,
+        request: AsyncTaskCreate,
+        now: datetime,
+    ) -> bool:
+        plan_repository = PlanRepository(session)
+        try:
+            plan = plan_repository.get(run.id)
+        except ValidationError:
+            reason = "Persisted plan payload is invalid."
+            repository.transition(
+                run.id,
+                AsyncRunStatus.BLOCKED,
+                now=now,
+                error_code="replan_plan_invalid",
+                error_message=reason,
+            )
+            task_service.transition(
+                run.task_id,
+                TaskStatus.BLOCKED,
+                result_summary=reason,
+            )
+            self._mark_terminal_notification(
+                repository, run.id, run.source_chat_id, now
+            )
+            return True
+        if plan is None:
+            return False
+
+        try:
+            fresh_truth = PlanningTruthInspector(
+                ProjectRepository(session)
+            ).inspect(request.project_id, request.workspace)
+        except PlanningTruthError as error:
+            reason = str(error)
+            repository.transition(
+                run.id,
+                AsyncRunStatus.BLOCKED,
+                now=now,
+                error_code="replan_truth_unavailable",
+                error_message=reason,
+            )
+            task_service.transition(
+                run.task_id,
+                TaskStatus.BLOCKED,
+                result_summary=reason,
+            )
+            self._mark_terminal_notification(
+                repository, run.id, run.source_chat_id, now
+            )
+            return True
+
+        execution_started = (
+            run.attempt > 1
+            or run.checkpoint_json is not None
+            or run.external_run_id is not None
+        )
+        try:
+            decision = PlanReplanner().reconcile(
+                plan,
+                fresh_truth,
+                execution_started=execution_started,
+            )
+            if decision.disposition is ReplanDisposition.REVISED:
+                plan_repository.save(
+                    workflow_id=run.id,
+                    task_id=run.task_id,
+                    plan=decision.plan,
+                )
+                return False
+        except (ValidationError, PlanPersistenceConflict):
+            reason = "Plan reconciliation payload is invalid or conflicting."
+            repository.transition(
+                run.id,
+                AsyncRunStatus.BLOCKED,
+                now=now,
+                error_code="replan_plan_invalid",
+                error_message=reason,
+            )
+            current_task = task_service.get(run.task_id)
+            if current_task.status is not TaskStatus.BLOCKED:
+                task_service.transition(
+                    run.task_id,
+                    TaskStatus.BLOCKED,
+                    result_summary=reason,
+                )
+            self._mark_terminal_notification(
+                repository, run.id, run.source_chat_id, now
+            )
+            return True
+        if decision.disposition is ReplanDisposition.BLOCKED:
+            repository.transition(
+                run.id,
+                AsyncRunStatus.BLOCKED,
+                now=now,
+                error_code="replan_blocked",
+                error_message=decision.reason,
+            )
+            current_task = task_service.get(run.task_id)
+            if current_task.status is not TaskStatus.BLOCKED:
+                task_service.transition(
+                    run.task_id,
+                    TaskStatus.BLOCKED,
+                    result_summary=decision.reason,
+                )
+            self._mark_terminal_notification(
+                repository, run.id, run.source_chat_id, now
+            )
+            return True
+        return False
 
     @staticmethod
     def _execution_constraints(

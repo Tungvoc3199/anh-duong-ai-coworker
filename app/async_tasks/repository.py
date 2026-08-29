@@ -4,7 +4,7 @@ import json
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from sqlalchemy import Select, select, text, update
+from sqlalchemy import Select, case, select, text, update
 from sqlalchemy.orm import Session
 
 from app.async_tasks.audit import write_async_run_event
@@ -16,7 +16,7 @@ from app.async_tasks.models import (
     NotificationStatus,
 )
 from app.audit import AuditWriter, SecretRedactor
-from app.db.models import AsyncTaskRunRow
+from app.db.models import AsyncTaskRunRow, TaskRow
 
 
 def new_async_run_id() -> str:
@@ -218,8 +218,32 @@ class AsyncTaskRepository:
             timestamp + timedelta(seconds=lease_seconds)
         )
 
+        critical_rank = case(
+            (TaskRow.priority == "critical", 0),
+            else_=1,
+        )
+        overdue_rank = case(
+            (
+                TaskRow.deadline.is_not(None)
+                & (TaskRow.deadline <= sqlite_now),
+                0,
+            ),
+            else_=1,
+        )
+        priority_rank = case(
+            (TaskRow.priority == "high", 0),
+            (TaskRow.priority == "normal", 1),
+            (TaskRow.priority == "low", 2),
+            else_=3,
+        )
+        deadline_rank = case(
+            (TaskRow.deadline.is_(None), 1),
+            else_=0,
+        )
+
         candidate_id = (
             select(AsyncTaskRunRow.id)
+            .join(TaskRow, TaskRow.id == AsyncTaskRunRow.task_id)
             .where(
                 AsyncTaskRunRow.status.in_(
                     (
@@ -237,6 +261,11 @@ class AsyncTaskRepository:
                 ),
             )
             .order_by(
+                critical_rank,
+                overdue_rank,
+                priority_rank,
+                deadline_rank,
+                TaskRow.deadline,
                 AsyncTaskRunRow.created_at,
                 AsyncTaskRunRow.id,
             )

@@ -91,6 +91,8 @@ def _seed_run(
     risk_level: int = 0,
     approval_required: bool = False,
 ) -> tuple[str, str]:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(exist_ok=True)
     with session_factory() as session:
         project = ProjectRow(
             id=f"proj_{key}",
@@ -116,7 +118,7 @@ def _seed_run(
                 goal=goal,
                 risk_level=risk_level,
                 approval_required=approval_required,
-                workspace=str(tmp_path / "workspace"),
+                workspace=str(workspace),
                 source_channel="telegram",
                 source_chat_id="chat-test",
                 idempotency_key=f"telegram:{key}",
@@ -591,3 +593,260 @@ async def test_contract_error_terminalizes_and_worker_processes_next_run(
     assert second_task.status is TaskStatus.COMPLETED
     assert "async_run.failed" in audit_text
     assert secret not in audit_text
+
+
+@pytest.mark.asyncio
+async def test_worker_replans_safe_truth_drift_before_execution(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    from app.db.models import WorkflowRow
+
+    (tmp_path / "workspace").mkdir()
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="safe-replan",
+    )
+    with session_factory() as session:
+        project = session.get(ProjectRow, "proj_safe-replan")
+        assert project is not None
+        project.current_phase = "L5-08-runtime"
+        project.constraints = ["runtime truth changed"]
+        project.version += 1
+        session.commit()
+
+    executor = SequenceExecutor(
+        [OpenClawExecutionResult(outcome="completed", summary="done")]
+    )
+    worker = _worker(
+        session_factory=session_factory,
+        tmp_path=tmp_path,
+        executor=executor,
+        clock=[NOW],
+    )
+
+    processed = await worker.run_once()
+
+    with session_factory() as session:
+        workflow = session.get(WorkflowRow, run_id)
+        run = AsyncTaskRepository(session).get(run_id)
+
+    assert processed is True
+    assert executor.requests
+    assert run.status is AsyncRunStatus.COMPLETED
+    assert workflow is not None
+    assert workflow.plan_payload["revision"] == 2
+    assert workflow.plan_payload["replanned_from_revision"] == 1
+    assert workflow.plan_payload["truth"]["current_phase"] == "L5-08-runtime"
+    project_constraints = [
+        item["description"]
+        for item in workflow.plan_payload["constraints"]
+        if item["source"] == "project"
+    ]
+    assert project_constraints == ["runtime truth changed"]
+
+
+@pytest.mark.asyncio
+async def test_worker_blocks_paused_project_before_executor(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "workspace").mkdir()
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="paused-replan",
+    )
+    with session_factory() as session:
+        project = session.get(ProjectRow, "proj_paused-replan")
+        assert project is not None
+        project.status = "paused"
+        project.version += 1
+        session.commit()
+
+    executor = SequenceExecutor(
+        [OpenClawExecutionResult(outcome="completed", summary="must not run")]
+    )
+    worker = _worker(
+        session_factory=session_factory,
+        tmp_path=tmp_path,
+        executor=executor,
+        clock=[NOW],
+    )
+
+    processed = await worker.run_once()
+
+    with session_factory() as session:
+        run = AsyncTaskRepository(session).get(run_id)
+        task = TaskService(TaskRepository(session), _audit(tmp_path)).get(task_id)
+
+    assert processed is True
+    assert executor.requests == []
+    assert run.status is AsyncRunStatus.BLOCKED
+    assert run.last_error_code == "replan_blocked"
+    assert task.status is TaskStatus.BLOCKED
+
+
+@pytest.mark.asyncio
+async def test_worker_blocks_when_planned_workspace_disappears(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="workspace-disappeared",
+    )
+    workspace.rmdir()
+
+    executor = SequenceExecutor(
+        [OpenClawExecutionResult(outcome="completed", summary="must not run")]
+    )
+    worker = _worker(
+        session_factory=session_factory,
+        tmp_path=tmp_path,
+        executor=executor,
+        clock=[NOW],
+    )
+
+    processed = await worker.run_once()
+
+    with session_factory() as session:
+        run = AsyncTaskRepository(session).get(run_id)
+
+    assert processed is True
+    assert executor.requests == []
+    assert run.status is AsyncRunStatus.BLOCKED
+    assert run.last_error_code == "replan_blocked"
+    assert "workspace" in (run.last_error_message or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_worker_blocks_truth_drift_on_retry_before_second_execution(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    from app.db.models import AsyncTaskRunRow
+
+    (tmp_path / "workspace").mkdir()
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="retry-drift",
+    )
+    with session_factory() as session:
+        run_row = session.get(AsyncTaskRunRow, run_id)
+        project = session.get(ProjectRow, "proj_retry-drift")
+        assert run_row is not None
+        assert project is not None
+        run_row.status = AsyncRunStatus.RETRY_WAIT.value
+        run_row.attempt = 1
+        run_row.checkpoint_json = json.dumps(
+            {"stage": "running", "message": "attempt one started"}
+        )
+        project.current_phase = "changed-after-attempt"
+        project.version += 1
+        session.commit()
+
+    executor = SequenceExecutor(
+        [OpenClawExecutionResult(outcome="completed", summary="must not run")]
+    )
+    worker = _worker(
+        session_factory=session_factory,
+        tmp_path=tmp_path,
+        executor=executor,
+        clock=[NOW],
+    )
+
+    processed = await worker.run_once()
+
+    with session_factory() as session:
+        run = AsyncTaskRepository(session).get(run_id)
+
+    assert processed is True
+    assert executor.requests == []
+    assert run.status is AsyncRunStatus.BLOCKED
+    assert run.attempt == 2
+    assert run.last_error_code == "replan_blocked"
+    assert "execution" in (run.last_error_message or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_worker_keeps_legacy_run_without_durable_plan_compatible(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    from app.db.models import WorkflowRow
+
+    (tmp_path / "workspace").mkdir()
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="legacy-no-plan",
+    )
+    with session_factory() as session:
+        workflow = session.get(WorkflowRow, run_id)
+        assert workflow is not None
+        workflow.plan_payload = {}
+        session.commit()
+
+    executor = SequenceExecutor(
+        [OpenClawExecutionResult(outcome="completed", summary="legacy ok")]
+    )
+    worker = _worker(
+        session_factory=session_factory,
+        tmp_path=tmp_path,
+        executor=executor,
+        clock=[NOW],
+    )
+
+    assert await worker.run_once() is True
+    assert executor.requests
+    with session_factory() as session:
+        run = AsyncTaskRepository(session).get(run_id)
+    assert run.status is AsyncRunStatus.COMPLETED
+
+
+@pytest.mark.asyncio
+async def test_worker_blocks_corrupt_persisted_plan_before_executor(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    from app.db.models import WorkflowRow
+
+    (tmp_path / "workspace").mkdir()
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="corrupt-plan",
+    )
+    with session_factory() as session:
+        workflow = session.get(WorkflowRow, run_id)
+        assert workflow is not None
+        workflow.plan_payload = {"id": "corrupt-plan"}
+        session.commit()
+
+    executor = SequenceExecutor(
+        [OpenClawExecutionResult(outcome="completed", summary="must not run")]
+    )
+    worker = _worker(
+        session_factory=session_factory,
+        tmp_path=tmp_path,
+        executor=executor,
+        clock=[NOW],
+    )
+
+    processed = await worker.run_once()
+
+    with session_factory() as session:
+        run = AsyncTaskRepository(session).get(run_id)
+        task = TaskService(TaskRepository(session), _audit(tmp_path)).get(task_id)
+
+    assert processed is True
+    assert executor.requests == []
+    assert run.status is AsyncRunStatus.BLOCKED
+    assert run.last_error_code == "replan_plan_invalid"
+    assert task.status is TaskStatus.BLOCKED

@@ -14,6 +14,11 @@ from app.planning.models import (
     VerificationRequirement,
 )
 from app.planning.planner import GoalPlanner
+from app.planning.replanner import (
+    PlanReplanner,
+    ReplanDecision,
+    ReplanDisposition,
+)
 from app.planning.repository import PlanRepository
 from app.planning.truth import PlanningTruthInspector
 
@@ -27,7 +32,10 @@ __all__ = [
     "Plan",
     "PlanNode",
     "PlanNodeKind",
+    "PlanReplanner",
     "PlanRepository",
+    "ReplanDecision",
+    "ReplanDisposition",
     "PlanStatus",
     "PlanningRequest",
     "PlanningTruthInspector",

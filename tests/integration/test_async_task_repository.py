@@ -178,3 +178,111 @@ def test_invalid_transition_is_rejected(
                 AsyncRunStatus.COMPLETED,
                 now=NOW,
             )
+
+
+def _enqueue_for_schedule(
+    session: Session,
+    *,
+    suffix: str,
+    priority: TaskPriority,
+    deadline: datetime | None,
+    created_at: datetime,
+) -> str:
+    task = _seed_task(session, suffix)
+    task.priority = priority.value
+    task.deadline = deadline
+    run = AsyncTaskRepository(session).enqueue(
+        task_id=task.id,
+        request=_request(_project_id(task)),
+        idempotency_key=f"api:schedule-{suffix}",
+        now=created_at,
+    )
+    return run.id
+
+
+def _claim_id(session: Session) -> str:
+    claimed = AsyncTaskRepository(session).claim_next(
+        worker_id="scheduler-worker",
+        now=NOW,
+        lease_seconds=900,
+    )
+    assert claimed is not None
+    return claimed.id
+
+def test_claim_next_applies_dynamic_priority_and_deadline_policy(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_factory() as session:
+        critical = _enqueue_for_schedule(
+            session,
+            suffix="critical",
+            priority=TaskPriority.CRITICAL,
+            deadline=datetime(2026, 7, 27, 15, 0, tzinfo=UTC),
+            created_at=datetime(2026, 7, 27, 11, 59, tzinfo=UTC),
+        )
+        overdue_low = _enqueue_for_schedule(
+            session,
+            suffix="overdue-low",
+            priority=TaskPriority.LOW,
+            deadline=datetime(2026, 7, 27, 11, 0, tzinfo=UTC),
+            created_at=datetime(2026, 7, 27, 11, 58, tzinfo=UTC),
+        )
+        high_later = _enqueue_for_schedule(
+            session,
+            suffix="high-later",
+            priority=TaskPriority.HIGH,
+            deadline=datetime(2026, 7, 27, 14, 0, tzinfo=UTC),
+            created_at=datetime(2026, 7, 27, 11, 55, tzinfo=UTC),
+        )
+        high_earlier = _enqueue_for_schedule(
+            session,
+            suffix="high-earlier",
+            priority=TaskPriority.HIGH,
+            deadline=datetime(2026, 7, 27, 13, 0, tzinfo=UTC),
+            created_at=datetime(2026, 7, 27, 11, 57, tzinfo=UTC),
+        )
+        normal = _enqueue_for_schedule(
+            session,
+            suffix="normal",
+            priority=TaskPriority.NORMAL,
+            deadline=None,
+            created_at=datetime(2026, 7, 27, 11, 50, tzinfo=UTC),
+        )
+        session.commit()
+
+    expected = [critical, overdue_low, high_earlier, high_later, normal]
+    actual: list[str] = []
+    for _ in expected:
+        with session_factory() as session:
+            actual.append(_claim_id(session))
+            session.commit()
+
+    assert actual == expected
+
+
+def test_claim_next_uses_fifo_after_equal_schedule_keys(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_factory() as session:
+        older = _enqueue_for_schedule(
+            session,
+            suffix="older",
+            priority=TaskPriority.NORMAL,
+            deadline=None,
+            created_at=datetime(2026, 7, 27, 11, 40, tzinfo=UTC),
+        )
+        newer = _enqueue_for_schedule(
+            session,
+            suffix="newer",
+            priority=TaskPriority.NORMAL,
+            deadline=None,
+            created_at=datetime(2026, 7, 27, 11, 50, tzinfo=UTC),
+        )
+        session.commit()
+
+    with session_factory() as session:
+        assert _claim_id(session) == older
+        session.commit()
+    with session_factory() as session:
+        assert _claim_id(session) == newer
+        session.commit()

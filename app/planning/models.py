@@ -42,6 +42,7 @@ class RiskBudget(BaseModel):
     max_risk_level: int = Field(default=3, ge=0, le=4)
     max_plan_nodes: int = Field(default=12, ge=2, le=64)
     max_retries: int = Field(default=2, ge=0, le=10)
+    max_replans: int = Field(default=3, ge=0, le=10)
 
 
 class Deliverable(BaseModel):
@@ -103,6 +104,9 @@ class PlanNode(BaseModel):
 class Plan(BaseModel):
     model_config = ConfigDict(frozen=True)
     id: str = Field(min_length=1, max_length=128)
+    revision: int = Field(default=1, ge=1)
+    replanned_from_revision: int | None = Field(default=None, ge=1)
+    replan_reason: str | None = Field(default=None, min_length=1, max_length=2_000)
     goal: Goal
     definition_of_done: DefinitionOfDone
     constraints: tuple[Constraint, ...]

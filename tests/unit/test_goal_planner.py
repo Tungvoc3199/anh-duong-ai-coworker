@@ -135,3 +135,25 @@ def test_missing_workspace_is_recorded_without_overriding_policy() -> None:
     assert plan.blocker is None
     assert plan.truth.workspace_exists is False
     assert plan.nodes[-1].kind is PlanNodeKind.VERIFICATION_GATE
+
+
+def test_l5_07_plan_payload_loads_as_revision_one() -> None:
+    original = GoalPlanner(StubTruthInspector(_truth())).plan(
+        _request(approval_required=False)
+    )
+    legacy_payload = original.model_dump(mode="json")
+    legacy_payload.pop("revision", None)
+    legacy_payload.pop("replanned_from_revision", None)
+    legacy_payload.pop("replan_reason", None)
+
+    loaded = Plan.model_validate(legacy_payload)
+
+    assert loaded.revision == 1
+    assert loaded.replanned_from_revision is None
+    assert loaded.replan_reason is None
+
+
+@pytest.mark.parametrize("max_replans", [-1, 11])
+def test_risk_budget_rejects_invalid_replan_limit(max_replans: int) -> None:
+    with pytest.raises(ValidationError):
+        RiskBudget(max_replans=max_replans)
