@@ -212,10 +212,6 @@ class ContextBuilder:
                 project_history=project_history,
                 task_history=task_history,
                 truncated_sections=truncated_sections,
-                skip_workflow_context=(
-                    request.token_budget.selection_enabled
-                    and self._is_direct_conversational(request)
-                ),
             )
 
         sections, rendered_context, estimated_tokens = assemble()
@@ -382,7 +378,6 @@ class ContextBuilder:
         project_history: list[tuple[int, str]],
         task_history: list[tuple[int, str]],
         truncated_sections: set[ContextSectionKind],
-        skip_workflow_context: bool = False,
     ) -> tuple[tuple[ContextSection, ...], str, int]:
         contents = {
             ContextSectionKind.PERSONA: self._render_persona(
@@ -390,12 +385,8 @@ class ContextBuilder:
                 persona_files,
             ),
             ContextSectionKind.ROUTING_DECISIONS: self._render_routing(request),
-            ContextSectionKind.PROJECT_CONTEXT: (
-                "none" if skip_workflow_context else self._render_project(request, project_history)
-            ),
-            ContextSectionKind.ACTIVE_TASK: (
-                "none" if skip_workflow_context else self._render_task(request, task_history)
-            ),
+            ContextSectionKind.PROJECT_CONTEXT: self._render_project(request, project_history),
+            ContextSectionKind.ACTIVE_TASK: self._render_task(request, task_history),
             ContextSectionKind.RELEVANT_MEMORY: self._render_memories(
                 memories,
                 memory_bodies,
@@ -409,12 +400,6 @@ class ContextBuilder:
             project_history=project_history,
             task_history=task_history,
         )
-        if skip_workflow_context:
-            source_refs = {
-                **source_refs,
-                ContextSectionKind.PROJECT_CONTEXT: (),
-                ContextSectionKind.ACTIVE_TASK: (),
-            }
         sections = tuple(
             self._section(
                 kind,

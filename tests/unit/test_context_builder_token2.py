@@ -305,6 +305,8 @@ def test_direct_request_skips_workflow_heavy_context() -> None:
     request = _build_request().model_copy(
         update={
             "persona": _small_persona(),
+            "project_context": None,
+            "task_context": None,
             "fast_router_decision": RouteDecision(
                 route=FastRoute.DIRECT,
                 rule_id="direct.hello",
@@ -679,3 +681,32 @@ def test_preselection_duplicate_memory_is_counted_in_reason_metrics() -> None:
     )
     assert expected > 0
     assert bundle.dropped_by_reason["duplicate_memory"] == expected
+
+
+def test_direct_scoped_request_preserves_core_project_and_task_facts() -> None:
+    project = ProjectContextSnapshot(
+        identity="scoped-project", goal="Keep project goal", history=("DROP-PROJECT-HISTORY",)
+    )
+    task = TaskContextSnapshot(
+        identity="scoped-task", active_goal="Keep active goal",
+        constraints=("KEEP-TASK-CONSTRAINT",), history=("DROP-TASK-HISTORY",)
+    )
+    request = _build_request().model_copy(
+        update={
+            "persona": _small_persona(), "project_context": project, "task_context": task,
+            "fast_router_decision": RouteDecision(
+                route=FastRoute.DIRECT, rule_id="direct.ok", reason="Ngắn gọn"
+            ),
+            "capability_decision": CapabilityDecision(
+                capability=CapabilityKind.CONVERSATIONAL_RESPONSE, source_route=FastRoute.DIRECT,
+                reason_code="direct.ok", matched_signals=(),
+            ), "token_budget": _budget(1_500),
+        }
+    )
+    bundle = ContextBuilder(RecordingRetriever([]), CharacterTokenEstimator()).build(request)
+    assert "scoped-project" in bundle.rendered_context
+    assert "Keep project goal" in bundle.rendered_context
+    assert "Keep active goal" in bundle.rendered_context
+    assert "KEEP-TASK-CONSTRAINT" in bundle.rendered_context
+    assert "DROP-PROJECT-HISTORY" not in bundle.rendered_context
+    assert "DROP-TASK-HISTORY" not in bundle.rendered_context
