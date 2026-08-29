@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -17,7 +18,7 @@ from app.async_tasks import (
 )
 from app.audit import AuditWriter
 from app.db.base import Base
-from app.db.models import AsyncTaskRunRow, ProjectRow, TaskRow
+from app.db.models import ApprovalRow, AsyncTaskRunRow, ProjectRow, TaskRow, WorkflowRow
 from app.db.session import create_db_engine
 from app.tasks import TaskRepository, TaskService, TaskStatus
 
@@ -61,7 +62,7 @@ def _service(
             TaskRepository(session),
             audit_writer,
         ),
-        repository=AsyncTaskRepository(session),
+        repository=AsyncTaskRepository(session, audit_writer=audit_writer),
         policy_gate=AsyncTaskPolicyGate((tmp_path,)),
     )
 
@@ -183,3 +184,193 @@ def test_create_queues_approval_required_task_without_raw_block(
     assert run.notification_status == NotificationStatus.NOT_REQUIRED.value
     assert run.last_error_code is None
     assert run.last_error_message is None
+
+
+def test_create_persists_durable_goal_plan(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    with session_factory() as session:
+        project_id = _seed_project(session)
+        service = _service(session, tmp_path)
+
+        accepted = service.create(_request(project_id, tmp_path))
+        session.commit()
+
+        workflow = session.get(WorkflowRow, accepted.run_id)
+
+    assert workflow is not None
+    assert workflow.task_id == accepted.task_id
+    assert workflow.plan_payload["status"] == "ready"
+    assert workflow.plan_payload["goal"]["statement"] == "Implement the next runner batch"
+    assert workflow.plan_payload["truth"]["project_id"] == project_id
+    assert workflow.plan_payload["nodes"][-1]["kind"] == "verification_gate"
+    assert "source_channel" not in workflow.plan_payload
+
+
+def test_ambiguous_goal_blocks_before_worker_queue(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    with session_factory() as session:
+        project_id = _seed_project(session)
+        service = _service(session, tmp_path)
+        request = _request(project_id, tmp_path).model_copy(
+            update={
+                "goal": "do it",
+                "idempotency_key": "telegram:ambiguous",
+            }
+        )
+
+        accepted = service.create(request)
+        session.commit()
+
+        task = session.get(TaskRow, accepted.task_id)
+        run = session.get(AsyncTaskRunRow, accepted.run_id)
+        workflow = session.get(WorkflowRow, accepted.run_id)
+
+    assert accepted.status is AsyncRunStatus.BLOCKED
+    assert task is not None
+    assert task.status == TaskStatus.BLOCKED.value
+    assert run is not None
+    assert run.status == AsyncRunStatus.BLOCKED.value
+    assert run.last_error_code == "planning_blocked"
+    assert workflow is not None
+    assert workflow.plan_payload["status"] == "blocked"
+    blocker = workflow.plan_payload["blocker"]
+    assert blocker["question"]
+    assert blocker["reason"]
+
+def test_planning_blocker_does_not_create_approval(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    with session_factory() as session:
+        project_id = _seed_project(session)
+        service = _service(session, tmp_path)
+        request = _request(
+            project_id, tmp_path, risk_level=2, approval_required=True
+        ).model_copy(
+            update={
+                "goal": "do it",
+                "idempotency_key": "telegram:ambiguous-approval",
+            }
+        )
+
+        accepted = service.create(request)
+        session.commit()
+        approvals = list(session.scalars(select(ApprovalRow)))
+
+    assert accepted.status is AsyncRunStatus.BLOCKED
+    assert approvals == []
+
+
+def test_long_idempotency_key_still_creates_bounded_plan_id(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    with session_factory() as session:
+        project_id = _seed_project(session)
+        service = _service(session, tmp_path)
+        long_key = "telegram:" + ("x" * 240)
+        request = _request(project_id, tmp_path).model_copy(
+            update={"idempotency_key": long_key}
+        )
+
+        accepted = service.create(request)
+        session.commit()
+        workflow = session.get(WorkflowRow, accepted.run_id)
+
+    assert accepted.status is AsyncRunStatus.PENDING
+    assert workflow is not None
+    assert len(workflow.plan_payload["id"]) <= 128
+
+def test_policy_denied_request_does_not_persist_plan(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    with session_factory() as session:
+        project_id = _seed_project(session)
+        service = _service(session, tmp_path)
+        request = _request(project_id, tmp_path).model_copy(
+            update={
+                "workspace": "/etc",
+                "idempotency_key": "telegram:workspace-denied",
+            }
+        )
+
+        accepted = service.create(request)
+        session.commit()
+        workflow = session.get(WorkflowRow, accepted.run_id)
+
+    assert accepted.status is AsyncRunStatus.BLOCKED
+    assert workflow is None
+
+
+def test_planning_blocked_audit_reason_is_not_policy_gate(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    with session_factory() as session:
+        project_id = _seed_project(session)
+        service = _service(session, tmp_path)
+        request = _request(project_id, tmp_path).model_copy(
+            update={
+                "goal": "do it",
+                "idempotency_key": "telegram:audit-planning-blocked",
+            }
+        )
+        service.create(request)
+        session.commit()
+
+    records = [
+        json.loads(line)
+        for line in (tmp_path / "async-service-audit.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    blocked = [
+        record
+        for record in records
+        if record["event_type"] == "async_run.blocked"
+    ]
+    assert blocked
+    assert blocked[-1]["payload"]["reason"] == "planning_blocked"
+
+def test_whitespace_equivalent_idempotency_key_replays_same_task_and_run(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    with session_factory() as session:
+        project_id = _seed_project(session)
+        service = _service(session, tmp_path)
+        first_request = _request(project_id, tmp_path).model_copy(
+            update={"idempotency_key": "telegram:normalized-key"}
+        )
+        replay_request = first_request.model_copy(
+            update={"idempotency_key": "  telegram:normalized-key  "}
+        )
+
+        first = service.create(first_request)
+        replay = service.create(replay_request)
+        session.commit()
+        tasks = list(session.scalars(select(TaskRow)))
+        runs = list(session.scalars(select(AsyncTaskRunRow)))
+
+    assert replay.replayed is True
+    assert replay.task_id == first.task_id
+    assert replay.run_id == first.run_id
+    assert len(tasks) == 1
+    assert len(runs) == 1

@@ -139,7 +139,7 @@ class AsyncTaskRepository:
                 "async_run.blocked",
                 run,
                 actor=request.requested_by,
-                payload={"reason": "policy_gate"},
+                payload={"reason": error_code or "policy_gate"},
             )
         return run
 
