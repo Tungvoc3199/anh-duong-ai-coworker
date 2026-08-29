@@ -472,3 +472,37 @@ async def test_executor_plain_exec_failed_is_never_completed() -> None:
     assert result.error_code == "openclaw_exec_failed"
     assert result.summary == terminal_text
     assert result.external_run_id == "resp_exec_failed"
+
+
+@pytest.mark.asyncio
+async def test_executor_embedded_terminal_exec_failed_is_never_completed() -> None:
+    terminal_text = (
+        "Đúng anh. Em đã kiểm tra video: không có audio, không có text.\n\n"
+        "⚠️ 🛠️ Exec failed: `run python inline script (heredoc)` (agent)"
+    )
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "id": "resp_embedded_fail",
+                "output": [
+                    {
+                        "content": [
+                            {"type": "output_text", "text": terminal_text}
+                        ]
+                    }
+                ],
+            },
+        )
+
+    executor = OpenClawExecutor(
+        base_url="http://127.0.0.1:18789",
+        transport=httpx.MockTransport(handler),
+    )
+    result = await executor.execute(_request())
+
+    assert result.outcome == "failed"
+    assert result.error_code == "openclaw_exec_failed"
+    assert result.summary == terminal_text
+    assert result.external_run_id == "resp_embedded_fail"

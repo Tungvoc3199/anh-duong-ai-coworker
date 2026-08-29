@@ -584,19 +584,20 @@ class OpenClawExecutor:
         try:
             parsed = json.loads(text)
         except json.JSONDecodeError:
-            folded = text.strip().casefold()
-            for prefix in ("⚠️ 🛠️ ", "🛠️ ", "⚠️ "):
-                if folded.startswith(prefix):
-                    folded = folded[len(prefix):].lstrip()
-                    break
-            if folded.startswith("exec failed:"):
-                return {
-                    "outcome": "failed",
-                    "summary": text,
-                    "error_code": "openclaw_exec_failed",
-                    "artifacts": [],
-                    "verification": [],
-                }
+            for raw_line in text.splitlines():
+                folded = raw_line.strip().casefold()
+                for prefix in ("⚠️ 🛠️ ", "🛠️ ", "⚠️ "):
+                    if folded.startswith(prefix):
+                        folded = folded[len(prefix):].lstrip()
+                        break
+                if folded.startswith("exec failed:"):
+                    return {
+                        "outcome": "failed",
+                        "summary": text,
+                        "error_code": "openclaw_exec_failed",
+                        "artifacts": [],
+                        "verification": [],
+                    }
             return {
                 "outcome": "completed",
                 "summary": text,
