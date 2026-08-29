@@ -499,6 +499,45 @@ class ContextBuilder:
         # 1. Direct-route guard: conversational/direct requests do not need
         # workflow-heavy project/task context. Routing + current request stay.
         if self._is_direct_conversational(request):
+            project = request.project_context
+            if project is not None:
+                direct_project_drops = (
+                    ("current_phase", project.current_phase),
+                    ("status", project.status),
+                    *((f"decision:{i}", value) for i, value in enumerate(project.decisions)),
+                )
+                for source, value in direct_project_drops:
+                    if value:
+                        changes.append(self._dropped_text_change(
+                            ContextSectionKind.PROJECT_CONTEXT, f"project:{source}",
+                            "direct_scope_compaction", self._text(value),
+                        ))
+                project = project.model_copy(update={
+                    "current_phase": None, "decisions": (), "status": None, "history": (),
+                })
+                request = request.model_copy(update={"project_context": project})
+            task = request.task_context
+            if task is not None:
+                direct_task_drops = (
+                    ("status", task.status),
+                    ("next_action", task.next_action),
+                    *(
+                        (f"acceptance_criterion:{i}", value)
+                        for i, value in enumerate(task.acceptance_criteria)
+                    ),
+                    *((f"blocker:{i}", value) for i, value in enumerate(task.blockers)),
+                )
+                for source, value in direct_task_drops:
+                    if value:
+                        changes.append(self._dropped_text_change(
+                            ContextSectionKind.ACTIVE_TASK, f"task:{source}",
+                            "direct_scope_compaction", self._text(value),
+                        ))
+                task = task.model_copy(update={
+                    "status": None, "acceptance_criteria": (), "blockers": (),
+                    "next_action": None, "history": (),
+                })
+                request = request.model_copy(update={"task_context": task})
             if project_history:
                 changes.extend(
                     self._dropped_text_change(

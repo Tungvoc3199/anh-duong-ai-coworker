@@ -325,7 +325,7 @@ def test_direct_request_skips_workflow_heavy_context() -> None:
         RecordingRetriever([]),
         CharacterTokenEstimator(),
     ).build(request)
-    # workflow-only details must not bloat a direct request
+    # workflow-only details must not bloat an unscoped direct request
     assert bundle.estimated_tokens <= 600
 
 
@@ -685,11 +685,16 @@ def test_preselection_duplicate_memory_is_counted_in_reason_metrics() -> None:
 
 def test_direct_scoped_request_preserves_core_project_and_task_facts() -> None:
     project = ProjectContextSnapshot(
-        identity="scoped-project", goal="Keep project goal", history=("DROP-PROJECT-HISTORY",)
+        identity="scoped-project", goal="Keep project goal", current_phase="DROP-PHASE",
+        architecture_constraints=("KEEP-PROJECT-CONSTRAINT",),
+        decisions=("DROP-DECISION",), status="DROP-PROJECT-STATUS",
+        history=("DROP-PROJECT-HISTORY",)
     )
     task = TaskContextSnapshot(
         identity="scoped-task", active_goal="Keep active goal",
-        constraints=("KEEP-TASK-CONSTRAINT",), history=("DROP-TASK-HISTORY",)
+        status="DROP-TASK-STATUS", constraints=("KEEP-TASK-CONSTRAINT",),
+        acceptance_criteria=("DROP-ACCEPTANCE",), blockers=("DROP-BLOCKER",),
+        next_action="DROP-NEXT-ACTION", history=("DROP-TASK-HISTORY",)
     )
     request = _build_request().model_copy(
         update={
@@ -700,7 +705,7 @@ def test_direct_scoped_request_preserves_core_project_and_task_facts() -> None:
             "capability_decision": CapabilityDecision(
                 capability=CapabilityKind.CONVERSATIONAL_RESPONSE, source_route=FastRoute.DIRECT,
                 reason_code="direct.ok", matched_signals=(),
-            ), "token_budget": _budget(1_500),
+            ), "token_budget": _budget(700),
         }
     )
     bundle = ContextBuilder(RecordingRetriever([]), CharacterTokenEstimator()).build(request)
@@ -708,5 +713,12 @@ def test_direct_scoped_request_preserves_core_project_and_task_facts() -> None:
     assert "Keep project goal" in bundle.rendered_context
     assert "Keep active goal" in bundle.rendered_context
     assert "KEEP-TASK-CONSTRAINT" in bundle.rendered_context
+    assert "KEEP-PROJECT-CONSTRAINT" in bundle.rendered_context
+    assert bundle.estimated_tokens <= 700
+    assert bundle.dropped_by_reason["direct_scope_compaction"] > 0
     assert "DROP-PROJECT-HISTORY" not in bundle.rendered_context
     assert "DROP-TASK-HISTORY" not in bundle.rendered_context
+    for omitted in ("DROP-PHASE", "DROP-DECISION", "DROP-PROJECT-STATUS",
+                    "DROP-TASK-STATUS", "DROP-ACCEPTANCE", "DROP-BLOCKER",
+                    "DROP-NEXT-ACTION"):
+        assert omitted not in bundle.rendered_context
