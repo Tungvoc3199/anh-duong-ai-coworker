@@ -51,7 +51,9 @@ function responseFixture(requestId, { route = "direct", workflowOverrides = {} }
           ? "planning"
           : route === "core_read"
             ? "core_status_read"
-            : "conversational_response",
+            : route === "memory"
+              ? "memory_search"
+              : "conversational_response",
       source_route: route,
       reason_code: route,
       matched_signals: [],
@@ -920,4 +922,72 @@ test("workflow Telegram turns do not get blocked by the direct-turn tool guard",
   await hooks.beforePromptBuild({ prompt: "chạy pytest", messages: [] }, ctx);
   const toolCtx = { runId: ctx.runId, sessionKey: ctx.sessionKey, sessionId: "tool-session", channelId: "7535966424", toolName: "exec" };
   assert.equal(await hooks.beforeToolCall({ toolName: "exec", params: { command: "pytest" } }, toolCtx), undefined);
+});
+
+test("memory Telegram turns allow the memory capability tools instead of the direct zero-tool guard", async () => {
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    return new Response(JSON.stringify(responseFixture(body.request_id, { route: "memory" })), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const ctx = telegramContext("run-memory-tool-guard");
+
+  const prepared = await hooks.beforePromptBuild({ prompt: "Tìm trong bộ nhớ xem tôi đã nói gì", messages: [] }, ctx);
+  assert.match(prepared.prependContext, /route: memory/);
+  assert.match(prepared.prependContext, /capability: memory_search/);
+  assert.deepEqual(await hooks.beforeAgentRun({}, ctx), { outcome: "pass" });
+  const toolCtx = { runId: ctx.runId, sessionKey: ctx.sessionKey, sessionId: "tool-session", channelId: "7535966424" };
+
+  assert.equal(await hooks.beforeToolCall({ toolName: "memory_search", params: {} }, { ...toolCtx, toolName: "memory_search" }), undefined);
+  assert.equal(await hooks.beforeToolCall({ toolName: "memory_get", params: {} }, { ...toolCtx, toolName: "memory_get" }), undefined);
+  assert.deepEqual(
+    await hooks.beforeToolCall({ toolName: "exec", params: { command: "pwd" } }, { ...toolCtx, toolName: "exec" }),
+    { block: true, blockReason: "anh_duong_memory_turn_memory_tools_only" },
+  );
+});
+
+test("prepared context tells direct turns not to use tools or claim tool evidence", async () => {
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    return new Response(JSON.stringify(responseFixture(body.request_id, { route: "direct" })), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const ctx = telegramContext("run-direct-evidence-policy");
+
+  const prepared = await hooks.beforePromptBuild({ prompt: "?", messages: [] }, ctx);
+  assert.match(prepared.prependContext, /tool_policy: no_tools/);
+  assert.match(prepared.prependContext, /do not claim.*tool.*executed/i);
+});
+
+test("prepared context tells memory turns to use memory evidence and treat operational facts as historical", async () => {
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    return new Response(JSON.stringify(responseFixture(body.request_id, { route: "memory" })), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const ctx = telegramContext("run-memory-evidence-policy");
+
+  const prepared = await hooks.beforePromptBuild({ prompt: "Tìm trong bộ nhớ xem tôi đã nói gì", messages: [] }, ctx);
+  assert.match(prepared.prependContext, /tool_policy: memory_tools_only/);
+  assert.match(prepared.prependContext, /memory_search/);
+  assert.match(prepared.prependContext, /historical/i);
+  assert.match(prepared.prependContext, /current runtime/i);
+});
+
+test("core_read Telegram turns remain zero-tool and answer from prepared Core context", async () => {
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    return new Response(JSON.stringify(responseFixture(body.request_id, { route: "core_read" })), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const ctx = telegramContext("run-core-read-tool-guard");
+
+  const prepared = await hooks.beforePromptBuild({ prompt: "trạng thái Core hiện tại", messages: [] }, ctx);
+  assert.match(prepared.prependContext, /route: core_read/);
+  assert.match(prepared.prependContext, /tool_policy: no_tools/);
+  const toolCtx = { runId: ctx.runId, sessionKey: ctx.sessionKey, sessionId: "tool-session", channelId: "7535966424", toolName: "exec" };
+  assert.deepEqual(await hooks.beforeToolCall({ toolName: "exec", params: { command: "pwd" } }, toolCtx), {
+    block: true,
+    blockReason: "anh_duong_core_read_turn_no_tools",
+  });
 });

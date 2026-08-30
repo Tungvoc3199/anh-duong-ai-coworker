@@ -16,6 +16,20 @@ export const SAFE_MESSAGE =
 
 export const WORKFLOW_ACKNOWLEDGMENT =
   "Em đã nhận việc và đang xử lý. Em sẽ báo lại ngay khi hoàn tất.";
+
+function appendCapabilityPolicy(prepared, preparedContext) {
+  const route = prepared?.route_decision?.route;
+  if (route === "direct") {
+    return `${preparedContext}\ntool_policy: no_tools\nevidence_policy: Do not call tools. If any tool attempt is blocked, do not claim that a tool was executed, checked, searched, read, or verified.`;
+  }
+  if (route === "core_read") {
+    return `${preparedContext}\ntool_policy: no_tools\nevidence_policy: Answer only from the prepared current Core context. Do not call tools or claim evidence outside that context.`;
+  }
+  if (route === "memory") {
+    return `${preparedContext}\ntool_policy: memory_tools_only\nallowed_tools: memory_search, memory_get\nevidence_policy: Use memory tool results as historical memory evidence. Do not present historical operational facts as current runtime truth unless current Core context explicitly verifies them.`;
+  }
+  return preparedContext;
+}
 export async function deleteTelegramWorkflowProgress(api, { chatId, messageId }) {
   const runner = api?.runtime?.system?.runCommandWithTimeout;
   if (typeof runner !== "function") {
@@ -355,7 +369,7 @@ export function createAnhDuongCoreHooks({
       });
       requestId = request.request_id;
       const prepared = await prepareCoreRequest({ config, request, fetchImpl });
-      const preparedContext = buildPreparedContext(prepared);
+      const preparedContext = appendCapabilityPolicy(prepared, buildPreparedContext(prepared));
       states.set(runId, {
         status: "prepared",
         requestId,
@@ -613,10 +627,29 @@ export function createAnhDuongCoreHooks({
     }
     const runId = ctx?.runId ?? event?.runId;
     const state = typeof runId === "string" ? states.get(runId) : undefined;
-    if (state?.status === "prepared" && state.prepared.execution_required === false) {
+    if (state?.status !== "prepared") {
+      return undefined;
+    }
+    const route = state.prepared.route_decision.route;
+    if (route === "memory") {
+      const toolName = event?.toolName ?? ctx?.toolName;
+      if (toolName === "memory_search" || toolName === "memory_get") {
+        return undefined;
+      }
       return {
         block: true,
-        blockReason: "anh_duong_direct_turn_no_tools",
+        blockReason: "anh_duong_memory_turn_memory_tools_only",
+      };
+    }
+    if (state.prepared.execution_required === false) {
+      return {
+        block: true,
+        blockReason:
+          route === "direct"
+            ? "anh_duong_direct_turn_no_tools"
+            : route === "core_read"
+              ? "anh_duong_core_read_turn_no_tools"
+              : "anh_duong_non_execution_turn_no_tools",
       };
     }
     return undefined;
