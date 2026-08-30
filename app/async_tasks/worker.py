@@ -156,15 +156,6 @@ class AsyncTaskWorker:
                 )
             session.commit()
 
-        if self._is_core_health_ready_workflow(request):
-            result = await self._execute_core_health_ready_workflow()
-            self._persist_result(
-                run.id,
-                run.task_id,
-                result,
-            )
-            return True
-
         with self.session_factory() as plan_session:
             persisted_plan = PlanRepository(plan_session).get(run.id)
         if persisted_plan is not None and not any(
@@ -174,6 +165,15 @@ class AsyncTaskWorker:
                 run.id,
                 run.task_id,
                 request,
+            )
+            return True
+
+        if self._is_core_health_ready_workflow(request):
+            result = await self._execute_core_health_ready_workflow()
+            self._persist_result(
+                run.id,
+                run.task_id,
+                result,
             )
             return True
 
@@ -368,9 +368,30 @@ class AsyncTaskWorker:
             if prepared is None:
                 return
             execution_request = prepared
+            provenance = "openclaw"
             try:
-                result = await self.executor.execute(execution_request)
+                if self._is_core_health_ready_workflow(request):
+                    provenance = "core"
+                    result = await self._execute_core_health_ready_workflow(
+                        dod_criteria=plan.definition_of_done.criteria
+                    )
+                else:
+                    result = await self.executor.execute(execution_request)
             except OpenClawTransportError as error:
+                if self._planned_retry_budget_exhausted(run_id, error):
+                    self._mark_planned_budget_exhausted(
+                        run_id,
+                        task_id,
+                        node.id,
+                        "Automatic retry budget is exhausted.",
+                    )
+                    self._block_planned_run(
+                        run_id,
+                        task_id,
+                        error_code="budget_exhausted",
+                        reason="Automatic retry budget is exhausted.",
+                    )
+                    return
                 self._record_planned_transport_failure(
                     run_id,
                     task_id,
@@ -384,6 +405,7 @@ class AsyncTaskWorker:
                 task_id,
                 node.id,
                 result,
+                provenance=provenance,
             )
             if terminal:
                 self._persist_result(run_id, task_id, result)
@@ -404,6 +426,34 @@ class AsyncTaskWorker:
         node: PlanNode,
     ) -> OpenClawExecutionRequest | None:
         budget = plan.execution_budget
+        started_at = budget.started_at
+        if started_at is not None:
+            if started_at.tzinfo is None:
+                started_at = started_at.replace(tzinfo=UTC)
+            elapsed = (self._now() - started_at).total_seconds()
+            if elapsed >= budget.max_elapsed_seconds:
+                judgement = OutcomeJudgement(
+                    disposition=OutcomeDisposition.BLOCKED,
+                    reason_code="budget_exhausted",
+                    reason="Wall-clock execution budget is exhausted.",
+                )
+                blocked_plan = plan.model_copy(
+                    update={"outcome_judgement": judgement.model_dump(mode="json")}
+                )
+                with self.session_factory() as session:
+                    PlanRepository(session).save(
+                        workflow_id=run_id,
+                        task_id=task_id,
+                        plan=blocked_plan,
+                    )
+                    session.commit()
+                self._block_planned_run(
+                    run_id,
+                    task_id,
+                    error_code="budget_exhausted",
+                    reason=judgement.reason,
+                )
+                return None
         if budget.actions_used >= budget.max_actions:
             judgement = OutcomeJudgement(
                 disposition=OutcomeDisposition.BLOCKED,
@@ -496,6 +546,8 @@ class AsyncTaskWorker:
         task_id: str,
         node_id: str,
         result: OpenClawExecutionResult,
+        *,
+        provenance: str = "openclaw",
     ) -> bool:
         with self.session_factory() as session:
             plan = PlanRepository(session).get(run_id)
@@ -516,7 +568,7 @@ class AsyncTaskWorker:
                     item.model_dump(mode="json") for item in result.criterion_verification
                 ),
                 result_payload=result.model_dump(mode="json"),
-                provenance="openclaw",
+                provenance=provenance,
                 created_at=self._now(),
             )
             target_state = {
@@ -618,6 +670,25 @@ class AsyncTaskWorker:
         plan: Plan,
         judgement: OutcomeJudgement,
     ) -> str:
+        started_at = plan.execution_budget.started_at
+        if started_at is not None:
+            if started_at.tzinfo is None:
+                started_at = started_at.replace(tzinfo=UTC)
+            elapsed = (self._now() - started_at).total_seconds()
+            if elapsed >= plan.execution_budget.max_elapsed_seconds:
+                self._mark_planned_budget_exhausted(
+                    run_id,
+                    task_id,
+                    self._last_action_node_id(plan),
+                    "Wall-clock execution budget is exhausted before replan.",
+                )
+                self._block_planned_run(
+                    run_id,
+                    task_id,
+                    error_code="budget_exhausted",
+                    reason="Wall-clock execution budget is exhausted before replan.",
+                )
+                return "terminal"
         failure_class = (
             ExecutionFailureClass.DOD_UNMET_RECOVERABLE
             if judgement.reason_code == "dod_unmet"
@@ -732,6 +803,58 @@ class AsyncTaskWorker:
             criterion_verification=tuple(criterion_items),
         )
 
+    def _planned_retry_budget_exhausted(
+        self,
+        run_id: str,
+        error: OpenClawTransportError,
+    ) -> bool:
+        if not error.retryable or error.uncertain_side_effect:
+            return False
+        with self.session_factory() as session:
+            plan = PlanRepository(session).get(run_id)
+            run = AsyncTaskRepository(session).get(run_id)
+        if plan is None:
+            return False
+        return (
+            run.attempt < run.max_attempts
+            and plan.execution_budget.retries_used >= plan.risk_budget.max_retries
+        )
+
+    def _mark_planned_budget_exhausted(
+        self,
+        run_id: str,
+        task_id: str,
+        node_id: str,
+        reason: str,
+    ) -> None:
+        with self.session_factory() as session:
+            plan = PlanRepository(session).get(run_id)
+            if plan is None:
+                return
+            current = self._node_execution(plan, node_id).model_copy(
+                update={
+                    "state": PlanNodeState.FAILED,
+                    "last_failure_class": "budget_exhausted",
+                }
+            )
+            judgement = OutcomeJudgement(
+                disposition=OutcomeDisposition.BLOCKED,
+                reason_code="budget_exhausted",
+                reason=reason,
+            )
+            updated = plan.model_copy(
+                update={
+                    "node_executions": self._replace_execution(plan, current),
+                    "outcome_judgement": judgement.model_dump(mode="json"),
+                }
+            )
+            PlanRepository(session).save(
+                workflow_id=run_id,
+                task_id=task_id,
+                plan=updated,
+            )
+            session.commit()
+
     def _record_planned_transport_failure(
         self,
         run_id: str,
@@ -793,6 +916,13 @@ class AsyncTaskWorker:
         self._persist_result(run_id, task_id, result)
 
     @staticmethod
+    def _last_action_node_id(plan: Plan) -> str:
+        for node in reversed(plan.nodes):
+            if node.kind is PlanNodeKind.ACTION:
+                return node.id
+        return plan.nodes[-1].id
+
+    @staticmethod
     def _node_execution(plan: Plan, node_id: str) -> PlanNodeExecution:
         for execution in plan.node_executions:
             if execution.node_id == node_id:
@@ -846,6 +976,8 @@ class AsyncTaskWorker:
 
     async def _execute_core_health_ready_workflow(
         self,
+        *,
+        dod_criteria: tuple[str, ...] = (),
     ) -> OpenClawExecutionResult:
         statuses = await self.core_status_probe()
         health = statuses.get("health", {})
@@ -896,6 +1028,26 @@ class AsyncTaskWorker:
             commands_run=(),
             tests=(),
             profile="CE-2",
+            criterion_verification=(
+                tuple(
+                    CriterionVerification(
+                        criterion=criterion,
+                        status="verified",
+                        evidence_refs=("core:http:/health", "core:http:/ready"),
+                        explanation="Core-owned read-only HTTP probes both passed.",
+                    )
+                    for criterion in dod_criteria
+                )
+                if outcome == "completed"
+                else tuple(
+                    CriterionVerification(
+                        criterion=criterion,
+                        status="unmet",
+                        explanation="Core health/ready probe did not fully pass.",
+                    )
+                    for criterion in dod_criteria
+                )
+            ),
         )
 
     @staticmethod

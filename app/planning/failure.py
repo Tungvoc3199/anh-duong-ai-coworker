@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
-from app.openclaw.models import OpenClawExecutionResult, OpenClawTransportError
+if TYPE_CHECKING:
+    from app.openclaw.models import OpenClawExecutionResult, OpenClawTransportError
 from app.planning.outcome import OutcomeJudgement
 
 

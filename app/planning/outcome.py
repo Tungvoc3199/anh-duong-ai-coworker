@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
-from app.openclaw.models import OpenClawExecutionResult
+if TYPE_CHECKING:
+    from app.openclaw.models import OpenClawExecutionResult
 from app.planning.models import Plan
 
 

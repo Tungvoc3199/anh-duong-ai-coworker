@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pytest
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.async_tasks import AsyncRunStatus, AsyncTaskRepository
-from app.openclaw import CriterionVerification, OpenClawExecutionResult
+from app.openclaw import (
+    CriterionVerification,
+    OpenClawExecutionResult,
+    OpenClawTransportError,
+)
 from app.planning.models import (
     DefinitionOfDone,
     ExecutionBudget,
@@ -38,6 +44,7 @@ def _replace_plan(
     task_id: str,
     *,
     max_replans: int = 1,
+    max_retries: int = 2,
     budget: ExecutionBudget | None = None,
     executions: tuple[PlanNodeExecution, ...] = (),
     evidence: tuple[ExecutionEvidence, ...] = (),
@@ -51,7 +58,10 @@ def _replace_plan(
                 "definition_of_done": DefinitionOfDone(
                     criteria=("source collected", "analysis verified")
                 ),
-                "risk_budget": RiskBudget(max_replans=max_replans),
+                "risk_budget": RiskBudget(
+                    max_replans=max_replans,
+                    max_retries=max_retries,
+                ),
                 "nodes": (
                     PlanNode(
                         id="collect",
@@ -441,3 +451,100 @@ async def test_resume_at_verification_uses_persisted_evidence_without_replay(
     assert states["verify"] is PlanNodeState.COMPLETED
     assert plan.outcome_judgement is not None
     assert plan.outcome_judgement["disposition"] == "satisfied"
+
+
+@pytest.mark.asyncio
+async def test_elapsed_budget_blocks_before_executor_call(
+    session_factory: sessionmaker[Session],
+    tmp_path,
+) -> None:
+    task_id, run_id = _seed_run(session_factory, tmp_path, key="plan-elapsed-budget")
+    _replace_plan(
+        session_factory,
+        run_id,
+        task_id,
+        budget=ExecutionBudget(
+            max_actions=4,
+            max_elapsed_seconds=1,
+            started_at=NOW - timedelta(seconds=2),
+        ),
+    )
+    executor = SequenceExecutor([])
+    _, run, task, plan = await _run_and_load(session_factory, tmp_path, executor, run_id, task_id)
+    assert executor.requests == []
+    assert run.status is AsyncRunStatus.BLOCKED
+    assert run.last_error_code == "budget_exhausted"
+    assert task.status is TaskStatus.BLOCKED
+    assert plan.outcome_judgement["reason_code"] == "budget_exhausted"
+
+
+@pytest.mark.asyncio
+async def test_zero_retry_budget_prevents_transport_retry(
+    session_factory: sessionmaker[Session],
+    tmp_path,
+) -> None:
+    task_id, run_id = _seed_run(session_factory, tmp_path, key="plan-zero-retry")
+    _replace_plan(
+        session_factory,
+        run_id,
+        task_id,
+        max_retries=0,
+    )
+    executor = SequenceExecutor(
+        [
+            OpenClawTransportError(
+                "connection_error",
+                "temporary connection failure",
+                retryable=True,
+            )
+        ]
+    )
+    _, run, task, plan = await _run_and_load(session_factory, tmp_path, executor, run_id, task_id)
+    assert len(executor.requests) == 1
+    assert run.status is AsyncRunStatus.BLOCKED
+    assert run.last_error_code == "budget_exhausted"
+    assert task.status is TaskStatus.BLOCKED
+    assert plan.execution_budget.retries_used == 0
+
+
+@pytest.mark.asyncio
+async def test_core_health_ready_uses_durable_outcome_judge(
+    session_factory: sessionmaker[Session],
+    tmp_path,
+) -> None:
+    goal = (
+        "Kiểm tra trạng thái Ánh Dương Core bằng chế độ chỉ đọc: "
+        "kiểm tra /health và /ready, không sửa file, không sửa config, "
+        "không restart service, rồi kết luận hệ thống có sẵn sàng hay không."
+    )
+    task_id, run_id = _seed_run(session_factory, tmp_path, key="plan-native-health", goal=goal)
+    executor = SequenceExecutor([])
+
+    async def probe() -> dict[str, object]:
+        return {
+            "health": {"http_status": 200, "status": "ok"},
+            "ready": {"http_status": 200, "status": "ready", "database": "ok"},
+        }
+
+    worker = _worker(
+        session_factory=session_factory,
+        tmp_path=tmp_path,
+        executor=executor,
+        clock=[NOW],
+        core_status_probe=probe,
+    )
+    assert await worker.run_once() is True
+    with session_factory() as session:
+        run = AsyncTaskRepository(session).get(run_id)
+        task = TaskService(TaskRepository(session), _audit(tmp_path)).get(task_id)
+        plan = PlanRepository(session).get(run_id)
+    assert plan is not None
+    assert executor.requests == []
+    assert run.status is AsyncRunStatus.COMPLETED
+    assert task.status is TaskStatus.COMPLETED
+    assert plan.outcome_judgement is not None
+    assert plan.outcome_judgement["disposition"] == "satisfied"
+    states = {item.node_id: item.state for item in plan.node_executions}
+    assert states["execute"] is PlanNodeState.COMPLETED
+    assert states["verify"] is PlanNodeState.COMPLETED
+    assert plan.evidence and plan.evidence[0].provenance == "core"
