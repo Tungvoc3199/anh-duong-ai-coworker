@@ -548,3 +548,25 @@ async def test_core_health_ready_uses_durable_outcome_judge(
     assert states["execute"] is PlanNodeState.COMPLETED
     assert states["verify"] is PlanNodeState.COMPLETED
     assert plan.evidence and plan.evidence[0].provenance == "core"
+
+
+@pytest.mark.asyncio
+async def test_resume_running_node_blocks_as_uncertain_side_effect_without_replay(
+    session_factory: sessionmaker[Session], tmp_path
+) -> None:
+    task_id, run_id = _seed_run(session_factory, tmp_path, key="plan-running-crash")
+    _replace_plan(
+        session_factory,
+        run_id,
+        task_id,
+        executions=(PlanNodeExecution(node_id="collect", state=PlanNodeState.RUNNING, attempts=1),),
+    )
+    executor = SequenceExecutor([])
+
+    _, run, task, plan = await _run_and_load(session_factory, tmp_path, executor, run_id, task_id)
+
+    assert executor.requests == []
+    assert run.status is AsyncRunStatus.BLOCKED
+    assert run.last_error_code == "uncertain_side_effect"
+    assert task.status is TaskStatus.BLOCKED
+    assert plan.outcome_judgement["reason_code"] == "uncertain_side_effect"

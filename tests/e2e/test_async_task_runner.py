@@ -29,10 +29,7 @@ from app.tasks import TaskRepository, TaskService, TaskStatus
 def test_api_to_http_execution_to_http_notification(
     tmp_path: Path,
 ) -> None:
-    engine = create_db_engine(
-        "sqlite+pysqlite:///"
-        f"{tmp_path / 'async-e2e.db'}"
-    )
+    engine = create_db_engine(f"sqlite+pysqlite:///{tmp_path / 'async-e2e.db'}")
     Base.metadata.create_all(engine)
     factory = sessionmaker(
         bind=engine,
@@ -101,13 +98,19 @@ def test_api_to_http_execution_to_http_notification(
                                         "type": "output_text",
                                         "text": json.dumps(
                                             {
-                                                "outcome": (
-                                                    "completed"
-                                                ),
+                                                "outcome": ("completed"),
                                                 "summary": "E2E done",
                                                 "artifacts": [],
-                                                "verification": [
-                                                    "mock verified"
+                                                "verification": ["mock verified"],
+                                                "criterion_verification": [
+                                                    {
+                                                        "criterion": (
+                                                            "Outcome achieved and verified: "
+                                                            "Complete through the HTTP gateway"
+                                                        ),
+                                                        "status": "verified",
+                                                        "evidence_refs": ["mock:e2e"],
+                                                    }
                                                 ],
                                             }
                                         ),
@@ -143,9 +146,7 @@ def test_api_to_http_execution_to_http_notification(
             executor=executor,
             worker_id="e2e-worker",
             lease_seconds=900,
-            clock=lambda: (
-                datetime.now(UTC) + timedelta(seconds=1)
-            ),
+            clock=lambda: datetime.now(UTC) + timedelta(seconds=1),
         )
         assert asyncio.run(worker.run_once()) is True
         assert paths == ["/v1/responses"]
@@ -165,9 +166,7 @@ def test_api_to_http_execution_to_http_notification(
             asyncio.run(notifier.aclose())
 
         with factory() as session:
-            run = AsyncTaskRepository(session).get(
-                accepted.run_id
-            )
+            run = AsyncTaskRepository(session).get(accepted.run_id)
             task = session.get(
                 TaskRow,
                 accepted.task_id,

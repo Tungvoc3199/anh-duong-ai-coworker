@@ -25,6 +25,7 @@ from app.db.base import Base
 from app.db.models import AsyncTaskRunRow, ProjectRow, TaskRow
 from app.db.session import create_db_engine
 from app.openclaw import (
+    CriterionVerification,
     OpenClawExecutionRequest,
     OpenClawExecutionResult,
     OpenClawTransportError,
@@ -44,12 +45,18 @@ RAW_NOTIFICATION_SECRET = "notification-secret-789"
 class CompleteExecutor:
     async def execute(
         self,
-        _request: OpenClawExecutionRequest,
+        request: OpenClawExecutionRequest,
     ) -> OpenClawExecutionResult:
         return OpenClawExecutionResult(
             outcome="completed",
             summary="Completed by mock HTTP executor.",
             external_run_id="mock-response",
+            criterion_verification=tuple(
+                CriterionVerification(
+                    criterion=item, status="verified", evidence_refs=("mock:audit",)
+                )
+                for item in request.dod_criteria
+            ),
         )
 
 
@@ -69,10 +76,7 @@ class FailedNotifier:
 
 @pytest.fixture
 def engine(tmp_path: Path) -> Iterator[Engine]:
-    runtime_engine = create_db_engine(
-        "sqlite+pysqlite:///"
-        f"{tmp_path / 'async-audit-runtime.db'}"
-    )
+    runtime_engine = create_db_engine(f"sqlite+pysqlite:///{tmp_path / 'async-audit-runtime.db'}")
     Base.metadata.create_all(runtime_engine)
     try:
         yield runtime_engine

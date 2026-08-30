@@ -55,7 +55,7 @@ class OutcomeJudge:
         by_criterion = {}
         for item in result.criterion_verification:
             key = self._normalize(item.criterion)
-            by_criterion.setdefault(key, item)
+            by_criterion[key] = item
 
         checks: list[CriterionJudgement] = []
         saw_unmet = False

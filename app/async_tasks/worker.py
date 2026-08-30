@@ -332,6 +332,13 @@ class AsyncTaskWorker:
                 return
             ready = scheduler.ready_nodes(plan)
             if not ready:
+                running = next(
+                    (item for item in plan.node_executions if item.state is PlanNodeState.RUNNING),
+                    None,
+                )
+                if running is not None:
+                    self._mark_planned_uncertain_side_effect(run_id, task_id, running.node_id)
+                    return
                 self._block_planned_run(
                     run_id,
                     task_id,
@@ -899,6 +906,32 @@ class AsyncTaskWorker:
                 plan=updated_plan,
             )
             session.commit()
+
+    def _mark_planned_uncertain_side_effect(self, run_id: str, task_id: str, node_id: str) -> None:
+        reason = "A previously running plan node has no durable result; side effect is uncertain."
+        with self.session_factory() as session:
+            plan = PlanRepository(session).get(run_id)
+            assert plan is not None
+            execution = self._node_execution(plan, node_id).model_copy(
+                update={
+                    "state": PlanNodeState.BLOCKED,
+                    "last_failure_class": "uncertain_side_effect",
+                }
+            )
+            judgement = OutcomeJudgement(
+                disposition=OutcomeDisposition.BLOCKED,
+                reason_code="uncertain_side_effect",
+                reason=reason,
+            )
+            updated = plan.model_copy(
+                update={
+                    "node_executions": self._replace_execution(plan, execution),
+                    "outcome_judgement": judgement.model_dump(mode="json"),
+                }
+            )
+            PlanRepository(session).save(workflow_id=run_id, task_id=task_id, plan=updated)
+            session.commit()
+        self._block_planned_run(run_id, task_id, error_code="uncertain_side_effect", reason=reason)
 
     def _block_planned_run(
         self,

@@ -26,6 +26,7 @@ def _truth() -> PlanningTruthSnapshot:
         workspace_exists=True,
     )
 
+
 def _plan(*, executions: tuple[PlanNodeExecution, ...] = ()) -> Plan:
     return Plan(
         id="plan_1",
@@ -61,6 +62,7 @@ def _plan(*, executions: tuple[PlanNodeExecution, ...] = ()) -> Plan:
         node_executions=executions,
     )
 
+
 def test_scheduler_returns_only_dependency_ready_nodes_in_plan_order() -> None:
     scheduler = PlanNodeScheduler()
 
@@ -89,6 +91,7 @@ def test_scheduler_returns_only_dependency_ready_nodes_in_plan_order() -> None:
     )
     assert [node.id for node in third] == ["verify"]
 
+
 def test_scheduler_excludes_non_pending_nodes() -> None:
     plan = _plan(
         executions=(
@@ -98,10 +101,7 @@ def test_scheduler_excludes_non_pending_nodes() -> None:
     )
 
     assert PlanNodeScheduler().ready_nodes(plan) == ()
-    assert (
-        PlanNodeScheduler().state_for(plan, "verify")
-        is PlanNodeState.PENDING
-    )
+    assert PlanNodeScheduler().state_for(plan, "verify") is PlanNodeState.PENDING
 
 
 def test_legacy_plan_payload_loads_execution_defaults() -> None:
