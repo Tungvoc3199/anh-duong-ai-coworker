@@ -164,3 +164,34 @@ def test_verified_status_requires_nonblank_evidence_reference() -> None:
 
     assert judgement.disposition is OutcomeDisposition.REPLAN
     assert judgement.reason_code == "dod_evidence_missing"
+
+
+def test_completed_result_with_governance_denial_never_satisfies_goal() -> None:
+    from app.openclaw.models import GovernanceResult
+
+    result = OpenClawExecutionResult(
+        outcome="completed",
+        summary="claimed complete",
+        governance_result=GovernanceResult(
+            decision="deny",
+            status="denied",
+            reason="governance denied execution",
+        ),
+        criterion_verification=(
+            CriterionVerification(
+                criterion="artifact exists",
+                status="verified",
+                evidence_refs=("ev_artifact",),
+            ),
+            CriterionVerification(
+                criterion="tests pass",
+                status="verified",
+                evidence_refs=("ev_tests",),
+            ),
+        ),
+    )
+
+    judgement = OutcomeJudge().judge(_plan(), result)
+
+    assert judgement.disposition is OutcomeDisposition.BLOCKED
+    assert judgement.reason_code == "governance_failure"

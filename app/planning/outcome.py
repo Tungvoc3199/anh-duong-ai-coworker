@@ -52,6 +52,20 @@ class OutcomeJudge:
                 reason=result.summary,
             )
 
+        governance = result.governance_result
+        if governance is not None and (
+            governance.decision != "allow" or governance.status not in {"verified", "approved"}
+        ):
+            return OutcomeJudgement(
+                disposition=OutcomeDisposition.BLOCKED,
+                reason_code=(
+                    "approval_required"
+                    if governance.decision == "require_approval"
+                    else "governance_failure"
+                ),
+                reason=governance.reason,
+            )
+
         by_criterion = {}
         for item in result.criterion_verification:
             key = self._normalize(item.criterion)

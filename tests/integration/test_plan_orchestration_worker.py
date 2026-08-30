@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.async_tasks import AsyncRunStatus, AsyncTaskRepository, AsyncTaskWorker
-from app.db.models import WorkflowRow
+from app.db.models import AsyncTaskRunRow, WorkflowRow
 from app.openclaw import (
     CriterionVerification,
     OpenClawExecutionResult,
@@ -767,8 +767,9 @@ async def test_no_plan_core_health_blocks_without_openclaw(
     session_factory: sessionmaker[Session], tmp_path
 ) -> None:
     goal = (
-        "Kiểm tra /health và /ready của Ánh Dương Core, chỉ đọc, "
-        "không sửa file, không sửa config, không restart service."
+        "Kiểm tra trạng thái Ánh Dương Core bằng chế độ chỉ đọc: "
+        "kiểm tra /health và /ready, không sửa file, không sửa config, "
+        "không restart service, không thay đổi cấu hình."
     )
     task_id, run_id = _seed_run(
         session_factory, tmp_path, key="plan-missing-core-health", goal=goal
@@ -790,8 +791,11 @@ async def test_no_plan_core_health_blocks_without_openclaw(
         }
 
     worker = _worker(
-        session_factory=session_factory, tmp_path=tmp_path, executor=executor,
-        clock=[NOW], core_status_probe=probe
+        session_factory=session_factory,
+        tmp_path=tmp_path,
+        executor=executor,
+        clock=[NOW],
+        core_status_probe=probe,
     )
     assert await worker.run_once() is True
     with session_factory() as session:
@@ -806,17 +810,19 @@ async def test_no_plan_core_health_blocks_without_openclaw(
 def test_result_from_plan_evidence_preserves_latest_terminal_outcome(
     session_factory: sessionmaker[Session], tmp_path
 ) -> None:
-    task_id, run_id = _seed_run(
-        session_factory, tmp_path, key="preserve-evidence-outcome"
-    )
+    task_id, run_id = _seed_run(session_factory, tmp_path, key="preserve-evidence-outcome")
     failed = OpenClawExecutionResult(
         outcome="failed", summary="durable failure", error_code="agent_failed"
     )
     evidence = ExecutionEvidence(
-        id="ev_failed_outcome", node_id="execute", kind="result",
-        summary=failed.summary, outcome="failed",
+        id="ev_failed_outcome",
+        node_id="execute",
+        kind="result",
+        summary=failed.summary,
+        outcome="failed",
         result_payload=failed.model_dump(mode="json"),
-        provenance="openclaw", created_at=NOW,
+        provenance="openclaw",
+        created_at=NOW,
     )
     with session_factory() as session:
         plan = PlanRepository(session).get(run_id)
@@ -832,16 +838,15 @@ def test_result_from_plan_evidence_preserves_latest_terminal_outcome(
 async def test_run_attempt_exhaustion_never_schedules_planned_retry(
     session_factory: sessionmaker[Session], tmp_path
 ) -> None:
-    task_id, run_id = _seed_run(
-        session_factory, tmp_path, key="run-attempt-budget-terminal"
-    )
+    task_id, run_id = _seed_run(session_factory, tmp_path, key="run-attempt-budget-terminal")
     with session_factory() as session:
-        row = AsyncTaskRepository(session).get_row(run_id)
+        row = session.get(AsyncTaskRunRow, run_id)
+        assert row is not None
         row.max_attempts = 1
         session.commit()
-    executor = SequenceExecutor([OpenClawTransportError(
-        "connection_error", "temporary", retryable=True
-    )])
+    executor = SequenceExecutor(
+        [OpenClawTransportError("connection_error", "temporary", retryable=True)]
+    )
     worker = _worker(
         session_factory=session_factory, tmp_path=tmp_path, executor=executor, clock=[NOW]
     )

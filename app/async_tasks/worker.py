@@ -169,11 +169,14 @@ class AsyncTaskWorker:
             return True
 
         if self._is_core_health_ready_workflow(request):
-            result = await self._execute_core_health_ready_workflow()
-            self._persist_result(
+            self._block_planned_run(
                 run.id,
                 run.task_id,
-                result,
+                error_code="plan_missing",
+                reason=(
+                    "Core-native health/ready execution requires a durable plan "
+                    "and Outcome Judge contract."
+                ),
             )
             return True
 
@@ -876,12 +879,7 @@ class AsyncTaskWorker:
                 criterion_items.append(CriterionVerification.model_validate(raw))
         if latest_payload is not None:
             latest = OpenClawExecutionResult.model_validate(latest_payload)
-            return latest.model_copy(
-                update={
-                    "outcome": "completed",
-                    "criterion_verification": tuple(criterion_items),
-                }
-            )
+            return latest.model_copy(update={"criterion_verification": tuple(criterion_items)})
         summary = (
             plan.evidence[-1].summary
             if plan.evidence
