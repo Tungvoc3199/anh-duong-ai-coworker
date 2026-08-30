@@ -81,14 +81,26 @@ class OpenClawExecutor:
     )
     _UNVERIFIED_RUNTIME_REF = "UNKNOWN"
 
-    def _instructions(self) -> str:
-        return (
+    def _instructions(
+        self,
+        request: OpenClawExecutionRequest | None = None,
+    ) -> str:
+        instructions = (
             "Execute the supplied task within its workspace and constraints. "
             "Always return a final user-facing answer. If returning JSON, "
             "include outcome (completed|blocked|failed) and a non-empty "
-            "summary; artifacts and verification are optional. "
-            + self._RUNTIME_EVIDENCE_POLICY
+            "summary; artifacts and verification are optional. " + self._RUNTIME_EVIDENCE_POLICY
         )
+        if request is not None and request.dod_criteria:
+            instructions += (
+                " Definition-of-done evidence rule: return "
+                "criterion_verification as an array. For every supplied DoD "
+                "criterion, repeat the criterion text exactly and set status "
+                "to verified, unmet, or unknown. A verified criterion must "
+                "include at least one evidence_refs entry derived from this "
+                "request's actual tool/result evidence."
+            )
+        return instructions
 
     @overload
     def _guard_operational_evidence(self, value: str) -> str: ...
@@ -161,10 +173,7 @@ class OpenClawExecutor:
                 fence_state = 1 - fence_state
                 block_lines.append(line)
                 if fence_state == 0:
-                    if any(
-                        a in "".join(block_lines)
-                        for a in self._UNVERIFIED_RUNTIME_ANCHORS
-                    ):
+                    if any(a in "".join(block_lines) for a in self._UNVERIFIED_RUNTIME_ANCHORS):
                         guarded.append(self._UNVERIFIED_RUNTIME_REF)
                     else:
                         guarded.extend(block_lines)
@@ -181,10 +190,7 @@ class OpenClawExecutor:
                         )
                 guarded.append(line)
         if block_lines:
-            if any(
-                a in "".join(block_lines)
-                for a in self._UNVERIFIED_RUNTIME_ANCHORS
-            ):
+            if any(a in "".join(block_lines) for a in self._UNVERIFIED_RUNTIME_ANCHORS):
                 guarded.append(self._UNVERIFIED_RUNTIME_REF)
             else:
                 guarded.extend(block_lines)
@@ -225,7 +231,7 @@ class OpenClawExecutor:
         payload = {
             "model": "openclaw/default",
             "user": f"async:{request.task_id}",
-            "instructions": self._instructions(),
+            "instructions": self._instructions(gateway_request),
             "input": json.dumps(
                 gateway_request.model_dump(mode="json"),
                 ensure_ascii=False,
@@ -298,11 +304,7 @@ class OpenClawExecutor:
                     output_text=output_text,
                 ),
                 error_code="result_contract_normalization_failed",
-                external_run_id=(
-                    external_run_id
-                    if isinstance(external_run_id, str)
-                    else None
-                ),
+                external_run_id=(external_run_id if isinstance(external_run_id, str) else None),
             )
 
     def _normalize_result_payload(
@@ -337,9 +339,7 @@ class OpenClawExecutor:
         normalized["tests"] = self._guard_operational_evidence(
             self._normalize_tests(normalized.get("tests"))
         )
-        normalized["duration_ms"] = self._normalize_duration_ms(
-            normalized.get("duration_ms")
-        )
+        normalized["duration_ms"] = self._normalize_duration_ms(normalized.get("duration_ms"))
         for key in ("model", "provider", "profile", "error_code"):
             value = normalized.get(key)
             if value is not None and not isinstance(value, str):
@@ -401,9 +401,7 @@ class OpenClawExecutor:
         for key in self._SUMMARY_KEYS:
             value = payload.get(key)
             if isinstance(value, str) and value.strip():
-                return self._guard_operational_evidence(
-                    str(self.redactor.redact(value.strip()))
-                )
+                return self._guard_operational_evidence(str(self.redactor.redact(value.strip())))
 
         nested_result = payload.get("result")
         if isinstance(nested_result, dict):
@@ -428,9 +426,10 @@ class OpenClawExecutor:
             )
         except (TypeError, ValueError):
             fallback = output_text
-        return self._guard_operational_evidence(
-            str(self.redactor.redact(fallback)).strip()
-        ) or "Đã xử lý yêu cầu."
+        return (
+            self._guard_operational_evidence(str(self.redactor.redact(fallback)).strip())
+            or "Đã xử lý yêu cầu."
+        )
 
     @staticmethod
     def _normalize_detail_field(value: object) -> object:
@@ -588,7 +587,7 @@ class OpenClawExecutor:
                 folded = raw_line.strip().casefold()
                 for prefix in ("⚠️ 🛠️ ", "🛠️ ", "⚠️ "):
                     if folded.startswith(prefix):
-                        folded = folded[len(prefix):].lstrip()
+                        folded = folded[len(prefix) :].lstrip()
                         break
                 if folded.startswith("exec failed:"):
                     return {
@@ -598,9 +597,13 @@ class OpenClawExecutor:
                         "artifacts": [],
                         "verification": [],
                     }
-            if text.strip().casefold().startswith(
-                "xin lỗi, yêu cầu này bị từ chối vì system prompt mạo danh "
-                "danh tính claude code cli"
+            if (
+                text.strip()
+                .casefold()
+                .startswith(
+                    "xin lỗi, yêu cầu này bị từ chối vì system prompt mạo danh "
+                    "danh tính claude code cli"
+                )
             ):
                 return {
                     "outcome": "failed",

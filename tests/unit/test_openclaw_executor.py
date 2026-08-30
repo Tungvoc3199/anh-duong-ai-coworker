@@ -26,6 +26,7 @@ def _request() -> OpenClawExecutionRequest:
         constraints=("Do not deploy",),
     )
 
+
 def _json_transport(
     payload: object,
     *,
@@ -60,12 +61,8 @@ async def test_executor_posts_openresponses_request() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         captured["method"] = request.method
         captured["path"] = request.url.path
-        captured["authorization"] = request.headers.get(
-            "authorization"
-        )
-        captured["idempotency"] = request.headers.get(
-            "idempotency-key"
-        )
+        captured["authorization"] = request.headers.get("authorization")
+        captured["idempotency"] = request.headers.get("idempotency-key")
         captured["json"] = json.loads(request.content)
         return httpx.Response(
             200,
@@ -82,9 +79,7 @@ async def test_executor_posts_openresponses_request() -> None:
                                         "outcome": "completed",
                                         "summary": "Done",
                                         "artifacts": ["artifact.zip"],
-                                        "verification": [
-                                            "pytest passed"
-                                        ],
+                                        "verification": ["pytest passed"],
                                         "files_changed": ["calculate.py"],
                                         "commands_run": ["pytest -q"],
                                         "tests": [
@@ -171,9 +166,7 @@ async def test_executor_accepts_real_workflow_result_objects() -> None:
                                             "checklist": [
                                                 {
                                                     "step": 1,
-                                                    "name": (
-                                                        "Xác nhận phạm vi kiểm tra"
-                                                    ),
+                                                    "name": ("Xác nhận phạm vi kiểm tra"),
                                                     "check": (
                                                         "Đảm bảo phiên kiểm tra "
                                                         "chỉ nhằm quan sát trạng "
@@ -247,8 +240,7 @@ async def test_executor_accepts_readonly_health_ready_result_objects() -> None:
                                     {
                                         "outcome": "completed",
                                         "summary": (
-                                            "Đã kiểm tra read-only hai endpoint "
-                                            "/health và /ready."
+                                            "Đã kiểm tra read-only hai endpoint /health và /ready."
                                         ),
                                         "artifacts": {
                                             "checked_endpoints": [
@@ -292,6 +284,7 @@ async def test_executor_accepts_readonly_health_ready_result_objects() -> None:
     assert result.external_run_id == "resp_readonly_health_ready"
     assert result.artifacts["changes_made"] == "none"
     assert result.verification["health"]["status"] == "ok"
+
 
 @pytest.mark.asyncio
 async def test_executor_preserves_final_when_known_artifacts_are_partial() -> None:
@@ -486,13 +479,7 @@ async def test_executor_embedded_terminal_exec_failed_is_never_completed() -> No
             200,
             json={
                 "id": "resp_embedded_fail",
-                "output": [
-                    {
-                        "content": [
-                            {"type": "output_text", "text": terminal_text}
-                        ]
-                    }
-                ],
+                "output": [{"content": [{"type": "output_text", "text": terminal_text}]}],
             },
         )
 
@@ -507,6 +494,7 @@ async def test_executor_embedded_terminal_exec_failed_is_never_completed() -> No
     assert result.summary == terminal_text
     assert result.external_run_id == "resp_embedded_fail"
 
+
 @pytest.mark.asyncio
 async def test_executor_plain_refusal_is_never_completed() -> None:
     refusal = (
@@ -519,9 +507,7 @@ async def test_executor_plain_refusal_is_never_completed() -> None:
             200,
             json={
                 "id": "resp_refused",
-                "output": [
-                    {"content": [{"type": "output_text", "text": refusal}]}
-                ],
+                "output": [{"content": [{"type": "output_text", "text": refusal}]}],
             },
         )
 
@@ -536,6 +522,7 @@ async def test_executor_plain_refusal_is_never_completed() -> None:
     assert result.summary == refusal
     assert result.external_run_id == "resp_refused"
 
+
 @pytest.mark.asyncio
 async def test_executor_does_not_overmatch_generic_denial_phrase() -> None:
     text = (
@@ -548,9 +535,7 @@ async def test_executor_does_not_overmatch_generic_denial_phrase() -> None:
             200,
             json={
                 "id": "resp_generic_phrase",
-                "output": [
-                    {"content": [{"type": "output_text", "text": text}]}
-                ],
+                "output": [{"content": [{"type": "output_text", "text": text}]}],
             },
         )
 
@@ -563,6 +548,7 @@ async def test_executor_does_not_overmatch_generic_denial_phrase() -> None:
     assert result.outcome == "completed"
     assert result.error_code is None
     assert result.summary == text
+
 
 @pytest.mark.asyncio
 async def test_executor_preserves_criterion_verification_evidence() -> None:
@@ -587,3 +573,74 @@ async def test_executor_preserves_criterion_verification_evidence() -> None:
 
     assert result.criterion_verification[0].criterion == "artifact exists"
     assert result.criterion_verification[0].evidence_refs == ("ev_artifact",)
+
+
+@pytest.mark.asyncio
+async def test_executor_serializes_plan_node_dod_and_evidence_context() -> None:
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["json"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "id": "resp_plan_node",
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": json.dumps(
+                                    {
+                                        "outcome": "completed",
+                                        "summary": "node complete",
+                                        "criterion_verification": [
+                                            {
+                                                "criterion": "artifact exists",
+                                                "status": "verified",
+                                                "evidence_refs": ["ev_1"],
+                                            }
+                                        ],
+                                    }
+                                ),
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+
+    request = OpenClawExecutionRequest(
+        task_id="task_1",
+        run_id="run_1",
+        attempt=1,
+        idempotency_key="run_1:1:collect",
+        project_id="proj_1",
+        goal="Collect evidence",
+        mode="build",
+        workspace="/mnt/f/AIOS/anh-duong-core",
+        plan_node_id="collect",
+        plan_node_title="Collect evidence",
+        capability_requirements=("project_read",),
+        dod_criteria=("artifact exists",),
+        verification_requirements=("Verify artifact exists",),
+        prior_evidence=("ev_0: source located",),
+        remaining_budget={"actions": 2, "replans": 1},
+    )
+    executor = OpenClawExecutor(
+        base_url="http://127.0.0.1:18789",
+        transport=httpx.MockTransport(handler),
+    )
+
+    result = await executor.execute(request)
+
+    payload = cast(dict[str, Any], captured["json"])
+    gateway_input = json.loads(cast(str, payload["input"]))
+    assert gateway_input["plan_node_id"] == "collect"
+    assert gateway_input["capability_requirements"] == ["project_read"]
+    assert gateway_input["dod_criteria"] == ["artifact exists"]
+    assert gateway_input["prior_evidence"] == ["ev_0: source located"]
+    assert gateway_input["remaining_budget"] == {"actions": 2, "replans": 1}
+    assert "criterion_verification" in cast(str, payload["instructions"])
+    assert result.criterion_verification[0].status == "verified"

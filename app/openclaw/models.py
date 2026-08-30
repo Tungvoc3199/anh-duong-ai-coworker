@@ -52,6 +52,13 @@ class OpenClawExecutionRequest(BaseModel):
     mode: Literal["quick", "build"]
     workspace: str | None = None
     constraints: tuple[str, ...] = ()
+    plan_node_id: str | None = Field(default=None, max_length=64)
+    plan_node_title: str | None = Field(default=None, max_length=255)
+    capability_requirements: tuple[str, ...] = ()
+    dod_criteria: tuple[str, ...] = ()
+    verification_requirements: tuple[str, ...] = ()
+    prior_evidence: tuple[str, ...] = ()
+    remaining_budget: dict[str, int] = Field(default_factory=dict)
 
 
 class GovernanceResult(BaseModel):
@@ -69,6 +76,7 @@ class GovernanceResult(BaseModel):
     database_write: bool = False
     service_restart: bool = False
 
+
 class OpenClawExecutionResult(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -76,16 +84,8 @@ class OpenClawExecutionResult(BaseModel):
     summary: str
     governance_result: GovernanceResult | None = None
     criterion_verification: tuple[CriterionVerification, ...] = ()
-    artifacts: (
-        tuple[str, ...]
-        | OpenClawWorkflowArtifacts
-        | dict[str, Any]
-    ) = ()
-    verification: (
-        tuple[str, ...]
-        | OpenClawWorkflowVerification
-        | dict[str, Any]
-    ) = ()
+    artifacts: tuple[str, ...] | OpenClawWorkflowArtifacts | dict[str, Any] = ()
+    verification: tuple[str, ...] | OpenClawWorkflowVerification | dict[str, Any] = ()
     files_changed: tuple[str, ...] = ()
     commands_run: tuple[str, ...] = ()
     tests: tuple[dict[str, Any], ...] = ()
