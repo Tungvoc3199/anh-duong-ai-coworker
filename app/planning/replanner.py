@@ -4,10 +4,15 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
 
+from app.planning.failure import ExecutionFailureClass, ExecutionFailureClassifier
 from app.planning.models import (
     Constraint,
+    ExecutionEvidence,
     Plan,
     PlanningTruthSnapshot,
+    PlanNodeExecution,
+    PlanNodeKind,
+    PlanNodeState,
     PlanStatus,
 )
 
@@ -52,14 +57,9 @@ class PlanReplanner:
             return ReplanDecision(
                 disposition=ReplanDisposition.BLOCKED,
                 plan=plan,
-                reason=(
-                    "Project status is not executable: "
-                    f"{fresh_truth.project_status}."
-                ),
+                reason=(f"Project status is not executable: {fresh_truth.project_status}."),
             )
-        workspace_planned = (
-            plan.truth.workspace is not None or fresh_truth.workspace is not None
-        )
+        workspace_planned = plan.truth.workspace is not None or fresh_truth.workspace is not None
         if workspace_planned and not fresh_truth.workspace_exists:
             return ReplanDecision(
                 disposition=ReplanDisposition.BLOCKED,
@@ -92,9 +92,7 @@ class PlanReplanner:
             )
 
         reason = "Planning truth changed: " + ", ".join(changed_fields)
-        request_constraints = tuple(
-            item for item in plan.constraints if item.source != "project"
-        )
+        request_constraints = tuple(item for item in plan.constraints if item.source != "project")
         project_constraints = tuple(
             Constraint(description=value, source="project")
             for value in fresh_truth.project_constraints
@@ -106,6 +104,81 @@ class PlanReplanner:
                 "replan_reason": reason,
                 "truth": fresh_truth,
                 "constraints": request_constraints + project_constraints,
+            }
+        )
+        return ReplanDecision(
+            disposition=ReplanDisposition.REVISED,
+            plan=revised,
+            reason=reason,
+        )
+
+    def reconcile_after_evidence(
+        self,
+        plan: Plan,
+        *,
+        failure_class: ExecutionFailureClass,
+        evidence: ExecutionEvidence,
+        execution_started: bool,
+    ) -> ReplanDecision:
+        if plan.status is PlanStatus.BLOCKED:
+            return ReplanDecision(
+                disposition=ReplanDisposition.BLOCKED,
+                plan=plan,
+                reason="Plan is already blocked.",
+            )
+        if not ExecutionFailureClassifier.allows_semantic_replan(failure_class):
+            return ReplanDecision(
+                disposition=ReplanDisposition.BLOCKED,
+                plan=plan,
+                reason=f"Failure class is not safe for semantic replan: {failure_class.value}.",
+            )
+        if plan.revision - 1 >= plan.risk_budget.max_replans:
+            return ReplanDecision(
+                disposition=ReplanDisposition.BLOCKED,
+                plan=plan,
+                reason="Automatic replan budget is exhausted.",
+            )
+
+        evidence_items = plan.evidence
+        if all(item.id != evidence.id for item in evidence_items):
+            evidence_items = evidence_items + (evidence,)
+        node_by_id = {node.id: node for node in plan.nodes}
+        revised_executions: list[PlanNodeExecution] = []
+        for execution in plan.node_executions:
+            node = node_by_id.get(execution.node_id)
+            if execution.state is PlanNodeState.COMPLETED:
+                revised_executions.append(execution)
+            elif node is not None and node.kind is PlanNodeKind.ACTION:
+                revised_executions.append(
+                    execution.model_copy(
+                        update={
+                            "state": PlanNodeState.PENDING,
+                            "last_failure_class": failure_class.value,
+                        }
+                    )
+                )
+            else:
+                revised_executions.append(execution)
+
+        corrective = Constraint(
+            description=(f"Corrective evidence ({failure_class.value}): {evidence.summary}")[
+                :2_000
+            ],
+            source="replan",
+        )
+        constraints = plan.constraints
+        if corrective not in constraints:
+            constraints = constraints + (corrective,)
+        reason = f"Evidence-driven replan after {failure_class.value}: {evidence.summary}"
+        revised = plan.model_copy(
+            update={
+                "revision": plan.revision + 1,
+                "replanned_from_revision": plan.revision,
+                "replan_reason": reason,
+                "constraints": constraints,
+                "node_executions": tuple(revised_executions),
+                "evidence": evidence_items,
+                "outcome_judgement": None,
             }
         )
         return ReplanDecision(
@@ -127,6 +200,4 @@ class PlanReplanner:
             "workspace_exists",
             "project_constraints",
         )
-        return tuple(
-            field for field in fields if getattr(old, field) != getattr(new, field)
-        )
+        return tuple(field for field in fields if getattr(old, field) != getattr(new, field))

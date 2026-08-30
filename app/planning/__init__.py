@@ -1,3 +1,7 @@
+from app.planning.failure import (
+    ExecutionFailureClass,
+    ExecutionFailureClassifier,
+)
 from app.planning.models import (
     Constraint,
     DecisionNeeded,
@@ -40,6 +44,8 @@ __all__ = [
     "Deliverable",
     "Goal",
     "ExecutionEvidence",
+    "ExecutionFailureClass",
+    "ExecutionFailureClassifier",
     "ExecutionBudget",
     "CriterionJudgement",
     "OutcomeDisposition",

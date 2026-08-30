@@ -54,9 +54,7 @@ def _plan(
     revision: int = 1,
     workspace_exists: bool = True,
 ):
-    plan = GoalPlanner(
-        StubTruthInspector(_truth(workspace_exists=workspace_exists))
-    ).plan(
+    plan = GoalPlanner(StubTruthInspector(_truth(workspace_exists=workspace_exists))).plan(
         PlanningRequest(
             request_id="req_1",
             project_id="proj_1",
@@ -76,9 +74,7 @@ def test_replanner_ignores_observation_timestamp_only() -> None:
     from app.planning.replanner import PlanReplanner, ReplanDisposition
 
     original = _plan()
-    fresh = _truth(
-        observed_at=datetime(2026, 8, 29, 15, 0, tzinfo=UTC)
-    )
+    fresh = _truth(observed_at=datetime(2026, 8, 29, 15, 0, tzinfo=UTC))
 
     decision = PlanReplanner().reconcile(original, fresh, execution_started=False)
 
@@ -195,3 +191,117 @@ def test_replanner_is_exposed_from_planning_package() -> None:
     assert PlanReplanner is not None
     assert ReplanDecision is not None
     assert ReplanDisposition is not None
+
+
+def test_evidence_replanner_preserves_completed_evidence_and_resets_failed_action() -> None:
+    from app.planning.failure import ExecutionFailureClass
+    from app.planning.models import (
+        ExecutionEvidence,
+        PlanNode,
+        PlanNodeExecution,
+        PlanNodeKind,
+        PlanNodeState,
+    )
+    from app.planning.replanner import PlanReplanner, ReplanDisposition
+
+    original = _plan()
+    original = original.model_copy(
+        update={
+            "nodes": (
+                PlanNode(id="collect", title="Collect", kind=PlanNodeKind.ACTION),
+                PlanNode(
+                    id="execute",
+                    title="Execute",
+                    kind=PlanNodeKind.ACTION,
+                    depends_on=("collect",),
+                ),
+                PlanNode(
+                    id="verify",
+                    title="Verify",
+                    kind=PlanNodeKind.VERIFICATION_GATE,
+                    depends_on=("execute",),
+                ),
+            ),
+        }
+    )
+    prior = ExecutionEvidence(
+        id="ev_collect",
+        node_id="collect",
+        kind="verification",
+        summary="source collected",
+    )
+    failure = ExecutionEvidence(
+        id="ev_missing",
+        node_id="execute",
+        kind="dod",
+        summary="test evidence missing",
+    )
+    original = original.model_copy(
+        update={
+            "node_executions": (
+                PlanNodeExecution(
+                    node_id="collect",
+                    state=PlanNodeState.COMPLETED,
+                    attempts=1,
+                    evidence_ids=(prior.id,),
+                ),
+                PlanNodeExecution(
+                    node_id="execute",
+                    state=PlanNodeState.FAILED,
+                    attempts=1,
+                    evidence_ids=(failure.id,),
+                ),
+            ),
+            "evidence": (prior, failure),
+        }
+    )
+
+    decision = PlanReplanner().reconcile_after_evidence(
+        original,
+        failure_class=ExecutionFailureClass.DOD_EVIDENCE_MISSING,
+        evidence=failure,
+        execution_started=True,
+    )
+    assert decision.disposition is ReplanDisposition.REVISED
+    assert decision.plan.revision == original.revision + 1
+    assert decision.plan.replanned_from_revision == original.revision
+    assert [item.id for item in decision.plan.evidence] == [
+        "ev_collect",
+        "ev_missing",
+    ]
+    states = {item.node_id: item for item in decision.plan.node_executions}
+    assert states["collect"].state is PlanNodeState.COMPLETED
+    assert states["execute"].state is PlanNodeState.PENDING
+    assert states["execute"].last_failure_class == "dod_evidence_missing"
+    assert any(
+        item.source == "replan" and "test evidence missing" in item.description
+        for item in decision.plan.constraints
+    )
+
+
+def test_evidence_replanner_blocks_nonrecoverable_failure_and_exhausted_budget() -> None:
+    from app.planning.failure import ExecutionFailureClass
+    from app.planning.models import ExecutionEvidence
+    from app.planning.replanner import PlanReplanner, ReplanDisposition
+
+    evidence = ExecutionEvidence(
+        id="ev_1",
+        node_id="execute",
+        kind="failure",
+        summary="governance denied",
+    )
+    nonrecoverable = PlanReplanner().reconcile_after_evidence(
+        _plan(),
+        failure_class=ExecutionFailureClass.GOVERNANCE_FAILURE,
+        evidence=evidence,
+        execution_started=True,
+    )
+    exhausted = PlanReplanner().reconcile_after_evidence(
+        _plan(max_replans=1, revision=2),
+        failure_class=ExecutionFailureClass.DOD_EVIDENCE_MISSING,
+        evidence=evidence,
+        execution_started=True,
+    )
+
+    assert nonrecoverable.disposition is ReplanDisposition.BLOCKED
+    assert exhausted.disposition is ReplanDisposition.BLOCKED
