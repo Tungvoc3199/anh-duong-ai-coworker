@@ -140,3 +140,27 @@ def test_latest_criterion_evidence_supersedes_older_unmet_evidence() -> None:
 
     assert judgement.disposition is OutcomeDisposition.SATISFIED
     assert judgement.reason_code == "dod_satisfied"
+
+
+def test_verified_status_requires_nonblank_evidence_reference() -> None:
+    result = OpenClawExecutionResult(
+        outcome="completed",
+        summary="claimed verified",
+        criterion_verification=(
+            CriterionVerification(
+                criterion="artifact exists",
+                status="verified",
+                evidence_refs=("   ",),
+            ),
+            CriterionVerification(
+                criterion="tests pass",
+                status="verified",
+                evidence_refs=("ev_tests",),
+            ),
+        ),
+    )
+
+    judgement = OutcomeJudge().judge(_plan(), result)
+
+    assert judgement.disposition is OutcomeDisposition.REPLAN
+    assert judgement.reason_code == "dod_evidence_missing"

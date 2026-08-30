@@ -5,7 +5,8 @@ from datetime import timedelta
 import pytest
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.async_tasks import AsyncRunStatus, AsyncTaskRepository
+from app.async_tasks import AsyncRunStatus, AsyncTaskRepository, AsyncTaskWorker
+from app.db.models import WorkflowRow
 from app.openclaw import (
     CriterionVerification,
     OpenClawExecutionResult,
@@ -307,15 +308,11 @@ async def test_missing_dod_evidence_fails_closed_when_replan_budget_is_zero(
 
 
 @pytest.mark.asyncio
-async def test_missing_evidence_replans_last_action_once_and_recovers(
+async def test_missing_evidence_after_completed_actions_blocks_without_replay(
     session_factory: sessionmaker[Session],
     tmp_path,
 ) -> None:
-    task_id, run_id = _seed_run(
-        session_factory,
-        tmp_path,
-        key="plan-recover",
-    )
+    task_id, run_id = _seed_run(session_factory, tmp_path, key="plan-no-replay-completed")
     _replace_plan(session_factory, run_id, task_id, max_replans=1)
     executor = SequenceExecutor(
         [
@@ -332,7 +329,7 @@ async def test_missing_evidence_replans_last_action_once_and_recovers(
             ),
             OpenClawExecutionResult(
                 outcome="completed",
-                summary="analysis response missed verification evidence",
+                summary="analysis completed but verification evidence is missing",
                 criterion_verification=(
                     CriterionVerification(
                         criterion="source collected",
@@ -343,19 +340,7 @@ async def test_missing_evidence_replans_last_action_once_and_recovers(
             ),
             OpenClawExecutionResult(
                 outcome="completed",
-                summary="analysis recovered with evidence",
-                criterion_verification=(
-                    CriterionVerification(
-                        criterion="source collected",
-                        status="verified",
-                        evidence_refs=("ev_source",),
-                    ),
-                    CriterionVerification(
-                        criterion="analysis verified",
-                        status="verified",
-                        evidence_refs=("ev_analysis_recovered",),
-                    ),
-                ),
+                summary="must never replay completed action",
             ),
         ],
         auto_verify_dod=False,
@@ -363,17 +348,12 @@ async def test_missing_evidence_replans_last_action_once_and_recovers(
 
     _, run, task, plan = await _run_and_load(session_factory, tmp_path, executor, run_id, task_id)
 
-    assert run.status is AsyncRunStatus.COMPLETED
-    assert task.status is TaskStatus.COMPLETED
-    assert [request.plan_node_id for request in executor.requests] == [
-        "collect",
-        "analyze",
-        "analyze",
-    ]
-    assert plan.revision == 2
-    assert plan.replanned_from_revision == 1
+    assert [request.plan_node_id for request in executor.requests] == ["collect", "analyze"]
+    assert run.status is AsyncRunStatus.BLOCKED
+    assert task.status is TaskStatus.BLOCKED
+    assert plan.revision == 1
     assert plan.outcome_judgement is not None
-    assert plan.outcome_judgement["disposition"] == "satisfied"
+    assert plan.outcome_judgement["reason_code"] == "dod_evidence_missing"
 
 
 @pytest.mark.asyncio
@@ -780,3 +760,96 @@ async def test_resume_after_satisfied_judgement_completes_without_replay(
     assert executor.requests == []
     assert run.status is AsyncRunStatus.COMPLETED
     assert task.status is TaskStatus.COMPLETED
+
+
+@pytest.mark.asyncio
+async def test_no_plan_core_health_blocks_without_openclaw(
+    session_factory: sessionmaker[Session], tmp_path
+) -> None:
+    goal = (
+        "Kiểm tra /health và /ready của Ánh Dương Core, chỉ đọc, "
+        "không sửa file, không sửa config, không restart service."
+    )
+    task_id, run_id = _seed_run(
+        session_factory, tmp_path, key="plan-missing-core-health", goal=goal
+    )
+    with session_factory() as session:
+        row = session.get(WorkflowRow, run_id)
+        assert row is not None
+        session.delete(row)
+        session.commit()
+
+    executor = SequenceExecutor(
+        [OpenClawExecutionResult(outcome="completed", summary="must not execute")]
+    )
+
+    async def probe() -> dict[str, object]:
+        return {
+            "health": {"http_status": 200, "status": "ok"},
+            "ready": {"http_status": 200, "status": "ready"},
+        }
+
+    worker = _worker(
+        session_factory=session_factory, tmp_path=tmp_path, executor=executor,
+        clock=[NOW], core_status_probe=probe
+    )
+    assert await worker.run_once() is True
+    with session_factory() as session:
+        run = AsyncTaskRepository(session).get(run_id)
+        task = TaskService(TaskRepository(session), _audit(tmp_path)).get(task_id)
+    assert executor.requests == []
+    assert run.status is AsyncRunStatus.BLOCKED
+    assert run.last_error_code == "plan_missing"
+    assert task.status is TaskStatus.BLOCKED
+
+
+def test_result_from_plan_evidence_preserves_latest_terminal_outcome(
+    session_factory: sessionmaker[Session], tmp_path
+) -> None:
+    task_id, run_id = _seed_run(
+        session_factory, tmp_path, key="preserve-evidence-outcome"
+    )
+    failed = OpenClawExecutionResult(
+        outcome="failed", summary="durable failure", error_code="agent_failed"
+    )
+    evidence = ExecutionEvidence(
+        id="ev_failed_outcome", node_id="execute", kind="result",
+        summary=failed.summary, outcome="failed",
+        result_payload=failed.model_dump(mode="json"),
+        provenance="openclaw", created_at=NOW,
+    )
+    with session_factory() as session:
+        plan = PlanRepository(session).get(run_id)
+        assert plan is not None
+    result = AsyncTaskWorker._result_from_plan_evidence(
+        plan.model_copy(update={"evidence": (evidence,)})
+    )
+    assert result.outcome == "failed"
+    assert result.error_code == "agent_failed"
+
+
+@pytest.mark.asyncio
+async def test_run_attempt_exhaustion_never_schedules_planned_retry(
+    session_factory: sessionmaker[Session], tmp_path
+) -> None:
+    task_id, run_id = _seed_run(
+        session_factory, tmp_path, key="run-attempt-budget-terminal"
+    )
+    with session_factory() as session:
+        row = AsyncTaskRepository(session).get_row(run_id)
+        row.max_attempts = 1
+        session.commit()
+    executor = SequenceExecutor([OpenClawTransportError(
+        "connection_error", "temporary", retryable=True
+    )])
+    worker = _worker(
+        session_factory=session_factory, tmp_path=tmp_path, executor=executor, clock=[NOW]
+    )
+    assert await worker.run_once() is True
+    with session_factory() as session:
+        run = AsyncTaskRepository(session).get(run_id)
+        task = TaskService(TaskRepository(session), _audit(tmp_path)).get(task_id)
+    assert run.status is AsyncRunStatus.FAILED
+    assert task.status is TaskStatus.FAILED
+    assert await worker.run_once() is False
+    assert len(executor.requests) == 1

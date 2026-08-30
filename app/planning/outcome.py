@@ -71,7 +71,7 @@ class OutcomeJudge:
                     )
                 )
                 continue
-            if item.status == "verified" and item.evidence_refs:
+            if item.status == "verified" and any(ref.strip() for ref in item.evidence_refs):
                 checks.append(
                     CriterionJudgement(
                         criterion=criterion,

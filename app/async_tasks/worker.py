@@ -776,10 +776,32 @@ class AsyncTaskWorker:
                 reason=judgement.reason,
             )
             return "terminal"
-        last_action = action_nodes[-1]
+        replan_action = next(
+            (
+                item
+                for item in reversed(action_nodes)
+                if self._node_execution(plan, item.id).state
+                in {PlanNodeState.PENDING, PlanNodeState.FAILED}
+            ),
+            None,
+        )
+        if replan_action is None:
+            blocked_plan = plan.model_copy(
+                update={"outcome_judgement": judgement.model_dump(mode="json")}
+            )
+            with self.session_factory() as session:
+                PlanRepository(session).save(workflow_id=run_id, task_id=task_id, plan=blocked_plan)
+                session.commit()
+            self._block_planned_run(
+                run_id,
+                task_id,
+                error_code=judgement.reason_code,
+                reason=judgement.reason,
+            )
+            return "terminal"
         failure = ExecutionEvidence(
-            id=f"ev:{last_action.id}:r{plan.revision}:dod",
-            node_id=last_action.id,
+            id=f"ev:{replan_action.id}:r{plan.revision}:dod",
+            node_id=replan_action.id,
             kind="dod",
             summary=judgement.reason,
             outcome="failed",
@@ -788,14 +810,14 @@ class AsyncTaskWorker:
         )
         failed_execution = self._node_execution(
             plan,
-            last_action.id,
+            replan_action.id,
         ).model_copy(
             update={
                 "state": PlanNodeState.FAILED,
                 "last_failure_class": failure_class.value,
                 "evidence_ids": self._node_execution(
                     plan,
-                    last_action.id,
+                    replan_action.id,
                 ).evidence_ids
                 + (failure.id,),
             }
