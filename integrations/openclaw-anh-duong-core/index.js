@@ -127,7 +127,7 @@ export function createPluginHandlers({
     const progress = take(event, ctx); if (!progress) return undefined;
     scheduleWorkflowCleanup(monitor(progress, String(message.messageId))); return undefined;
   }
-  return { beforeAgentReply: trackedReply, beforePromptBuild: hooks.beforePromptBuild, beforeAgentRun: hooks.beforeAgentRun, messageSent, agentEnd: hooks.agentEnd };
+  return { beforeAgentReply: trackedReply, beforePromptBuild: hooks.beforePromptBuild, beforeAgentRun: hooks.beforeAgentRun, beforeToolCall: hooks.beforeToolCall, messageSent, agentEnd: hooks.agentEnd };
 }
 
 export function createPluginHandlersLegacy(options) { return createPluginHandlers(options); }
@@ -139,6 +139,7 @@ export default {
     api.on("before_agent_reply", handlers.beforeAgentReply, { priority: 100, timeoutMs: WORKFLOW_HOOK_TIMEOUT_MS });
     api.on("before_prompt_build", handlers.beforePromptBuild, { priority: 100, timeoutMs: PROMPT_HOOK_TIMEOUT_MS });
     api.on("before_agent_run", handlers.beforeAgentRun, { priority: 100, timeoutMs: GATE_HOOK_TIMEOUT_MS });
+    api.on("before_tool_call", handlers.beforeToolCall, { priority: 100, timeoutMs: GATE_HOOK_TIMEOUT_MS });
     if (typeof api?.runtime?.system?.runCommandWithTimeout === "function") api.on("message_sent", handlers.messageSent, { priority: 100, timeoutMs: MESSAGE_HOOK_TIMEOUT_MS });
     api.on("agent_end", handlers.agentEnd, { priority: 100 });
   },

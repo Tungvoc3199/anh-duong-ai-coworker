@@ -571,7 +571,7 @@ test("plugin entry registers workflow short-circuit before the three TG-1 hooks"
   });
   assert.deepEqual(
     registrations.map(({ name }) => name),
-    ["before_agent_reply", "before_prompt_build", "before_agent_run", "agent_end"],
+    ["before_agent_reply", "before_prompt_build", "before_agent_run", "before_tool_call", "agent_end"],
   );
   assert.ok(registrations[0].options.timeoutMs > 0);
   assert.ok(registrations[1].options.timeoutMs > 0);
@@ -886,4 +886,38 @@ test("real system operation still routes workflow after a conversational turn", 
     "block",
     "workflow routes must still fail closed at the run gate",
   );
+});
+
+test("direct Telegram turns block all agent tool calls after Core classifies execution_required=false", async () => {
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    return new Response(JSON.stringify(responseFixture(body.request_id, { route: "direct" })), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const ctx = telegramContext("run-direct-tool-guard");
+
+  await hooks.beforePromptBuild({ prompt: "xong chưa?", messages: [] }, ctx);
+  assert.deepEqual(await hooks.beforeAgentRun({}, ctx), { outcome: "pass" });
+  const toolCtx = { runId: ctx.runId, sessionKey: ctx.sessionKey, sessionId: "tool-session", channelId: "7535966424", toolName: "memory_search" };
+  assert.deepEqual(await hooks.beforeToolCall({ toolName: "memory_search", params: {} }, toolCtx), {
+    block: true,
+    blockReason: "anh_duong_direct_turn_no_tools",
+  });
+  assert.deepEqual(await hooks.beforeToolCall({ toolName: "exec", params: { command: "ps aux" } }, { ...toolCtx, toolName: "exec" }), {
+    block: true,
+    blockReason: "anh_duong_direct_turn_no_tools",
+  });
+});
+
+test("workflow Telegram turns do not get blocked by the direct-turn tool guard", async () => {
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    return new Response(JSON.stringify(responseFixture(body.request_id, { route: "workflow" })), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const ctx = telegramContext("run-workflow-tool-guard");
+
+  await hooks.beforePromptBuild({ prompt: "chạy pytest", messages: [] }, ctx);
+  const toolCtx = { runId: ctx.runId, sessionKey: ctx.sessionKey, sessionId: "tool-session", channelId: "7535966424", toolName: "exec" };
+  assert.equal(await hooks.beforeToolCall({ toolName: "exec", params: { command: "pytest" } }, toolCtx), undefined);
 });

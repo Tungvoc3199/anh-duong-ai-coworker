@@ -606,6 +606,22 @@ export function createAnhDuongCoreHooks({
     };
   }
 
+  async function beforeToolCall(event, ctx) {
+    sweep();
+    if (explicitlyDisabled) {
+      return undefined;
+    }
+    const runId = ctx?.runId ?? event?.runId;
+    const state = typeof runId === "string" ? states.get(runId) : undefined;
+    if (state?.status === "prepared" && state.prepared.execution_required === false) {
+      return {
+        block: true,
+        blockReason: "anh_duong_direct_turn_no_tools",
+      };
+    }
+    return undefined;
+  }
+
   async function agentEnd(_event, ctx) {
     if (typeof ctx?.runId === "string") {
       states.delete(ctx.runId);
@@ -613,5 +629,5 @@ export function createAnhDuongCoreHooks({
     sweep();
   }
 
-  return { beforeAgentReply, beforePromptBuild, beforeAgentRun, agentEnd };
+  return { beforeAgentReply, beforePromptBuild, beforeAgentRun, beforeToolCall, agentEnd };
 }
