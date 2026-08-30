@@ -213,6 +213,13 @@ _FILE_TARGET_SIGNALS = (
     "xlsx",
 )
 
+_VISUAL_PROMPT_ACTION_SIGNALS = (
+    "dung", "su dung", "lam", "tao", "soan", "viet", "generate", "compose", "make", "build",
+)
+_VISUAL_PROMPT_TARGET_SIGNALS = (
+    "prompt anh", "prompt hinh anh", "visual prompt", "image prompt",
+)
+
 _PLANNING_SIGNALS = (
     "lap ke hoach",
     "phan ra cong viec",
@@ -314,6 +321,20 @@ class CapabilityRouter:
         source_route: FastRoute,
         normalized: str,
     ) -> CapabilityDecision:
+        visual_actions = self._signals(
+            normalized, "visual:action", _VISUAL_PROMPT_ACTION_SIGNALS
+        )
+        visual_targets = self._signals(
+            normalized, "visual:target", _VISUAL_PROMPT_TARGET_SIGNALS
+        )
+        if visual_actions and visual_targets:
+            return self._decision(
+                CapabilityKind.VISUAL_PROMPT_COMPOSE,
+                source_route,
+                "capability.workflow.visual_prompt_compose",
+                visual_actions + visual_targets,
+            )
+
         system_signals = self._compound_signals(
             normalized,
             "system",

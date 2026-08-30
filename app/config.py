@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     openclaw_timeout_seconds: float = 600.0
     openclaw_notification_timeout_seconds: float = 30.0
     openclaw_auth_token: str | None = None
+    visualforge_root: Path = Path("/home/thadc/AIOS/visualforge")
+    visualforge_expected_commit: str = "aac8cbf6bf21f03d2338d81da8764e990055c4d2"
+    visualforge_python_executable: str = "/usr/bin/python3"
+    visualforge_timeout_seconds: float = 20.0
     internal_api_token: str | None = None
     async_worker_enabled: bool = True
     async_worker_poll_seconds: float = 2.0

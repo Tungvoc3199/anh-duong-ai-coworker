@@ -125,6 +125,14 @@ _CORE_READ_PHRASES = (
     "get",
 )
 
+_VISUAL_PROMPT_ACTION_PHRASES = (
+    "dung", "su dung", "lam", "tao", "soan", "viet",
+    "generate", "compose", "make", "build",
+)
+_VISUAL_PROMPT_TARGET_PHRASES = (
+    "prompt anh", "prompt hinh anh", "visual prompt", "image prompt",
+)
+
 _FOLLOW_UP_UTTERANCES = frozenset(
     {
         "xong chua",
@@ -251,6 +259,13 @@ class FastRouter:
             )
 
         advisory_request = self._is_advisory_request(normalized)
+        if self._is_visual_prompt_workflow(normalized) and not advisory_request:
+            return RouteDecision(
+                route=FastRoute.WORKFLOW,
+                rule_id="routing.workflow.visual_prompt",
+                reason="An explicit visual prompt composition request requires workflow handling.",
+            )
+
         if self._is_operational_guidance_request(
             normalized,
             advisory_request,
@@ -312,6 +327,13 @@ class FastRouter:
             rule_id="routing.direct.no_explicit_execution_intent",
             reason="No explicit execution intent was detected; use direct conversation.",
         )
+
+
+    @classmethod
+    def _is_visual_prompt_workflow(cls, normalized: str) -> bool:
+        has_prompt_target = cls._contains_any(normalized, _VISUAL_PROMPT_TARGET_PHRASES)
+        has_action = cls._contains_any(normalized, _VISUAL_PROMPT_ACTION_PHRASES)
+        return has_action and has_prompt_target
 
     @classmethod
     def _is_memory_request(cls, normalized: str) -> bool:

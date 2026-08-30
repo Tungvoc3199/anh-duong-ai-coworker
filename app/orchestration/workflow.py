@@ -126,6 +126,19 @@ class WorkflowResolver:
                 for marker in _OPERATIONAL_GUIDANCE_MARKERS
             )
         )
+        if capability is CapabilityKind.VISUAL_PROMPT_COMPOSE:
+            return (
+                "compose_visual_prompt",
+                RiskLevel.READ_ONLY,
+                (
+                    "read_only",
+                    "no_external_network",
+                    "no_file_changes",
+                    "no_config_changes",
+                    "no_service_restart",
+                    "no_system_mutation",
+                ),
+            )
         if has_operational_guidance:
             return (
                 "view_status",

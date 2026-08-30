@@ -30,6 +30,7 @@ from app.context_builder import create_context_builder
 from app.db.session import create_db_engine
 from app.openclaw import OpenClawExecutor, OpenClawNotifier
 from app.orchestration import create_core_request_pipeline
+from app.visualforge import VisualForgeClient, VisualForgeRoutingExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -106,17 +107,24 @@ def create_app(
                         audit_writer=audit_writer,
                         policy_gate=policy_gate,
                     )
-                    runtime_executor = executor or OpenClawExecutor(
+                    base_executor = executor or OpenClawExecutor(
                         base_url=runtime_settings.openclaw_base_url,
-                        execution_path=(
-                            runtime_settings.openclaw_execution_path
-                        ),
-                        auth_token=(
-                            runtime_settings.openclaw_auth_token
-                        ),
-                        timeout_seconds=(
-                            runtime_settings.openclaw_timeout_seconds
-                        ),
+                        execution_path=runtime_settings.openclaw_execution_path,
+                        auth_token=runtime_settings.openclaw_auth_token,
+                        timeout_seconds=runtime_settings.openclaw_timeout_seconds,
+                    )
+                    runtime_executor = (
+                        base_executor
+                        if executor is not None
+                        else VisualForgeRoutingExecutor(
+                            delegate=base_executor,
+                            client=VisualForgeClient(
+                                root=runtime_settings.visualforge_root,
+                                expected_commit=runtime_settings.visualforge_expected_commit,
+                                python_executable=runtime_settings.visualforge_python_executable,
+                                timeout_seconds=runtime_settings.visualforge_timeout_seconds,
+                            ),
+                        )
                     )
                     runtime_notifier = notifier or OpenClawNotifier(
                         base_url=runtime_settings.openclaw_base_url,
