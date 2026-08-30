@@ -104,9 +104,7 @@ class PlanningRequest(BaseModel):
     risk_level: int = Field(default=0, ge=0, le=4)
     approval_required: bool = False
     workspace: str | None = Field(default=None, max_length=1024)
-    capability_requirements: tuple[CapabilityKind, ...] = (
-        CapabilityKind.PLANNING,
-    )
+    capability_requirements: tuple[CapabilityKind, ...] = (CapabilityKind.PLANNING,)
 
 
 class PlanNodeExecution(BaseModel):
@@ -127,6 +125,9 @@ class ExecutionEvidence(BaseModel):
     artifact_refs: tuple[str, ...] = ()
     verification_refs: tuple[str, ...] = ()
     external_run_id: str | None = Field(default=None, max_length=255)
+    outcome: str | None = Field(default=None, max_length=32)
+    criterion_verification: tuple[dict[str, object], ...] = ()
+    result_payload: dict[str, object] | None = None
     provenance: str = Field(default="core", min_length=1, max_length=64)
     created_at: datetime | None = None
 

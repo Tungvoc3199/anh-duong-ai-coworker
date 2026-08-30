@@ -21,13 +21,25 @@ from app.async_tasks.policy import (
 from app.async_tasks.repository import AsyncTaskRepository
 from app.audit import AuditWriter
 from app.openclaw import (
+    CriterionVerification,
     GovernanceResult,
     OpenClawExecutionRequest,
     OpenClawExecutionResult,
     OpenClawTransportError,
 )
+from app.planning.failure import ExecutionFailureClass
+from app.planning.models import (
+    ExecutionEvidence,
+    Plan,
+    PlanNode,
+    PlanNodeExecution,
+    PlanNodeKind,
+    PlanNodeState,
+)
+from app.planning.outcome import OutcomeDisposition, OutcomeJudge, OutcomeJudgement
 from app.planning.replanner import PlanReplanner, ReplanDisposition
 from app.planning.repository import PlanPersistenceConflict, PlanRepository
+from app.planning.scheduler import PlanNodeScheduler
 from app.planning.truth import PlanningTruthError, PlanningTruthInspector
 from app.projects.repository import ProjectRepository
 from app.safety_intent import SafetyConstraint, analyze_safety_intent
@@ -44,6 +56,7 @@ class AsyncTaskExecutor(Protocol):
 
 
 CoreStatusProbe = Callable[[], Awaitable[dict[str, Any]]]
+
 
 class AsyncTaskWorker:
     def __init__(
@@ -65,9 +78,7 @@ class AsyncTaskWorker:
         self.worker_id = worker_id
         self.lease_seconds = lease_seconds
         self.clock = clock or (lambda: datetime.now(UTC))
-        self.core_status_probe = (
-            core_status_probe or self._probe_local_core_status
-        )
+        self.core_status_probe = core_status_probe or self._probe_local_core_status
 
     async def run_once(self) -> bool:
         now = self._now()
@@ -87,9 +98,7 @@ class AsyncTaskWorker:
 
             task_service = self._task_service(session)
             task = task_service.get(run.task_id)
-            request = AsyncTaskCreate.model_validate_json(
-                run.request_json
-            )
+            request = AsyncTaskCreate.model_validate_json(run.request_json)
             decision = self.policy_gate.evaluate(request)
 
             if not decision.allowed:
@@ -156,6 +165,18 @@ class AsyncTaskWorker:
             )
             return True
 
+        with self.session_factory() as plan_session:
+            persisted_plan = PlanRepository(plan_session).get(run.id)
+        if persisted_plan is not None and not any(
+            node.kind is PlanNodeKind.APPROVAL_GATE for node in persisted_plan.nodes
+        ):
+            await self._execute_planned_run(
+                run.id,
+                run.task_id,
+                request,
+            )
+            return True
+
         execution_request = OpenClawExecutionRequest(
             task_id=run.task_id,
             run_id=run.id,
@@ -169,9 +190,7 @@ class AsyncTaskWorker:
         )
 
         try:
-            result = await self.executor.execute(
-                execution_request
-            )
+            result = await self.executor.execute(execution_request)
         except OpenClawTransportError as error:
             self._handle_transport_error(
                 run.id,
@@ -214,17 +233,15 @@ class AsyncTaskWorker:
                 TaskStatus.BLOCKED,
                 result_summary=reason,
             )
-            self._mark_terminal_notification(
-                repository, run.id, run.source_chat_id, now
-            )
+            self._mark_terminal_notification(repository, run.id, run.source_chat_id, now)
             return True
         if plan is None:
             return False
 
         try:
-            fresh_truth = PlanningTruthInspector(
-                ProjectRepository(session)
-            ).inspect(request.project_id, request.workspace)
+            fresh_truth = PlanningTruthInspector(ProjectRepository(session)).inspect(
+                request.project_id, request.workspace
+            )
         except PlanningTruthError as error:
             reason = str(error)
             repository.transition(
@@ -239,15 +256,11 @@ class AsyncTaskWorker:
                 TaskStatus.BLOCKED,
                 result_summary=reason,
             )
-            self._mark_terminal_notification(
-                repository, run.id, run.source_chat_id, now
-            )
+            self._mark_terminal_notification(repository, run.id, run.source_chat_id, now)
             return True
 
         execution_started = (
-            run.attempt > 1
-            or run.checkpoint_json is not None
-            or run.external_run_id is not None
+            run.attempt > 1 or run.checkpoint_json is not None or run.external_run_id is not None
         )
         try:
             decision = PlanReplanner().reconcile(
@@ -278,9 +291,7 @@ class AsyncTaskWorker:
                     TaskStatus.BLOCKED,
                     result_summary=reason,
                 )
-            self._mark_terminal_notification(
-                repository, run.id, run.source_chat_id, now
-            )
+            self._mark_terminal_notification(repository, run.id, run.source_chat_id, now)
             return True
         if decision.disposition is ReplanDisposition.BLOCKED:
             repository.transition(
@@ -297,23 +308,520 @@ class AsyncTaskWorker:
                     TaskStatus.BLOCKED,
                     result_summary=decision.reason,
                 )
-            self._mark_terminal_notification(
-                repository, run.id, run.source_chat_id, now
-            )
+            self._mark_terminal_notification(repository, run.id, run.source_chat_id, now)
             return True
         return False
+
+    async def _execute_planned_run(
+        self,
+        run_id: str,
+        task_id: str,
+        request: AsyncTaskCreate,
+    ) -> None:
+        scheduler = PlanNodeScheduler()
+        for _ in range(256):
+            with self.session_factory() as session:
+                plan = PlanRepository(session).get(run_id)
+            if plan is None:
+                self._block_planned_run(
+                    run_id,
+                    task_id,
+                    error_code="plan_missing",
+                    reason="Durable plan disappeared during execution.",
+                )
+                return
+            ready = scheduler.ready_nodes(plan)
+            if not ready:
+                self._block_planned_run(
+                    run_id,
+                    task_id,
+                    error_code="plan_stalled",
+                    reason="Plan has no ready node and is not complete.",
+                )
+                return
+            node = ready[0]
+            if node.kind is PlanNodeKind.VERIFICATION_GATE:
+                disposition = self._evaluate_planned_verification(
+                    run_id,
+                    task_id,
+                    plan,
+                    node,
+                )
+                if disposition == "continue":
+                    continue
+                return
+            if node.kind is not PlanNodeKind.ACTION:
+                self._block_planned_run(
+                    run_id,
+                    task_id,
+                    error_code="plan_node_unsupported",
+                    reason=f"Unsupported ready node kind: {node.kind.value}.",
+                )
+                return
+            prepared = self._prepare_planned_action(
+                run_id,
+                task_id,
+                request,
+                plan,
+                node,
+            )
+            if prepared is None:
+                return
+            execution_request = prepared
+            try:
+                result = await self.executor.execute(execution_request)
+            except OpenClawTransportError as error:
+                self._record_planned_transport_failure(
+                    run_id,
+                    task_id,
+                    node.id,
+                    error,
+                )
+                self._handle_transport_error(run_id, task_id, error)
+                return
+            terminal = self._record_planned_action_result(
+                run_id,
+                task_id,
+                node.id,
+                result,
+            )
+            if terminal:
+                self._persist_result(run_id, task_id, result)
+                return
+        self._block_planned_run(
+            run_id,
+            task_id,
+            error_code="plan_loop_exhausted",
+            reason="Plan execution loop exceeded its deterministic safety bound.",
+        )
+
+    def _prepare_planned_action(
+        self,
+        run_id: str,
+        task_id: str,
+        request: AsyncTaskCreate,
+        plan: Plan,
+        node: PlanNode,
+    ) -> OpenClawExecutionRequest | None:
+        budget = plan.execution_budget
+        if budget.actions_used >= budget.max_actions:
+            judgement = OutcomeJudgement(
+                disposition=OutcomeDisposition.BLOCKED,
+                reason_code="budget_exhausted",
+                reason="Action execution budget is exhausted.",
+            )
+            blocked_plan = plan.model_copy(
+                update={"outcome_judgement": judgement.model_dump(mode="json")}
+            )
+            with self.session_factory() as session:
+                PlanRepository(session).save(
+                    workflow_id=run_id,
+                    task_id=task_id,
+                    plan=blocked_plan,
+                )
+                session.commit()
+            self._block_planned_run(
+                run_id,
+                task_id,
+                error_code="budget_exhausted",
+                reason=judgement.reason,
+            )
+            return None
+        current = self._node_execution(plan, node.id)
+        attempts = current.attempts + 1
+        running = current.model_copy(update={"state": PlanNodeState.RUNNING, "attempts": attempts})
+        started_at = budget.started_at or self._now()
+        updated_budget = budget.model_copy(
+            update={
+                "actions_used": budget.actions_used + 1,
+                "started_at": started_at,
+            }
+        )
+        running_plan = plan.model_copy(
+            update={
+                "node_executions": self._replace_execution(plan, running),
+                "execution_budget": updated_budget,
+            }
+        )
+        with self.session_factory() as session:
+            run = AsyncTaskRepository(session).get(run_id)
+            PlanRepository(session).save(
+                workflow_id=run_id,
+                task_id=task_id,
+                plan=running_plan,
+            )
+            session.commit()
+        constraints = tuple(
+            dict.fromkeys(
+                self._execution_constraints(request)
+                + tuple(item.description for item in running_plan.constraints)
+            )
+        )
+        remaining_actions = max(
+            updated_budget.max_actions - updated_budget.actions_used,
+            0,
+        )
+        return OpenClawExecutionRequest(
+            task_id=task_id,
+            run_id=run_id,
+            attempt=run.attempt,
+            idempotency_key=(
+                f"{run_id}:{run.attempt}:r{running_plan.revision}:{node.id}:a{attempts}"
+            ),
+            project_id=request.project_id,
+            goal=request.goal,
+            mode=request.mode.value,
+            workspace=request.workspace,
+            constraints=constraints,
+            plan_node_id=node.id,
+            plan_node_title=node.title,
+            capability_requirements=tuple(item.value for item in node.capability_requirements),
+            dod_criteria=running_plan.definition_of_done.criteria,
+            verification_requirements=tuple(
+                item.description for item in running_plan.verification_requirements
+            ),
+            prior_evidence=tuple(f"{item.id}: {item.summary}" for item in running_plan.evidence),
+            remaining_budget={
+                "actions": remaining_actions,
+                "replans": max(
+                    running_plan.risk_budget.max_replans - (running_plan.revision - 1),
+                    0,
+                ),
+            },
+        )
+
+    def _record_planned_action_result(
+        self,
+        run_id: str,
+        task_id: str,
+        node_id: str,
+        result: OpenClawExecutionResult,
+    ) -> bool:
+        with self.session_factory() as session:
+            plan = PlanRepository(session).get(run_id)
+            assert plan is not None
+            current = self._node_execution(plan, node_id)
+            evidence = ExecutionEvidence(
+                id=(f"ev:{node_id}:r{plan.revision}:a{current.attempts}"),
+                node_id=node_id,
+                kind="result",
+                summary=result.summary,
+                artifact_refs=tuple(str(item) for item in result.files_changed),
+                verification_refs=tuple(
+                    ref for item in result.criterion_verification for ref in item.evidence_refs
+                ),
+                external_run_id=result.external_run_id,
+                outcome=result.outcome,
+                criterion_verification=tuple(
+                    item.model_dump(mode="json") for item in result.criterion_verification
+                ),
+                result_payload=result.model_dump(mode="json"),
+                provenance="openclaw",
+                created_at=self._now(),
+            )
+            target_state = {
+                "completed": PlanNodeState.COMPLETED,
+                "blocked": PlanNodeState.BLOCKED,
+                "failed": PlanNodeState.FAILED,
+            }[result.outcome]
+            updated_execution = current.model_copy(
+                update={
+                    "state": target_state,
+                    "evidence_ids": current.evidence_ids + (evidence.id,),
+                    "last_failure_class": (
+                        None if result.outcome == "completed" else result.error_code
+                    ),
+                }
+            )
+            evidence_items = plan.evidence
+            if all(item.id != evidence.id for item in evidence_items):
+                evidence_items = evidence_items + (evidence,)
+            updated_plan = plan.model_copy(
+                update={
+                    "node_executions": self._replace_execution(
+                        plan,
+                        updated_execution,
+                    ),
+                    "evidence": evidence_items,
+                }
+            )
+            PlanRepository(session).save(
+                workflow_id=run_id,
+                task_id=task_id,
+                plan=updated_plan,
+            )
+            session.commit()
+        return result.outcome != "completed"
+
+    def _evaluate_planned_verification(
+        self,
+        run_id: str,
+        task_id: str,
+        plan: Plan,
+        node: PlanNode,
+    ) -> str:
+        result = self._result_from_plan_evidence(plan)
+        judgement = OutcomeJudge().judge(plan, result)
+        if judgement.disposition is OutcomeDisposition.SATISFIED:
+            verify_execution = self._node_execution(plan, node.id).model_copy(
+                update={"state": PlanNodeState.COMPLETED}
+            )
+            satisfied_plan = plan.model_copy(
+                update={
+                    "node_executions": self._replace_execution(
+                        plan,
+                        verify_execution,
+                    ),
+                    "outcome_judgement": judgement.model_dump(mode="json"),
+                }
+            )
+            with self.session_factory() as session:
+                PlanRepository(session).save(
+                    workflow_id=run_id,
+                    task_id=task_id,
+                    plan=satisfied_plan,
+                )
+                session.commit()
+            self._persist_result(run_id, task_id, result)
+            return "terminal"
+        if judgement.disposition is OutcomeDisposition.REPLAN:
+            return self._replan_after_judgement(
+                run_id,
+                task_id,
+                plan,
+                judgement,
+            )
+        terminal_result = OpenClawExecutionResult(
+            outcome=(
+                "blocked" if judgement.disposition is OutcomeDisposition.BLOCKED else "failed"
+            ),
+            summary=judgement.reason,
+            error_code=judgement.reason_code,
+        )
+        terminal_plan = plan.model_copy(
+            update={"outcome_judgement": judgement.model_dump(mode="json")}
+        )
+        with self.session_factory() as session:
+            PlanRepository(session).save(
+                workflow_id=run_id,
+                task_id=task_id,
+                plan=terminal_plan,
+            )
+            session.commit()
+        self._persist_result(run_id, task_id, terminal_result)
+        return "terminal"
+
+    def _replan_after_judgement(
+        self,
+        run_id: str,
+        task_id: str,
+        plan: Plan,
+        judgement: OutcomeJudgement,
+    ) -> str:
+        failure_class = (
+            ExecutionFailureClass.DOD_UNMET_RECOVERABLE
+            if judgement.reason_code == "dod_unmet"
+            else ExecutionFailureClass.DOD_EVIDENCE_MISSING
+        )
+        action_nodes = [item for item in plan.nodes if item.kind is PlanNodeKind.ACTION]
+        if not action_nodes:
+            self._block_planned_run(
+                run_id,
+                task_id,
+                error_code=judgement.reason_code,
+                reason=judgement.reason,
+            )
+            return "terminal"
+        last_action = action_nodes[-1]
+        failure = ExecutionEvidence(
+            id=f"ev:{last_action.id}:r{plan.revision}:dod",
+            node_id=last_action.id,
+            kind="dod",
+            summary=judgement.reason,
+            outcome="failed",
+            provenance="core_outcome_judge",
+            created_at=self._now(),
+        )
+        failed_execution = self._node_execution(
+            plan,
+            last_action.id,
+        ).model_copy(
+            update={
+                "state": PlanNodeState.FAILED,
+                "last_failure_class": failure_class.value,
+                "evidence_ids": self._node_execution(
+                    plan,
+                    last_action.id,
+                ).evidence_ids
+                + (failure.id,),
+            }
+        )
+        failed_plan = plan.model_copy(
+            update={
+                "node_executions": self._replace_execution(
+                    plan,
+                    failed_execution,
+                ),
+                "evidence": plan.evidence + (failure,),
+                "outcome_judgement": judgement.model_dump(mode="json"),
+            }
+        )
+        decision = PlanReplanner().reconcile_after_evidence(
+            failed_plan,
+            failure_class=failure_class,
+            evidence=failure,
+            execution_started=True,
+        )
+        if decision.disposition is ReplanDisposition.REVISED:
+            with self.session_factory() as session:
+                PlanRepository(session).save(
+                    workflow_id=run_id,
+                    task_id=task_id,
+                    plan=decision.plan,
+                )
+                session.commit()
+            return "continue"
+        blocked_plan = failed_plan.model_copy(
+            update={"outcome_judgement": judgement.model_dump(mode="json")}
+        )
+        with self.session_factory() as session:
+            PlanRepository(session).save(
+                workflow_id=run_id,
+                task_id=task_id,
+                plan=blocked_plan,
+            )
+            session.commit()
+        self._block_planned_run(
+            run_id,
+            task_id,
+            error_code=judgement.reason_code,
+            reason=judgement.reason,
+        )
+        return "terminal"
+
+    @staticmethod
+    def _result_from_plan_evidence(plan: Plan) -> OpenClawExecutionResult:
+        criterion_items: list[CriterionVerification] = []
+        latest_payload: dict[str, object] | None = None
+        for evidence in plan.evidence:
+            if evidence.result_payload is not None:
+                latest_payload = evidence.result_payload
+            for raw in evidence.criterion_verification:
+                criterion_items.append(CriterionVerification.model_validate(raw))
+        if latest_payload is not None:
+            latest = OpenClawExecutionResult.model_validate(latest_payload)
+            return latest.model_copy(
+                update={
+                    "outcome": "completed",
+                    "criterion_verification": tuple(criterion_items),
+                }
+            )
+        summary = (
+            plan.evidence[-1].summary
+            if plan.evidence
+            else "No durable execution evidence is available."
+        )
+        return OpenClawExecutionResult(
+            outcome="completed",
+            summary=summary,
+            artifacts={"evidence_ids": [item.id for item in plan.evidence]},
+            verification={
+                "method": "core_outcome_judge",
+                "evidence_count": len(plan.evidence),
+            },
+            criterion_verification=tuple(criterion_items),
+        )
+
+    def _record_planned_transport_failure(
+        self,
+        run_id: str,
+        task_id: str,
+        node_id: str,
+        error: OpenClawTransportError,
+    ) -> None:
+        with self.session_factory() as session:
+            plan = PlanRepository(session).get(run_id)
+            if plan is None:
+                return
+            current = self._node_execution(plan, node_id)
+            state = (
+                PlanNodeState.PENDING
+                if error.retryable and not error.uncertain_side_effect
+                else (
+                    PlanNodeState.BLOCKED if error.uncertain_side_effect else PlanNodeState.FAILED
+                )
+            )
+            updated = current.model_copy(
+                update={
+                    "state": state,
+                    "last_failure_class": error.code,
+                }
+            )
+            budget = plan.execution_budget
+            updated_budget = budget.model_copy(
+                update={
+                    "retries_used": budget.retries_used
+                    + (1 if state is PlanNodeState.PENDING else 0)
+                }
+            )
+            updated_plan = plan.model_copy(
+                update={
+                    "node_executions": self._replace_execution(plan, updated),
+                    "execution_budget": updated_budget,
+                }
+            )
+            PlanRepository(session).save(
+                workflow_id=run_id,
+                task_id=task_id,
+                plan=updated_plan,
+            )
+            session.commit()
+
+    def _block_planned_run(
+        self,
+        run_id: str,
+        task_id: str,
+        *,
+        error_code: str,
+        reason: str,
+    ) -> None:
+        result = OpenClawExecutionResult(
+            outcome="blocked",
+            summary=reason,
+            error_code=error_code,
+        )
+        self._persist_result(run_id, task_id, result)
+
+    @staticmethod
+    def _node_execution(plan: Plan, node_id: str) -> PlanNodeExecution:
+        for execution in plan.node_executions:
+            if execution.node_id == node_id:
+                return execution
+        return PlanNodeExecution(node_id=node_id)
+
+    @staticmethod
+    def _replace_execution(
+        plan: Plan,
+        replacement: PlanNodeExecution,
+    ) -> tuple[PlanNodeExecution, ...]:
+        updated: list[PlanNodeExecution] = []
+        replaced = False
+        for execution in plan.node_executions:
+            if execution.node_id == replacement.node_id:
+                updated.append(replacement)
+                replaced = True
+            else:
+                updated.append(execution)
+        if not replaced:
+            updated.append(replacement)
+        return tuple(updated)
 
     @staticmethod
     def _execution_constraints(
         request: AsyncTaskCreate,
     ) -> tuple[str, ...]:
         if request.approval_required or request.risk_level >= 2:
-            return tuple(
-                dict.fromkeys(
-                    request.constraints
-                    + STEP_LEVEL_EXECUTION_CONSTRAINTS
-                )
-            )
+            return tuple(dict.fromkeys(request.constraints + STEP_LEVEL_EXECUTION_CONSTRAINTS))
         return request.constraints
 
     @staticmethod
@@ -323,10 +831,7 @@ class AsyncTaskWorker:
         safety = analyze_safety_intent(request.goal)
         goal = safety.normalized_text
         padded_goal = f" {goal} "
-        has_core_identity = (
-            " core " in padded_goal
-            or " anh duong " in padded_goal
-        )
+        has_core_identity = " core " in padded_goal or " anh duong " in padded_goal
         return (
             has_core_identity
             and "kiem tra" in goal
@@ -396,12 +901,8 @@ class AsyncTaskWorker:
     @staticmethod
     async def _probe_local_core_status() -> dict[str, Any]:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            health_response = await client.get(
-                "http://127.0.0.1:8790/health"
-            )
-            ready_response = await client.get(
-                "http://127.0.0.1:8790/ready"
-            )
+            health_response = await client.get("http://127.0.0.1:8790/health")
+            ready_response = await client.get("http://127.0.0.1:8790/ready")
         return {
             "health": {
                 "http_status": health_response.status_code,
@@ -457,15 +958,9 @@ class AsyncTaskWorker:
                 return
 
             target_run = (
-                AsyncRunStatus.BLOCKED
-                if error.uncertain_side_effect
-                else AsyncRunStatus.FAILED
+                AsyncRunStatus.BLOCKED if error.uncertain_side_effect else AsyncRunStatus.FAILED
             )
-            target_task = (
-                TaskStatus.BLOCKED
-                if error.uncertain_side_effect
-                else TaskStatus.FAILED
-            )
+            target_task = TaskStatus.BLOCKED if error.uncertain_side_effect else TaskStatus.FAILED
             terminal_checkpoint = AsyncExecutionCheckpoint(
                 stage="terminal",
                 message=safe_error_message,
@@ -555,6 +1050,8 @@ class AsyncTaskWorker:
                 run_status,
                 now=now,
                 result_json=result_json,
+                error_code=result.error_code,
+                error_message=(result.summary if result.outcome != "completed" else None),
                 external_run_id=result.external_run_id,
             )
             task_service.transition(
@@ -574,8 +1071,7 @@ class AsyncTaskWorker:
     def _completed_governance_valid(result: OpenClawExecutionResult) -> bool:
         governance = result.governance_result
         return isinstance(governance, GovernanceResult) and (
-            governance.decision == "allow"
-            and governance.status in {"verified", "approved"}
+            governance.decision == "allow" and governance.status in {"verified", "approved"}
         )
 
     @staticmethod
@@ -588,9 +1084,7 @@ class AsyncTaskWorker:
         repository.mark_notification(
             run_id,
             status=(
-                NotificationStatus.PENDING
-                if source_chat_id
-                else NotificationStatus.NOT_REQUIRED
+                NotificationStatus.PENDING if source_chat_id else NotificationStatus.NOT_REQUIRED
             ),
             now=now,
         )

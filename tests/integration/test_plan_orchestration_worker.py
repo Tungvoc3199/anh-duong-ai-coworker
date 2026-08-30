@@ -1,0 +1,443 @@
+from __future__ import annotations
+
+import pytest
+from sqlalchemy.orm import Session, sessionmaker
+
+from app.async_tasks import AsyncRunStatus, AsyncTaskRepository
+from app.openclaw import CriterionVerification, OpenClawExecutionResult
+from app.planning.models import (
+    DefinitionOfDone,
+    ExecutionBudget,
+    ExecutionEvidence,
+    PlanNode,
+    PlanNodeExecution,
+    PlanNodeKind,
+    PlanNodeState,
+    RiskBudget,
+)
+from app.planning.repository import PlanRepository
+from app.tasks import TaskRepository, TaskService, TaskStatus
+from tests.integration.test_async_task_worker import (
+    NOW,
+    SequenceExecutor,
+    _audit,
+    _seed_run,
+    _worker,
+)
+from tests.integration.test_async_task_worker import (
+    engine as engine,
+)
+from tests.integration.test_async_task_worker import (
+    session_factory as session_factory,
+)
+
+
+def _replace_plan(
+    factory: sessionmaker[Session],
+    run_id: str,
+    task_id: str,
+    *,
+    max_replans: int = 1,
+    budget: ExecutionBudget | None = None,
+    executions: tuple[PlanNodeExecution, ...] = (),
+    evidence: tuple[ExecutionEvidence, ...] = (),
+) -> None:
+    with factory() as session:
+        repository = PlanRepository(session)
+        original = repository.get(run_id)
+        assert original is not None
+        plan = original.model_copy(
+            update={
+                "definition_of_done": DefinitionOfDone(
+                    criteria=("source collected", "analysis verified")
+                ),
+                "risk_budget": RiskBudget(max_replans=max_replans),
+                "nodes": (
+                    PlanNode(
+                        id="collect",
+                        title="Collect source",
+                        kind=PlanNodeKind.ACTION,
+                    ),
+                    PlanNode(
+                        id="analyze",
+                        title="Analyze source",
+                        kind=PlanNodeKind.ACTION,
+                        depends_on=("collect",),
+                    ),
+                    PlanNode(
+                        id="verify",
+                        title="Verify DoD",
+                        kind=PlanNodeKind.VERIFICATION_GATE,
+                        depends_on=("analyze",),
+                    ),
+                ),
+                "node_executions": executions,
+                "evidence": evidence,
+                "execution_budget": budget or ExecutionBudget(max_actions=4),
+            }
+        )
+        repository.save(workflow_id=run_id, task_id=task_id, plan=plan)
+        session.commit()
+
+
+async def _run_and_load(
+    factory: sessionmaker[Session],
+    tmp_path,
+    executor: SequenceExecutor,
+    run_id: str,
+    task_id: str,
+):
+    worker = _worker(
+        session_factory=factory,
+        tmp_path=tmp_path,
+        executor=executor,
+        clock=[NOW],
+    )
+    processed = await worker.run_once()
+    with factory() as session:
+        run = AsyncTaskRepository(session).get(run_id)
+        task = TaskService(TaskRepository(session), _audit(tmp_path)).get(task_id)
+        plan = PlanRepository(session).get(run_id)
+    assert plan is not None
+    return processed, run, task, plan
+
+
+@pytest.mark.asyncio
+async def test_two_action_plan_completes_only_after_outcome_judge(
+    session_factory: sessionmaker[Session],
+    tmp_path,
+) -> None:
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="plan-two-action",
+    )
+    _replace_plan(session_factory, run_id, task_id)
+    executor = SequenceExecutor(
+        [
+            OpenClawExecutionResult(
+                outcome="completed",
+                summary="source collected",
+                criterion_verification=(
+                    CriterionVerification(
+                        criterion="source collected",
+                        status="verified",
+                        evidence_refs=("ev_source",),
+                    ),
+                ),
+            ),
+            OpenClawExecutionResult(
+                outcome="completed",
+                summary="analysis complete",
+                criterion_verification=(
+                    CriterionVerification(
+                        criterion="source collected",
+                        status="verified",
+                        evidence_refs=("ev_source",),
+                    ),
+                    CriterionVerification(
+                        criterion="analysis verified",
+                        status="verified",
+                        evidence_refs=("ev_analysis",),
+                    ),
+                ),
+            ),
+        ]
+    )
+
+    processed, run, task, plan = await _run_and_load(
+        session_factory, tmp_path, executor, run_id, task_id
+    )
+
+    assert processed is True
+    assert run.status is AsyncRunStatus.COMPLETED
+    assert task.status is TaskStatus.COMPLETED
+    assert [request.plan_node_id for request in executor.requests] == [
+        "collect",
+        "analyze",
+    ]
+    states = {item.node_id: item.state for item in plan.node_executions}
+    assert states == {
+        "collect": PlanNodeState.COMPLETED,
+        "analyze": PlanNodeState.COMPLETED,
+        "verify": PlanNodeState.COMPLETED,
+    }
+    assert plan.execution_budget.actions_used == 2
+    assert len(plan.evidence) == 2
+    assert plan.outcome_judgement is not None
+    assert plan.outcome_judgement["disposition"] == "satisfied"
+
+
+@pytest.mark.asyncio
+async def test_resume_skips_completed_node_and_preserves_evidence(
+    session_factory: sessionmaker[Session],
+    tmp_path,
+) -> None:
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="plan-resume",
+    )
+    prior = ExecutionEvidence(
+        id="ev_prior",
+        node_id="collect",
+        kind="result",
+        summary="source collected previously",
+    )
+    _replace_plan(
+        session_factory,
+        run_id,
+        task_id,
+        executions=(
+            PlanNodeExecution(
+                node_id="collect",
+                state=PlanNodeState.COMPLETED,
+                attempts=1,
+                evidence_ids=(prior.id,),
+            ),
+        ),
+        evidence=(prior,),
+        budget=ExecutionBudget(max_actions=4, actions_used=1, started_at=NOW),
+    )
+    executor = SequenceExecutor(
+        [
+            OpenClawExecutionResult(
+                outcome="completed",
+                summary="analysis complete",
+                criterion_verification=(
+                    CriterionVerification(
+                        criterion="source collected",
+                        status="verified",
+                        evidence_refs=(prior.id,),
+                    ),
+                    CriterionVerification(
+                        criterion="analysis verified",
+                        status="verified",
+                        evidence_refs=("ev_analysis",),
+                    ),
+                ),
+            )
+        ]
+    )
+
+    _, run, task, plan = await _run_and_load(session_factory, tmp_path, executor, run_id, task_id)
+
+    assert run.status is AsyncRunStatus.COMPLETED
+    assert task.status is TaskStatus.COMPLETED
+    assert [request.plan_node_id for request in executor.requests] == ["analyze"]
+    assert plan.execution_budget.actions_used == 2
+    assert plan.evidence[0].id == prior.id
+    assert plan.node_executions[0].state is PlanNodeState.COMPLETED
+
+
+@pytest.mark.asyncio
+async def test_action_budget_exhaustion_blocks_without_executor_call(
+    session_factory: sessionmaker[Session],
+    tmp_path,
+) -> None:
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="plan-budget",
+    )
+    _replace_plan(
+        session_factory,
+        run_id,
+        task_id,
+        budget=ExecutionBudget(max_actions=1, actions_used=1, started_at=NOW),
+    )
+    executor = SequenceExecutor([])
+    _, run, task, plan = await _run_and_load(session_factory, tmp_path, executor, run_id, task_id)
+
+    assert executor.requests == []
+    assert run.status is AsyncRunStatus.BLOCKED
+    assert run.last_error_code == "budget_exhausted"
+    assert task.status is TaskStatus.BLOCKED
+    assert plan.outcome_judgement is not None
+    assert plan.outcome_judgement["reason_code"] == "budget_exhausted"
+
+
+@pytest.mark.asyncio
+async def test_missing_dod_evidence_fails_closed_when_replan_budget_is_zero(
+    session_factory: sessionmaker[Session],
+    tmp_path,
+) -> None:
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="plan-no-evidence",
+    )
+    _replace_plan(
+        session_factory,
+        run_id,
+        task_id,
+        max_replans=0,
+    )
+    executor = SequenceExecutor(
+        [
+            OpenClawExecutionResult(
+                outcome="completed",
+                summary="reported complete without evidence",
+            ),
+            OpenClawExecutionResult(
+                outcome="completed",
+                summary="should not execute second node",
+            ),
+        ],
+        auto_verify_dod=False,
+    )
+
+    _, run, task, plan = await _run_and_load(session_factory, tmp_path, executor, run_id, task_id)
+
+    assert run.status is AsyncRunStatus.BLOCKED
+    assert task.status is TaskStatus.BLOCKED
+    assert len(executor.requests) == 2
+    assert plan.outcome_judgement is not None
+    assert plan.outcome_judgement["reason_code"] == "dod_evidence_missing"
+
+
+@pytest.mark.asyncio
+async def test_missing_evidence_replans_last_action_once_and_recovers(
+    session_factory: sessionmaker[Session],
+    tmp_path,
+) -> None:
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="plan-recover",
+    )
+    _replace_plan(session_factory, run_id, task_id, max_replans=1)
+    executor = SequenceExecutor(
+        [
+            OpenClawExecutionResult(
+                outcome="completed",
+                summary="source collected",
+                criterion_verification=(
+                    CriterionVerification(
+                        criterion="source collected",
+                        status="verified",
+                        evidence_refs=("ev_source",),
+                    ),
+                ),
+            ),
+            OpenClawExecutionResult(
+                outcome="completed",
+                summary="analysis response missed verification evidence",
+                criterion_verification=(
+                    CriterionVerification(
+                        criterion="source collected",
+                        status="verified",
+                        evidence_refs=("ev_source",),
+                    ),
+                ),
+            ),
+            OpenClawExecutionResult(
+                outcome="completed",
+                summary="analysis recovered with evidence",
+                criterion_verification=(
+                    CriterionVerification(
+                        criterion="source collected",
+                        status="verified",
+                        evidence_refs=("ev_source",),
+                    ),
+                    CriterionVerification(
+                        criterion="analysis verified",
+                        status="verified",
+                        evidence_refs=("ev_analysis_recovered",),
+                    ),
+                ),
+            ),
+        ],
+        auto_verify_dod=False,
+    )
+
+    _, run, task, plan = await _run_and_load(session_factory, tmp_path, executor, run_id, task_id)
+
+    assert run.status is AsyncRunStatus.COMPLETED
+    assert task.status is TaskStatus.COMPLETED
+    assert [request.plan_node_id for request in executor.requests] == [
+        "collect",
+        "analyze",
+        "analyze",
+    ]
+    assert plan.revision == 2
+    assert plan.replanned_from_revision == 1
+    assert plan.outcome_judgement is not None
+    assert plan.outcome_judgement["disposition"] == "satisfied"
+
+
+@pytest.mark.asyncio
+async def test_resume_at_verification_uses_persisted_evidence_without_replay(
+    session_factory: sessionmaker[Session],
+    tmp_path,
+) -> None:
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="plan-resume-verify",
+    )
+    collect_evidence = ExecutionEvidence(
+        id="ev_collect_done",
+        node_id="collect",
+        kind="result",
+        summary="source collected",
+        outcome="completed",
+        criterion_verification=(
+            {
+                "criterion": "source collected",
+                "status": "verified",
+                "evidence_refs": ["ev_source"],
+            },
+        ),
+    )
+    analyze_evidence = ExecutionEvidence(
+        id="ev_analyze_done",
+        node_id="analyze",
+        kind="result",
+        summary="analysis complete",
+        outcome="completed",
+        criterion_verification=(
+            {
+                "criterion": "source collected",
+                "status": "verified",
+                "evidence_refs": ["ev_source"],
+            },
+            {
+                "criterion": "analysis verified",
+                "status": "verified",
+                "evidence_refs": ["ev_analysis"],
+            },
+        ),
+    )
+    _replace_plan(
+        session_factory,
+        run_id,
+        task_id,
+        executions=(
+            PlanNodeExecution(
+                node_id="collect",
+                state=PlanNodeState.COMPLETED,
+                attempts=1,
+                evidence_ids=(collect_evidence.id,),
+            ),
+            PlanNodeExecution(
+                node_id="analyze",
+                state=PlanNodeState.COMPLETED,
+                attempts=1,
+                evidence_ids=(analyze_evidence.id,),
+            ),
+        ),
+        evidence=(collect_evidence, analyze_evidence),
+        budget=ExecutionBudget(max_actions=4, actions_used=2, started_at=NOW),
+    )
+    executor = SequenceExecutor([])
+
+    _, run, task, plan = await _run_and_load(session_factory, tmp_path, executor, run_id, task_id)
+
+    assert executor.requests == []
+    assert run.status is AsyncRunStatus.COMPLETED
+    assert task.status is TaskStatus.COMPLETED
+    states = {item.node_id: item.state for item in plan.node_executions}
+    assert states["verify"] is PlanNodeState.COMPLETED
+    assert plan.outcome_judgement is not None
+    assert plan.outcome_judgement["disposition"] == "satisfied"

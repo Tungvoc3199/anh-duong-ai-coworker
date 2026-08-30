@@ -23,6 +23,7 @@ from app.db.base import Base
 from app.db.models import ProjectRow
 from app.db.session import create_db_engine
 from app.openclaw import (
+    CriterionVerification,
     OpenClawExecutionRequest,
     OpenClawExecutionResult,
     OpenClawTransportError,
@@ -33,8 +34,14 @@ NOW = datetime.now(UTC) + timedelta(hours=1)
 
 
 class SequenceExecutor:
-    def __init__(self, outcomes: list[object]) -> None:
+    def __init__(
+        self,
+        outcomes: list[object],
+        *,
+        auto_verify_dod: bool = True,
+    ) -> None:
         self.outcomes = outcomes
+        self.auto_verify_dod = auto_verify_dod
         self.requests: list[OpenClawExecutionRequest] = []
 
     async def execute(
@@ -46,15 +53,31 @@ class SequenceExecutor:
         if isinstance(outcome, Exception):
             raise outcome
         assert isinstance(outcome, OpenClawExecutionResult)
+        if (
+            self.auto_verify_dod
+            and outcome.outcome == "completed"
+            and not outcome.criterion_verification
+            and request.dod_criteria
+        ):
+            evidence_ref = f"test:{request.plan_node_id or 'action'}"
+            outcome = outcome.model_copy(
+                update={
+                    "criterion_verification": tuple(
+                        CriterionVerification(
+                            criterion=criterion,
+                            status="verified",
+                            evidence_refs=(evidence_ref,),
+                        )
+                        for criterion in request.dod_criteria
+                    )
+                }
+            )
         return outcome
 
 
 @pytest.fixture
 def engine(tmp_path: Path) -> Iterator[Engine]:
-    database_url = (
-        "sqlite+pysqlite:///"
-        f"{tmp_path / 'async-worker.db'}"
-    )
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'async-worker.db'}"
     runtime_engine = create_db_engine(database_url)
     Base.metadata.create_all(runtime_engine)
     try:
@@ -218,7 +241,7 @@ async def test_worker_completes_run_and_task(
     assert result_json["duration_ms"] == 1234
     assert result_json["error_code"] is None
     request = executor.requests[0]
-    assert request.idempotency_key == f"{run_id}:1"
+    assert request.idempotency_key == f"{run_id}:1:r1:execute:a1"
 
 
 @pytest.mark.asyncio
@@ -337,8 +360,7 @@ async def test_worker_executes_safe_prefix_for_approval_required_facebook_task(
     execution_request = executor.requests[0]
     assert "complete_safe_steps_before_approval_gate" in execution_request.constraints
     assert (
-        "hard_gate_publish_send_external_destructive_secret_cost"
-        in execution_request.constraints
+        "hard_gate_publish_send_external_destructive_secret_cost" in execution_request.constraints
     )
     result_json = json.loads(run.result_json or "{}")
     assert result_json["artifacts"]["safe_steps_completed"] == [
@@ -618,9 +640,7 @@ async def test_worker_replans_safe_truth_drift_before_execution(
         project.version += 1
         session.commit()
 
-    executor = SequenceExecutor(
-        [OpenClawExecutionResult(outcome="completed", summary="done")]
-    )
+    executor = SequenceExecutor([OpenClawExecutionResult(outcome="completed", summary="done")])
     worker = _worker(
         session_factory=session_factory,
         tmp_path=tmp_path,
@@ -746,9 +766,7 @@ async def test_worker_blocks_truth_drift_on_retry_before_second_execution(
         assert project is not None
         run_row.status = AsyncRunStatus.RETRY_WAIT.value
         run_row.attempt = 1
-        run_row.checkpoint_json = json.dumps(
-            {"stage": "running", "message": "attempt one started"}
-        )
+        run_row.checkpoint_json = json.dumps({"stage": "running", "message": "attempt one started"})
         project.current_phase = "changed-after-attempt"
         project.version += 1
         session.commit()
@@ -795,9 +813,7 @@ async def test_worker_keeps_legacy_run_without_durable_plan_compatible(
         workflow.plan_payload = {}
         session.commit()
 
-    executor = SequenceExecutor(
-        [OpenClawExecutionResult(outcome="completed", summary="legacy ok")]
-    )
+    executor = SequenceExecutor([OpenClawExecutionResult(outcome="completed", summary="legacy ok")])
     worker = _worker(
         session_factory=session_factory,
         tmp_path=tmp_path,
