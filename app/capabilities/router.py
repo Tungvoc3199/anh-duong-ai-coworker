@@ -321,20 +321,6 @@ class CapabilityRouter:
         source_route: FastRoute,
         normalized: str,
     ) -> CapabilityDecision:
-        visual_actions = self._signals(
-            normalized, "visual:action", _VISUAL_PROMPT_ACTION_SIGNALS
-        )
-        visual_targets = self._signals(
-            normalized, "visual:target", _VISUAL_PROMPT_TARGET_SIGNALS
-        )
-        if visual_actions and visual_targets:
-            return self._decision(
-                CapabilityKind.VISUAL_PROMPT_COMPOSE,
-                source_route,
-                "capability.workflow.visual_prompt_compose",
-                visual_actions + visual_targets,
-            )
-
         system_signals = self._compound_signals(
             normalized,
             "system",
@@ -393,6 +379,20 @@ class CapabilityRouter:
                 source_route,
                 "capability.workflow.file_operation",
                 file_signals,
+            )
+
+        visual_actions = self._signals(
+            normalized, "visual:action", _VISUAL_PROMPT_ACTION_SIGNALS
+        )
+        visual_targets = self._signals(
+            normalized, "visual:target", _VISUAL_PROMPT_TARGET_SIGNALS
+        )
+        if visual_actions and visual_targets:
+            return self._decision(
+                CapabilityKind.VISUAL_PROMPT_COMPOSE,
+                source_route,
+                "capability.workflow.visual_prompt_compose",
+                visual_actions + visual_targets,
             )
 
         planning_signals = self._signals(

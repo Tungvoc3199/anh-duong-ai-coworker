@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 from pathlib import Path
 from typing import Any
 
 from app.visualforge.models import VisualForgeCompiledPrompt, VisualPromptSpec
+
+_ISOLATED_RUNNER = (
+    "import runpy,sys; src=sys.argv.pop(1); "
+    "sys.path.insert(0, src); runpy.run_module(\"visualforge\", run_name=\"__main__\")"
+)
 
 
 class VisualForgeRuntimeError(RuntimeError):
@@ -43,10 +47,17 @@ class VisualForgeClient:
                 "visualforge_worktree_dirty",
                 "VisualForge tracked worktree differs from the pinned commit.",
             )
+        argv = self._compose_argv(spec)
+        stdout = await self._run(argv)
+        return self._parse(stdout, spec)
+
+    def _compose_argv(self, spec: VisualPromptSpec) -> list[str]:
         argv = [
             self.python_executable,
-            "-m",
-            "visualforge",
+            "-I",
+            "-c",
+            _ISOLATED_RUNNER,
+            str(self.root / "src"),
             "compose",
             "--query",
             spec.query,
@@ -61,8 +72,7 @@ class VisualForgeClient:
             argv.extend(("--required-text", spec.required_text))
         if spec.aspect_ratio:
             argv.extend(("--aspect-ratio", spec.aspect_ratio))
-        stdout = await self._run(argv)
-        return self._parse(stdout, spec)
+        return argv
 
     def _validate_root(self) -> None:
         if not self.root.is_dir():
@@ -78,7 +88,7 @@ class VisualForgeClient:
 
     async def _git_status(self) -> str:
         return await self._run(
-            ["git", "-C", str(self.root), "status", "--porcelain", "--untracked-files=no"],
+            ["git", "-C", str(self.root), "status", "--porcelain", "--untracked-files=all"],
             use_pythonpath=False,
         )
 
@@ -101,17 +111,11 @@ class VisualForgeClient:
         *,
         use_pythonpath: bool = True,
     ) -> str:
-        env = os.environ.copy()
-        if use_pythonpath:
-            src = str(self.root / "src")
-            env["PYTHONPATH"] = src
-            env["PYTHONNOUSERSITE"] = "1"
         try:
             process = await asyncio.create_subprocess_exec(
                 *argv,
-            cwd=str(self.root),
-            env=env,
-            stdout=asyncio.subprocess.PIPE,
+                cwd=str(self.root),
+                stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
         except OSError as error:

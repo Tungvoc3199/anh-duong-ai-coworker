@@ -70,7 +70,7 @@ def test_visual_prompt_parser_preserves_exact_text_and_selects_template() -> Non
     assert spec.adapter == "gpt-image"
     assert spec.aspect_ratio == "9:16"
     assert spec.required_text == "DƯỠNG SÁNG DA – GIẢM 50% HÔM NAY"
-    assert spec.query == "product ecommerce"
+    assert spec.query == "beauty ecommerce serum skincare"
     assert spec.brief == goal
 
 
@@ -196,3 +196,64 @@ async def test_visualforge_revision_mismatch_fails_closed(tmp_path: Path) -> Non
     with pytest.raises(VisualForgeRuntimeError) as caught:
         await client.compose(VisualPromptParser().parse("Tạo prompt ảnh sản phẩm"))
     assert caught.value.code == "visualforge_revision_mismatch"
+
+
+def test_visual_prompt_compound_external_request_keeps_external_capability() -> None:
+    goal = 'Tạo prompt ảnh sản phẩm rồi gửi qua Telegram'
+    route = FastRouter().route(goal)
+    capability = CapabilityRouter().route(route, goal)
+
+    assert route.route is FastRoute.WORKFLOW
+    assert capability.capability is CapabilityKind.EXTERNAL_COMMUNICATION
+
+
+def test_visual_prompt_compound_file_request_keeps_file_capability() -> None:
+    goal = 'Tạo prompt ảnh sản phẩm rồi ghi vào file prompt.txt'
+    route = FastRouter().route(goal)
+    capability = CapabilityRouter().route(route, goal)
+
+    assert route.route is FastRoute.WORKFLOW
+    assert capability.capability is CapabilityKind.FILE_OPERATION
+
+
+def test_tiktok_serum_parser_keeps_beauty_subject_in_search_query() -> None:
+    from app.visualforge import VisualPromptParser
+
+    spec = VisualPromptParser().parse(
+        'Tạo prompt ảnh TikTok bán serum dưỡng sáng, text "GIẢM 50%"'
+    )
+
+    assert spec.template == "tiktok-affiliate-hook"
+    assert "beauty" in spec.query
+    assert "serum" in spec.query
+    assert "ecommerce" in spec.query
+
+@pytest.mark.asyncio
+async def test_visualforge_client_checks_untracked_files(tmp_path: Path) -> None:
+    from app.visualforge import VisualForgeClient
+
+    calls: list[list[str]] = []
+
+    class Client(VisualForgeClient):
+        async def _run(self, argv: list[str], *, use_pythonpath: bool = True) -> str:
+            calls.append(argv)
+            return ""
+
+    client = Client(root=tmp_path, expected_commit="abc")
+    await client._git_status()
+
+    assert calls
+    assert "--untracked-files=all" in calls[0]
+
+
+def test_visualforge_client_uses_isolated_python_argv(tmp_path: Path) -> None:
+    from app.visualforge import VisualForgeClient, VisualPromptParser
+
+    client = VisualForgeClient(root=tmp_path, expected_commit="abc")
+    spec = VisualPromptParser().parse('Tạo prompt ảnh serum, text "GIẢM 50%"')
+    argv = client._compose_argv(spec)
+
+    assert argv[0] == "/usr/bin/python3"
+    assert argv[1] == "-I"
+    assert str(tmp_path / "src") in argv
+    assert "-m" not in argv[:4]

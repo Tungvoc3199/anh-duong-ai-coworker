@@ -20,7 +20,7 @@ class VisualPromptParser:
         required_match = self._TEXT_PATTERN.search(goal)
         aspect_match = self._ASPECT_PATTERN.search(goal)
         return VisualPromptSpec(
-            query=self._query(template),
+            query=self._query(template, normalized),
             brief=goal.strip(),
             template=template,
             adapter="gpt-image",
@@ -63,7 +63,7 @@ class VisualPromptParser:
         return "ecommerce-product-hero"
 
     @staticmethod
-    def _query(template: str) -> str:
+    def _query(template: str, text: str) -> str:
         queries = {
             "tiktok-affiliate-hook": "product ecommerce",
             "beauty-skincare-launch": "beauty skincare",
@@ -78,4 +78,12 @@ class VisualPromptParser:
             "vietnamese-local-tet-sale": "product vietnamese local",
             "ecommerce-product-hero": "product ecommerce",
         }
+        if template == "tiktok-affiliate-hook":
+            if any(item in text for item in ("serum", "skincare", "beauty", "my pham")):
+                return "beauty ecommerce serum skincare"
+            if any(item in text for item in ("food", "do an", "ca phe", "cafe", "coffee")):
+                return "food ecommerce social media"
+            if any(item in text for item in ("fashion", "thoi trang", "streetwear")):
+                return "fashion ecommerce social media"
+            return "product ecommerce social media"
         return queries[template]
