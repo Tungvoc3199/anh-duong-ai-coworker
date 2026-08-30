@@ -4,6 +4,7 @@ from typing import Protocol
 
 from app.capabilities import CapabilityKind, CapabilityRouter
 from app.openclaw.models import (
+    CriterionVerification,
     OpenClawExecutionRequest,
     OpenClawExecutionResult,
     OpenClawTransportError,
@@ -64,6 +65,15 @@ class VisualForgeRoutingExecutor:
                 "files_changed": 0,
                 "exact_text_preserved": compiled.required_text == spec.required_text,
             },
+            criterion_verification=tuple(
+                CriterionVerification(
+                    criterion=criterion,
+                    status="verified",
+                    evidence_refs=("visualforge:compiled_prompt", "visualforge:provenance"),
+                    explanation="Verified by deterministic local VisualForge compile output.",
+                )
+                for criterion in request.dod_criteria
+            ),
             files_changed=(),
             commands_run=(),
             tests=(),

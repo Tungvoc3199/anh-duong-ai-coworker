@@ -396,6 +396,12 @@ class AsyncTaskWorker:
                     )
                 else:
                     result = await self.executor.execute(execution_request)
+                    if (
+                        result.provider == "local"
+                        and result.profile is not None
+                        and result.profile.startswith("visualforge-")
+                    ):
+                        provenance = "visualforge"
             except OpenClawTransportError as error:
                 if self._planned_retry_budget_exhausted(run_id, error):
                     self._mark_planned_budget_exhausted(
