@@ -8,6 +8,7 @@ import httpx
 from pydantic import ValidationError
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.approvals import ApprovalService
 from app.async_tasks.models import (
     AsyncExecutionCheckpoint,
     AsyncRunStatus,
@@ -20,6 +21,7 @@ from app.async_tasks.policy import (
 )
 from app.async_tasks.repository import AsyncTaskRepository
 from app.audit import AuditWriter
+from app.db.models import ApprovalRow
 from app.openclaw import (
     CriterionVerification,
     GovernanceResult,
@@ -158,9 +160,7 @@ class AsyncTaskWorker:
 
         with self.session_factory() as plan_session:
             persisted_plan = PlanRepository(plan_session).get(run.id)
-        if persisted_plan is not None and not any(
-            node.kind is PlanNodeKind.APPROVAL_GATE for node in persisted_plan.nodes
-        ):
+        if persisted_plan is not None:
             await self._execute_planned_run(
                 run.id,
                 run.task_id,
@@ -339,6 +339,8 @@ class AsyncTaskWorker:
                 if running is not None:
                     self._mark_planned_uncertain_side_effect(run_id, task_id, running.node_id)
                     return
+                if self._resume_planned_terminal_state(run_id, task_id, plan):
+                    return
                 self._block_planned_run(
                     run_id,
                     task_id,
@@ -347,6 +349,13 @@ class AsyncTaskWorker:
                 )
                 return
             node = ready[0]
+            if node.kind is PlanNodeKind.APPROVAL_GATE:
+                disposition = self._evaluate_planned_approval_gate(
+                    run_id, task_id, request, plan, node
+                )
+                if disposition == "continue":
+                    continue
+                return
             if node.kind is PlanNodeKind.VERIFICATION_GATE:
                 disposition = self._evaluate_planned_verification(
                     run_id,
@@ -670,6 +679,49 @@ class AsyncTaskWorker:
         self._persist_result(run_id, task_id, terminal_result)
         return "terminal"
 
+    def _evaluate_planned_approval_gate(
+        self,
+        run_id: str,
+        task_id: str,
+        request: AsyncTaskCreate,
+        plan: Plan,
+        node: PlanNode,
+    ) -> str:
+        with self.session_factory() as session:
+            approval = (
+                session.query(ApprovalRow)
+                .filter_by(workflow_id=run_id, task_id=task_id)
+                .order_by(ApprovalRow.requested_at.desc())
+                .first()
+            )
+        if approval is None or approval.action_hash != ApprovalService.action_hash(request.goal):
+            self._block_planned_run(
+                run_id,
+                task_id,
+                error_code="approval_required",
+                reason="Matching owner approval is required before this plan action.",
+            )
+            return "terminal"
+        if approval.status == "approved":
+            execution = self._node_execution(plan, node.id).model_copy(
+                update={"state": PlanNodeState.COMPLETED}
+            )
+            updated = plan.model_copy(
+                update={"node_executions": self._replace_execution(plan, execution)}
+            )
+            with self.session_factory() as session:
+                PlanRepository(session).save(workflow_id=run_id, task_id=task_id, plan=updated)
+                session.commit()
+            return "continue"
+        if approval.status == "denied":
+            code = "approval_denied"
+            reason = "Owner approval was denied."
+        else:
+            code = "approval_required"
+            reason = "Owner approval is required before this plan action."
+        self._block_planned_run(run_id, task_id, error_code=code, reason=reason)
+        return "terminal"
+
     def _replan_after_judgement(
         self,
         run_id: str,
@@ -696,6 +748,20 @@ class AsyncTaskWorker:
                     reason="Wall-clock execution budget is exhausted before replan.",
                 )
                 return "terminal"
+        if plan.execution_budget.actions_used >= plan.execution_budget.max_actions:
+            reason = "Action execution budget is exhausted before replan."
+            self._mark_planned_budget_exhausted(
+                run_id, task_id, self._last_action_node_id(plan), reason
+            )
+            self._block_planned_run(run_id, task_id, error_code="budget_exhausted", reason=reason)
+            return "terminal"
+        if plan.revision - 1 >= plan.risk_budget.max_replans:
+            reason = "Automatic replan budget is exhausted."
+            self._mark_planned_budget_exhausted(
+                run_id, task_id, self._last_action_node_id(plan), reason
+            )
+            self._block_planned_run(run_id, task_id, error_code="budget_exhausted", reason=reason)
+            return "terminal"
         failure_class = (
             ExecutionFailureClass.DOD_UNMET_RECOVERABLE
             if judgement.reason_code == "dod_unmet"
@@ -932,6 +998,64 @@ class AsyncTaskWorker:
             PlanRepository(session).save(workflow_id=run_id, task_id=task_id, plan=updated)
             session.commit()
         self._block_planned_run(run_id, task_id, error_code="uncertain_side_effect", reason=reason)
+
+    def _resume_planned_terminal_state(
+        self,
+        run_id: str,
+        task_id: str,
+        plan: Plan,
+    ) -> bool:
+        judgement = plan.outcome_judgement or {}
+        all_completed = all(
+            self._node_execution(plan, node.id).state is PlanNodeState.COMPLETED
+            for node in plan.nodes
+        )
+        if all_completed and judgement.get("disposition") == "satisfied":
+            self._persist_result(run_id, task_id, self._result_from_plan_evidence(plan))
+            return True
+        terminal = next(
+            (
+                item
+                for item in plan.node_executions
+                if item.state in {PlanNodeState.BLOCKED, PlanNodeState.FAILED}
+            ),
+            None,
+        )
+        if terminal is None:
+            return False
+        evidence_by_id = {item.id: item for item in plan.evidence}
+        for evidence_id in reversed(terminal.evidence_ids):
+            evidence = evidence_by_id.get(evidence_id)
+            if evidence is None or evidence.result_payload is None:
+                continue
+            try:
+                result = OpenClawExecutionResult.model_validate(evidence.result_payload)
+            except ValidationError:
+                continue
+            if result.outcome != "completed":
+                self._persist_result(run_id, task_id, result)
+                return True
+        if terminal.state is PlanNodeState.BLOCKED:
+            self._block_planned_run(
+                run_id,
+                task_id,
+                error_code="uncertain_side_effect",
+                reason=(
+                    "A durable blocked plan node has no terminal result; "
+                    "side effect status is uncertain."
+                ),
+            )
+            return True
+        self._persist_result(
+            run_id,
+            task_id,
+            OpenClawExecutionResult(
+                outcome="failed",
+                summary="A durably failed plan node resumed at its terminal state.",
+                error_code=terminal.last_failure_class or "execution_failed",
+            ),
+        )
+        return True
 
     def _block_planned_run(
         self,

@@ -301,41 +301,20 @@ async def test_worker_completes_core_health_ready_workflow_locally(
 
 
 @pytest.mark.asyncio
-async def test_worker_executes_safe_prefix_for_approval_required_facebook_task(
+async def test_worker_waits_at_durable_approval_gate_before_executor(
     session_factory: sessionmaker[Session],
     tmp_path: Path,
 ) -> None:
     task_id, run_id = _seed_run(
         session_factory,
         tmp_path,
-        key="facebook-safe-prefix",
-        goal=(
-            "Research trang Facebook công khai của dự án, đọc và tóm tắt "
-            "các bài viết liên quan. Nếu cần đăng/publish/send external "
-            "thì dừng lại xin approval sau khi hoàn thành phần web read "
-            "và summarize an toàn."
-        ),
+        key="facebook-approval-gate",
+        goal="Publish Facebook update after owner approval",
         risk_level=2,
         approval_required=True,
     )
     executor = SequenceExecutor(
-        [
-            OpenClawExecutionResult(
-                outcome="blocked",
-                summary=(
-                    "Đã hoàn thành web read và summarize công khai; dừng "
-                    "trước bước publish cần approval."
-                ),
-                artifacts={
-                    "safe_steps_completed": [
-                        "web_search_read",
-                        "summarize",
-                    ],
-                    "blocked_step": "publish",
-                },
-                verification={"policy": "step_level_gate"},
-            )
-        ]
+        [OpenClawExecutionResult(outcome="blocked", summary="must not execute")]
     )
     worker = _worker(
         session_factory=session_factory,
@@ -348,27 +327,13 @@ async def test_worker_executes_safe_prefix_for_approval_required_facebook_task(
 
     with session_factory() as session:
         run = AsyncTaskRepository(session).get(run_id)
-        task = TaskService(
-            TaskRepository(session),
-            _audit(tmp_path),
-        ).get(task_id)
+        task = TaskService(TaskRepository(session), _audit(tmp_path)).get(task_id)
 
     assert processed is True
+    assert executor.requests == []
     assert run.status is AsyncRunStatus.BLOCKED
+    assert run.last_error_code == "approval_required"
     assert task.status is TaskStatus.BLOCKED
-    assert executor.requests
-    execution_request = executor.requests[0]
-    assert "complete_safe_steps_before_approval_gate" in execution_request.constraints
-    assert (
-        "hard_gate_publish_send_external_destructive_secret_cost" in execution_request.constraints
-    )
-    result_json = json.loads(run.result_json or "{}")
-    assert result_json["artifacts"]["safe_steps_completed"] == [
-        "web_search_read",
-        "summarize",
-    ]
-    assert task.result_summary is not None
-    assert "This action requires approval" not in task.result_summary
 
 
 @pytest.mark.asyncio

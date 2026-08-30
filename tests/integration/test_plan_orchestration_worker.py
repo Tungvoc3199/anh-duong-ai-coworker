@@ -303,7 +303,7 @@ async def test_missing_dod_evidence_fails_closed_when_replan_budget_is_zero(
     assert task.status is TaskStatus.BLOCKED
     assert len(executor.requests) == 2
     assert plan.outcome_judgement is not None
-    assert plan.outcome_judgement["reason_code"] == "dod_evidence_missing"
+    assert plan.outcome_judgement["reason_code"] == "budget_exhausted"
 
 
 @pytest.mark.asyncio
@@ -570,3 +570,213 @@ async def test_resume_running_node_blocks_as_uncertain_side_effect_without_repla
     assert run.last_error_code == "uncertain_side_effect"
     assert task.status is TaskStatus.BLOCKED
     assert plan.outcome_judgement["reason_code"] == "uncertain_side_effect"
+
+
+@pytest.mark.asyncio
+async def test_approval_gate_waits_for_owner_without_calling_executor(
+    session_factory: sessionmaker[Session], tmp_path
+) -> None:
+    from app.planning.scheduler import PlanNodeScheduler
+
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="plan-approval-pending",
+        risk_level=2,
+        approval_required=True,
+    )
+    executor = SequenceExecutor(
+        [OpenClawExecutionResult(outcome="blocked", summary="must not run")]
+    )
+
+    _, run, task, plan = await _run_and_load(session_factory, tmp_path, executor, run_id, task_id)
+
+    assert executor.requests == []
+    assert run.status is AsyncRunStatus.BLOCKED
+    assert run.last_error_code == "approval_required"
+    assert task.status is TaskStatus.BLOCKED
+    assert PlanNodeScheduler().state_for(plan, "approval") is PlanNodeState.PENDING
+
+
+@pytest.mark.asyncio
+async def test_approved_gate_completes_before_action_execution(
+    session_factory: sessionmaker[Session], tmp_path
+) -> None:
+    from app.db.models import ApprovalRow
+    from app.planning.scheduler import PlanNodeScheduler
+
+    goal = "Execute approved deterministic task"
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="plan-approval-approved",
+        goal=goal,
+        risk_level=2,
+        approval_required=True,
+    )
+    with session_factory() as session:
+        approval = session.query(ApprovalRow).filter_by(workflow_id=run_id).one()
+        approval.status = "approved"
+        approval.resolved_at = NOW
+        approval.resolved_by = "test-owner"
+        session.commit()
+    executor = SequenceExecutor(
+        [OpenClawExecutionResult(outcome="blocked", summary="stop after gate")]
+    )
+    _, run, task, plan = await _run_and_load(session_factory, tmp_path, executor, run_id, task_id)
+
+    assert len(executor.requests) == 1
+    assert executor.requests[0].plan_node_id == "execute"
+    assert PlanNodeScheduler().state_for(plan, "approval") is PlanNodeState.COMPLETED
+    assert run.status is AsyncRunStatus.BLOCKED
+    assert task.status is TaskStatus.BLOCKED
+
+
+@pytest.mark.asyncio
+async def test_action_budget_blocks_before_semantic_replan_revision(
+    session_factory: sessionmaker[Session], tmp_path
+) -> None:
+    task_id, run_id = _seed_run(session_factory, tmp_path, key="plan-replan-action-budget")
+    _replace_plan(
+        session_factory,
+        run_id,
+        task_id,
+        max_replans=2,
+        executions=(
+            PlanNodeExecution(node_id="collect", state=PlanNodeState.COMPLETED, attempts=1),
+            PlanNodeExecution(node_id="analyze", state=PlanNodeState.COMPLETED, attempts=1),
+        ),
+        budget=ExecutionBudget(max_actions=2, actions_used=2, started_at=NOW),
+    )
+    executor = SequenceExecutor([])
+    _, run, task, plan = await _run_and_load(session_factory, tmp_path, executor, run_id, task_id)
+
+    assert executor.requests == []
+    assert run.status is AsyncRunStatus.BLOCKED
+    assert run.last_error_code == "budget_exhausted"
+    assert task.status is TaskStatus.BLOCKED
+    assert plan.revision == 1
+    assert plan.outcome_judgement is not None
+    assert plan.outcome_judgement["reason_code"] == "budget_exhausted"
+
+
+@pytest.mark.asyncio
+async def test_resume_failed_node_uses_durable_terminal_result_without_replay(
+    session_factory: sessionmaker[Session], tmp_path
+) -> None:
+    task_id, run_id = _seed_run(session_factory, tmp_path, key="plan-failed-crash")
+    failed_result = OpenClawExecutionResult(
+        outcome="failed",
+        summary="action failed before terminal persistence",
+        error_code="agent_failed",
+    )
+    evidence = ExecutionEvidence(
+        id="ev_failed_crash",
+        node_id="collect",
+        kind="result",
+        summary=failed_result.summary,
+        outcome="failed",
+        result_payload=failed_result.model_dump(mode="json"),
+        provenance="openclaw",
+        created_at=NOW,
+    )
+    _replace_plan(
+        session_factory,
+        run_id,
+        task_id,
+        executions=(
+            PlanNodeExecution(
+                node_id="collect",
+                state=PlanNodeState.FAILED,
+                attempts=1,
+                evidence_ids=(evidence.id,),
+                last_failure_class="agent_failed",
+            ),
+        ),
+        evidence=(evidence,),
+    )
+    executor = SequenceExecutor([])
+
+    _, run, task, _ = await _run_and_load(session_factory, tmp_path, executor, run_id, task_id)
+
+    assert executor.requests == []
+    assert run.status is AsyncRunStatus.FAILED
+    assert run.last_error_code == "agent_failed"
+    assert task.status is TaskStatus.FAILED
+
+
+@pytest.mark.asyncio
+async def test_resume_after_satisfied_judgement_completes_without_replay(
+    session_factory: sessionmaker[Session], tmp_path
+) -> None:
+    task_id, run_id = _seed_run(session_factory, tmp_path, key="plan-satisfied-crash")
+    result = OpenClawExecutionResult(
+        outcome="completed",
+        summary="durably verified before terminal persistence",
+        criterion_verification=(
+            CriterionVerification(
+                criterion="source collected",
+                status="verified",
+                evidence_refs=("ev_source",),
+            ),
+            CriterionVerification(
+                criterion="analysis verified",
+                status="verified",
+                evidence_refs=("ev_analysis",),
+            ),
+        ),
+    )
+    evidence = ExecutionEvidence(
+        id="ev_satisfied_crash",
+        node_id="analyze",
+        kind="result",
+        summary=result.summary,
+        outcome="completed",
+        criterion_verification=tuple(
+            item.model_dump(mode="json") for item in result.criterion_verification
+        ),
+        result_payload=result.model_dump(mode="json"),
+        provenance="openclaw",
+        created_at=NOW,
+    )
+    _replace_plan(
+        session_factory,
+        run_id,
+        task_id,
+        executions=(
+            PlanNodeExecution(node_id="collect", state=PlanNodeState.COMPLETED, attempts=1),
+            PlanNodeExecution(
+                node_id="analyze",
+                state=PlanNodeState.COMPLETED,
+                attempts=1,
+                evidence_ids=(evidence.id,),
+            ),
+            PlanNodeExecution(node_id="verify", state=PlanNodeState.COMPLETED),
+        ),
+        evidence=(evidence,),
+    )
+    with session_factory() as session:
+        repository = PlanRepository(session)
+        plan = repository.get(run_id)
+        assert plan is not None
+        repository.save(
+            workflow_id=run_id,
+            task_id=task_id,
+            plan=plan.model_copy(
+                update={
+                    "outcome_judgement": {
+                        "disposition": "satisfied",
+                        "criteria": [],
+                        "reason_code": "dod_satisfied",
+                        "reason": "durably satisfied",
+                    }
+                }
+            ),
+        )
+        session.commit()
+    executor = SequenceExecutor([])
+
+    _, run, task, _ = await _run_and_load(session_factory, tmp_path, executor, run_id, task_id)
+    assert executor.requests == []
+    assert run.status is AsyncRunStatus.COMPLETED
+    assert task.status is TaskStatus.COMPLETED
