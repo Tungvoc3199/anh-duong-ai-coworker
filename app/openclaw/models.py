@@ -31,6 +31,15 @@ class OpenClawWorkflowVerification(BaseModel):
     notes: str
 
 
+class CriterionVerification(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    criterion: str = Field(min_length=1, max_length=2_000)
+    status: Literal["verified", "unmet", "unknown"]
+    evidence_refs: tuple[str, ...] = ()
+    explanation: str | None = Field(default=None, max_length=4_000)
+
+
 class OpenClawExecutionRequest(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -66,6 +75,7 @@ class OpenClawExecutionResult(BaseModel):
     outcome: Literal["completed", "blocked", "failed"]
     summary: str
     governance_result: GovernanceResult | None = None
+    criterion_verification: tuple[CriterionVerification, ...] = ()
     artifacts: (
         tuple[str, ...]
         | OpenClawWorkflowArtifacts

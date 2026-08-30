@@ -563,3 +563,27 @@ async def test_executor_does_not_overmatch_generic_denial_phrase() -> None:
     assert result.outcome == "completed"
     assert result.error_code is None
     assert result.summary == text
+
+@pytest.mark.asyncio
+async def test_executor_preserves_criterion_verification_evidence() -> None:
+    executor = OpenClawExecutor(
+        base_url="http://127.0.0.1:18789",
+        transport=_json_transport(
+            {
+                "outcome": "completed",
+                "summary": "verified",
+                "criterion_verification": [
+                    {
+                        "criterion": "artifact exists",
+                        "status": "verified",
+                        "evidence_refs": ["ev_artifact"],
+                    }
+                ],
+            }
+        ),
+    )
+
+    result = await executor.execute(_request())
+
+    assert result.criterion_verification[0].criterion == "artifact exists"
+    assert result.criterion_verification[0].evidence_refs == ("ev_artifact",)

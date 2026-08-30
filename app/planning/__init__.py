@@ -17,6 +17,12 @@ from app.planning.models import (
     RiskBudget,
     VerificationRequirement,
 )
+from app.planning.outcome import (
+    CriterionJudgement,
+    OutcomeDisposition,
+    OutcomeJudge,
+    OutcomeJudgement,
+)
 from app.planning.planner import GoalPlanner
 from app.planning.replanner import (
     PlanReplanner,
@@ -35,6 +41,10 @@ __all__ = [
     "Goal",
     "ExecutionEvidence",
     "ExecutionBudget",
+    "CriterionJudgement",
+    "OutcomeDisposition",
+    "OutcomeJudge",
+    "OutcomeJudgement",
     "GoalPlanner",
     "Plan",
     "PlanNodeState",
