@@ -19,6 +19,24 @@ class PlanNodeKind(StrEnum):
     VERIFICATION_GATE = "verification_gate"
 
 
+class PlanNodeState(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    BLOCKED = "blocked"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
+class ExecutionBudget(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    max_actions: int = Field(default=12, ge=1, le=128)
+    max_elapsed_seconds: int = Field(default=1800, ge=1, le=86_400)
+    actions_used: int = Field(default=0, ge=0)
+    retries_used: int = Field(default=0, ge=0)
+    started_at: datetime | None = None
+
+
 class Goal(BaseModel):
     model_config = ConfigDict(frozen=True)
     statement: str = Field(min_length=1, max_length=20_000)
@@ -91,6 +109,28 @@ class PlanningRequest(BaseModel):
     )
 
 
+class PlanNodeExecution(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    node_id: str = Field(min_length=1, max_length=64)
+    state: PlanNodeState = PlanNodeState.PENDING
+    attempts: int = Field(default=0, ge=0)
+    evidence_ids: tuple[str, ...] = ()
+    last_failure_class: str | None = Field(default=None, max_length=128)
+
+
+class ExecutionEvidence(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    id: str = Field(min_length=1, max_length=128)
+    node_id: str = Field(min_length=1, max_length=64)
+    kind: str = Field(min_length=1, max_length=64)
+    summary: str = Field(min_length=1, max_length=4_000)
+    artifact_refs: tuple[str, ...] = ()
+    verification_refs: tuple[str, ...] = ()
+    external_run_id: str | None = Field(default=None, max_length=255)
+    provenance: str = Field(default="core", min_length=1, max_length=64)
+    created_at: datetime | None = None
+
+
 class PlanNode(BaseModel):
     model_config = ConfigDict(frozen=True)
     id: str = Field(min_length=1, max_length=64)
@@ -117,6 +157,10 @@ class Plan(BaseModel):
     status: PlanStatus
     nodes: tuple[PlanNode, ...] = ()
     blocker: DecisionNeeded | None = None
+    node_executions: tuple[PlanNodeExecution, ...] = ()
+    evidence: tuple[ExecutionEvidence, ...] = ()
+    execution_budget: ExecutionBudget = Field(default_factory=ExecutionBudget)
+    outcome_judgement: dict[str, object] | None = None
 
     @model_validator(mode="after")
     def validate_graph_and_status(self) -> Plan:

@@ -3,12 +3,16 @@ from app.planning.models import (
     DecisionNeeded,
     DefinitionOfDone,
     Deliverable,
+    ExecutionBudget,
+    ExecutionEvidence,
     Goal,
     Plan,
     PlanningRequest,
     PlanningTruthSnapshot,
     PlanNode,
+    PlanNodeExecution,
     PlanNodeKind,
+    PlanNodeState,
     PlanStatus,
     RiskBudget,
     VerificationRequirement,
@@ -20,6 +24,7 @@ from app.planning.replanner import (
     ReplanDisposition,
 )
 from app.planning.repository import PlanRepository
+from app.planning.scheduler import PlanNodeScheduler
 from app.planning.truth import PlanningTruthInspector
 
 __all__ = [
@@ -28,8 +33,13 @@ __all__ = [
     "DefinitionOfDone",
     "Deliverable",
     "Goal",
+    "ExecutionEvidence",
+    "ExecutionBudget",
     "GoalPlanner",
     "Plan",
+    "PlanNodeState",
+    "PlanNodeScheduler",
+    "PlanNodeExecution",
     "PlanNode",
     "PlanNodeKind",
     "PlanReplanner",
