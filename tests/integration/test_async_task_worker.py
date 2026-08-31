@@ -1039,6 +1039,7 @@ async def test_database_quick_check_failure_cannot_report_success(
     with session_factory() as session:
         run = AsyncTaskRepository(session).get(run_id)
     assert run.status is AsyncRunStatus.BLOCKED
+    assert run.last_error_code == "database_quick_check_failed"
     payload = json.loads(run.result_json or "{}")
     assert payload["artifacts"]["database"]["quick_check"] == "corrupt"
     assert payload["outcome"] == "blocked"

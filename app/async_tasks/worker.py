@@ -1224,14 +1224,12 @@ class AsyncTaskWorker:
             and ready.get("status") == "ready"
         )
         database = statuses.get("database", {})
-        database_probe_failed = False
         if require_database_quick_check and not (
             isinstance(database, dict) and "quick_check" in database
         ):
             try:
                 quick_check = await asyncio.to_thread(self._probe_database_quick_check)
             except Exception:
-                database_probe_failed = True
                 quick_check = "unavailable"
             database = {"quick_check": quick_check}
         database_ok = isinstance(database, dict) and database.get("quick_check") == "ok"
@@ -1300,7 +1298,11 @@ class AsyncTaskWorker:
             files_changed=(),
             commands_run=(),
             tests=(),
-            error_code=("database_quick_check_failed" if database_probe_failed else None),
+            error_code=(
+                "database_quick_check_failed"
+                if require_database_quick_check and not database_ok
+                else None
+            ),
             profile="CE-2",
             criterion_verification=(
                 tuple(
