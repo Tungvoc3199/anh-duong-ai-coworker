@@ -14,6 +14,7 @@ from sqlalchemy import Engine, inspect
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.api.async_tasks import router as async_tasks_router
+from app.api.evaluation import router as evaluation_router
 from app.api.health import router as health_router
 from app.api.prepared_requests import router as prepared_requests_router
 from app.async_tasks import (
@@ -214,6 +215,7 @@ def create_app(
     application.state.audit_writer = audit_writer
     application.include_router(health_router)
     application.include_router(async_tasks_router)
+    application.include_router(evaluation_router)
     application.include_router(prepared_requests_router)
     return application
 
