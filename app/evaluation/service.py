@@ -143,11 +143,15 @@ class EvaluationTelemetryService:
                 reason="No terminal goals exist in the durable population.",
             )
 
-        recovery_goals = [
+        observed_recovery_goals = [
             goal
             for goal in goals
             if goal.metrics["recovery"].support is not MetricSupport.UNSUPPORTED
-            and bool((goal.metrics["recovery"].value or {}).get("opportunity"))
+        ]
+        recovery_goals = [
+            goal
+            for goal in observed_recovery_goals
+            if bool((goal.metrics["recovery"].value or {}).get("opportunity"))
         ]
         if recovery_goals:
             recovered = sum(
@@ -155,7 +159,14 @@ class EvaluationTelemetryService:
                 for goal in recovery_goals
             )
             metrics["autonomous_recovery_rate"] = _derived(
-                recovered / len(recovery_goals),
+                {
+                    "rate": recovered / len(recovery_goals),
+                    "autonomous_recovered": recovered,
+                    "recovery_opportunities": len(recovery_goals),
+                    "observed_goals": len(observed_recovery_goals),
+                    "terminal_goals": len(goals),
+                    "coverage_rate": len(observed_recovery_goals) / len(goals),
+                },
                 producer="evaluation_projection",
                 source="workflows.plan_payload+async_task_runs.attempt+approvals.resolved_at",
             )
@@ -409,7 +420,7 @@ class EvaluationTelemetryService:
                 )
 
         replan_known = metrics["replans"].support is not MetricSupport.UNSUPPORTED
-        if replan_known:
+        if retries_used > 0 or replan_known:
             opportunity = retries_used > 0 or int(metrics["replans"].value or 0) > 0
             metrics["recovery"] = _derived(
                 {
@@ -425,7 +436,7 @@ class EvaluationTelemetryService:
             metrics["recovery"] = _unsupported(
                 producer="evaluation_projection",
                 source="workflows.plan_payload+async_task_runs.attempt",
-                reason="Replan history is unavailable, so recovery attribution is incomplete.",
+                reason="No retry occurred and replan history is unavailable.",
             )
         metrics["delivery"] = _derived(
             {

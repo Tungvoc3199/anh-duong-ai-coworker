@@ -429,7 +429,14 @@ def test_system_aggregation_is_idempotent_restart_safe_and_reproducible(engine: 
     }
     assert first.metrics["autonomous_completion_rate"].value == pytest.approx(2 / 3)
     assert first.metrics["human_intervention_rate"].value == pytest.approx(1 / 3)
-    assert first.metrics["autonomous_recovery_rate"].value == 1.0
+    assert first.metrics["autonomous_recovery_rate"].value == {
+        "rate": 1.0,
+        "autonomous_recovered": 1,
+        "recovery_opportunities": 1,
+        "observed_goals": 3,
+        "terminal_goals": 3,
+        "coverage_rate": 1.0,
+    }
     assert first.metrics["p95_completion_seconds"].value == 30.0
     assert first.metrics["capability_utilization"].value == {
         "counts": {"planning": 2, "system_operation": 2},
@@ -481,4 +488,63 @@ def test_capability_utilization_reports_partial_coverage(engine: Engine) -> None
         "observed_goals": 1,
         "terminal_goals": 2,
         "coverage_rate": 0.5,
+    }
+
+
+def test_retry_only_history_is_a_recovery_opportunity_without_plan_revision(engine: Engine) -> None:
+    with Session(engine) as session:
+        run_id = _seed_goal(
+            session,
+            suffix="retry_only",
+            status="failed",
+            attempt=3,
+            plan=None,
+        )
+        goal = _service(session).goal(run_id)
+
+    assert goal.metrics["retries"].value == 2
+    assert goal.metrics["replans"].support == "unsupported"
+    assert goal.metrics["recovery"].value == {
+        "opportunity": True,
+        "autonomous_recovered": False,
+    }
+
+
+def test_system_recovery_rate_discloses_observation_coverage(engine: Engine) -> None:
+    with Session(engine) as session:
+        _seed_goal(
+            session,
+            suffix="retry_success",
+            status="completed",
+            attempt=2,
+            plan=None,
+        )
+        _seed_goal(
+            session,
+            suffix="retry_failure",
+            status="failed",
+            attempt=3,
+            plan=None,
+        )
+        _seed_goal(
+            session,
+            suffix="known_no_recovery",
+            status="completed",
+            plan=_plan(),
+        )
+        _seed_goal(
+            session,
+            suffix="unknown_no_retry",
+            status="completed",
+            plan=None,
+        )
+        system = _service(session).system()
+
+    assert system.metrics["autonomous_recovery_rate"].value == {
+        "rate": 0.5,
+        "autonomous_recovered": 1,
+        "recovery_opportunities": 2,
+        "observed_goals": 3,
+        "terminal_goals": 4,
+        "coverage_rate": 0.75,
     }

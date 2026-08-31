@@ -19,7 +19,7 @@ System projection covers terminal outcome counts, autonomous completion rate, hu
 - Human intervention: an approval row with `resolved_at` populated. Pending approval requests count as approvals required, not human intervention performed.
 - Replans: `max(plan.revision - 1, 0)` when durable plan payload exists.
 - Retries: plan `execution_budget.retries_used` when present; otherwise `max(async_task_runs.attempt - 1, 0)`. These sources are not summed to avoid double counting the same recovery path.
-- Recovery opportunity: retry count > 0 or replan count > 0. Autonomous recovery: opportunity ends `completed` with zero human interventions.
+- Recovery opportunity: retry count > 0 is sufficient evidence even when historical replan state is unavailable; otherwise a known replan count > 0 is an opportunity. Autonomous recovery: opportunity ends `completed` with zero human interventions. System recovery rate publishes observed-goal coverage so unknown historical replan state cannot silently inflate the rate.
 - Delivery recovery: notification is `sent` with `notification_attempts > 1`.
 - DoD quality: verified/satisfied final Outcome Judge criteria divided by final criterion count. Missing final criteria is unsupported, not 0.
 - Elapsed time: terminal task `updated_at - created_at`; successful p95 uses completed goals only. It is labeled lifecycle wall-clock, not provider execution latency.
