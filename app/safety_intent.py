@@ -845,9 +845,28 @@ def _has_ambiguous_readonly_action(text: str) -> bool:
     return False
 
 
+def _has_ambiguous_negated_alternative(normalized_clause: str) -> bool:
+    broad_negations = (
+        "no changes",
+        "no change",
+        "khong thay doi gi",
+        "khong sua gi",
+    )
+    for separator in (" or ", " hoac ", " hay "):
+        if separator not in f" {normalized_clause} ":
+            continue
+        head, tail = normalized_clause.split(separator.strip(), 1)
+        if any(_contains_any(head.strip(), (marker,)) for marker in broad_negations):
+            if _starts_with_side_effect(tail.strip()):
+                return True
+    return False
+
+
 def _has_unnegated_mutation(text: str) -> bool:
     for clause in _semantic_clauses(text):
         normalized_clause = _normalize_clause(clause)
+        if _has_ambiguous_negated_alternative(normalized_clause):
+            return True
         if not _contains_any(normalized_clause, _SIDE_EFFECT_MARKERS):
             continue
         residual = f" {normalized_clause} "

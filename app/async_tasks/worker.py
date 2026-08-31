@@ -1346,15 +1346,20 @@ class AsyncTaskWorker:
                 "status": "running",
                 "evidence": "local_http:/health",
             },
-            "health": {
-                "http_status": health_response.status_code,
-                **health_response.json(),
-            },
-            "ready": {
-                "http_status": ready_response.status_code,
-                **ready_response.json(),
-            },
+            "health": self._http_status_artifact(health_response),
+            "ready": self._http_status_artifact(ready_response),
         }
+
+    @staticmethod
+    def _http_status_artifact(response: Any) -> dict[str, Any]:
+        try:
+            payload = response.json()
+        except (TypeError, ValueError):
+            payload = {}
+        artifact = dict(payload) if isinstance(payload, dict) else {}
+        artifact["http_status"] = response.status_code
+        artifact.setdefault("status", "unknown")
+        return artifact
 
     def _probe_database_quick_check(self) -> str | None:
         with self.session_factory() as session:
