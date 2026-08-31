@@ -633,3 +633,22 @@ def test_boolean_plan_revision_is_unsupported(engine: Engine) -> None:
     assert goal.metrics["replans"].support == "unsupported"
     assert goal.metrics["route"].support == "unsupported"
     assert goal.metrics["capabilities"].support == "unsupported"
+
+
+def test_system_projection_uses_bounded_query_count(engine: Engine) -> None:
+    from sqlalchemy import event
+
+    with Session(engine) as session:
+        for index in range(12):
+            _seed_goal(session, suffix=f"bounded_{index}", status="completed", plan=_plan())
+        statements = []
+
+        def before_cursor_execute(*args: object) -> None:
+            statements.append(str(args[2]))
+
+        event.listen(engine, "before_cursor_execute", before_cursor_execute)
+        try:
+            _service(session).system()
+        finally:
+            event.remove(engine, "before_cursor_execute", before_cursor_execute)
+    assert len(statements) <= 6

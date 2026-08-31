@@ -165,14 +165,54 @@ class EvaluationTelemetryService:
         )
 
     def system(self) -> SystemTelemetry:
-        run_ids = list(
+        runs = list(
             self.session.scalars(
-                select(AsyncTaskRunRow.id)
+                select(AsyncTaskRunRow)
                 .where(AsyncTaskRunRow.status.in_(tuple(_TERMINAL)))
                 .order_by(AsyncTaskRunRow.created_at.asc(), AsyncTaskRunRow.id.asc())
             )
         )
-        goals = [self.goal(run_id) for run_id in run_ids]
+        task_ids = {run.task_id for run in runs}
+        tasks = (
+            {
+                row.id: row
+                for row in self.session.scalars(select(TaskRow).where(TaskRow.id.in_(task_ids)))
+            }
+            if task_ids
+            else {}
+        )
+        workflows = (
+            list(self.session.scalars(select(WorkflowRow).where(WorkflowRow.task_id.in_(task_ids))))
+            if task_ids
+            else []
+        )
+        workflow_by_id = {row.id: row for row in workflows}
+        latest_workflow_by_task: dict[str, WorkflowRow] = {}
+        for row in sorted(workflows, key=lambda item: item.created_at, reverse=True):
+            latest_workflow_by_task.setdefault(row.task_id, row)
+        approvals_by_task: dict[str, list[ApprovalRow]] = {task_id: [] for task_id in task_ids}
+        if task_ids:
+            for row in self.session.scalars(
+                select(ApprovalRow).where(ApprovalRow.task_id.in_(task_ids))
+            ):
+                approvals_by_task.setdefault(row.task_id, []).append(row)
+        goals: list[GoalTelemetry] = []
+        for run in runs:
+            task = tasks.get(run.task_id)
+            if task is None:
+                continue
+            workflow = workflow_by_id.get(run.id) or latest_workflow_by_task.get(run.task_id)
+            metrics = self._goal_metrics(
+                run,
+                task,
+                approvals_by_task.get(run.task_id, []),
+                _plan_dict(workflow),
+            )
+            goals.append(
+                GoalTelemetry(
+                    run_id=run.id, task_id=run.task_id, status=run.status, metrics=metrics
+                )
+            )
         completed = [goal for goal in goals if goal.status == "completed"]
         blocked = [goal for goal in goals if goal.status == "blocked"]
         failed = [goal for goal in goals if goal.status == "failed"]
