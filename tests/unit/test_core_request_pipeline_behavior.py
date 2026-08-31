@@ -1061,3 +1061,68 @@ def test_legacy_readonly_fallback_never_allows_unnegated_mutation(text: str) -> 
     assert prepared.workflow is not None
     assert prepared.workflow.approval_required is True
     assert prepared.workflow.policy_decision is not DecisionKind.ALLOW
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+            "không sửa gì và nếu lỗi deploy bản mới."
+        ),
+        (
+            "Check status Anh Duong Core health/ready, read only, "
+            "no changes and if unhealthy install package."
+        ),
+    ],
+)
+def test_conditional_mutation_without_then_never_gets_readonly_policy(text: str) -> None:
+    project = _project()
+    prepared = _pipeline(project_reader=ProjectReader((project,))).prepare(
+        CoreRequest(
+            text=text,
+            request_id=f"conditional-no-then-{abs(hash(text))}",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id=f"conditional-no-then-message-{abs(hash(text))}",
+        )
+    )
+
+    assert prepared.execution_required is True
+    assert prepared.workflow is not None
+    assert prepared.workflow.approval_required is True
+    assert prepared.workflow.policy_decision is not DecisionKind.ALLOW
+
+@pytest.mark.parametrize(
+    "effect",
+    [
+        "stop service nếu lỗi",
+        "disable service nếu lỗi",
+        "reload service nếu lỗi",
+        "shutdown máy nếu lỗi",
+        "dừng service nếu lỗi",
+        "tắt service nếu lỗi",
+    ],
+)
+def test_generic_status_with_service_lifecycle_effect_requires_policy_gate(effect: str) -> None:
+    project = _project()
+    text = (
+        "Kiểm tra trạng thái Gateway health/ready, chỉ đọc, không sửa gì, "
+        f"nhưng {effect}."
+    )
+    prepared = _pipeline(project_reader=ProjectReader((project,))).prepare(
+        CoreRequest(
+            text=text,
+            request_id=f"service-lifecycle-{abs(hash(effect))}",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id=f"service-lifecycle-message-{abs(hash(effect))}",
+        )
+    )
+
+    assert prepared.workflow is not None
+    assert prepared.workflow.approval_required is True
+    assert prepared.workflow.policy_decision is not DecisionKind.ALLOW

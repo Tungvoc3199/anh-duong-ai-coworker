@@ -1238,6 +1238,18 @@ class AsyncTaskWorker:
         required_checks_ok = (
             health_ok and ready_ok and (database_ok if require_database_quick_check else True)
         )
+        failed_checks: list[str] = []
+        if not health_ok:
+            failed_checks.append("/health")
+        if not ready_ok:
+            failed_checks.append("/ready")
+        if require_database_quick_check and not database_ok:
+            failed_checks.append("database quick_check")
+        failure_explanation = (
+            "Read-only verification failed: "
+            + ", ".join(failed_checks)
+            + " did not pass."
+        )
         outcome: Literal["completed", "blocked"] = "completed" if required_checks_ok else "blocked"
         service = statuses.get("service", {})
         service_status = (
@@ -1316,7 +1328,7 @@ class AsyncTaskWorker:
                     CriterionVerification(
                         criterion=criterion,
                         status="unmet",
-                        explanation="Core health/ready probe did not fully pass.",
+                        explanation=failure_explanation,
                     )
                     for criterion in dod_criteria
                 )

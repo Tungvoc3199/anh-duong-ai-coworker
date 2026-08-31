@@ -290,3 +290,90 @@ def test_conditional_side_effect_after_negation_is_never_swallowed(text: str) ->
 
     assert intent.unnegated_mutation is True
     assert is_read_only_core_status_intent(intent) is False
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+            "không sửa gì và nếu lỗi deploy bản mới."
+        ),
+        (
+            "Check status Anh Duong Core health/ready, read only, "
+            "no changes and if unhealthy install package."
+        ),
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+            "không sửa gì nếu lỗi thì deploy bản mới."
+        ),
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+            "không restart service và nếu lỗi deploy bản mới."
+        ),
+    ],
+)
+def test_conditional_side_effect_without_explicit_then_fails_closed(text: str) -> None:
+    from app.safety_intent import is_read_only_core_status_intent
+
+    intent = analyze_safety_intent(text)
+
+    assert intent.unnegated_mutation is True
+    assert is_read_only_core_status_intent(intent) is False
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+            "không sửa gì: deploy bản mới nếu lỗi."
+        ),
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+            "không sửa gì — restart service nếu lỗi."
+        ),
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+            "không sửa gì / install package nếu lỗi."
+        ),
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+            "không sửa gì và sau đó deploy bản mới nếu lỗi."
+        ),
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+            "không sửa gì và tiếp theo chạy lệnh sâu."
+        ),
+    ],
+)
+def test_side_effect_separator_variants_fail_closed(text: str) -> None:
+    from app.safety_intent import is_read_only_core_status_intent
+
+    intent = analyze_safety_intent(text)
+
+    assert intent.unnegated_mutation is True
+    assert is_read_only_core_status_intent(intent) is False
+
+@pytest.mark.parametrize(
+    "effect",
+    [
+        "stop service nếu lỗi",
+        "start service nếu lỗi",
+        "disable service nếu lỗi",
+        "enable service nếu lỗi",
+        "reload service nếu lỗi",
+        "reboot máy nếu lỗi",
+        "shutdown máy nếu lỗi",
+        "kill process nếu lỗi",
+        "dừng service nếu lỗi",
+        "bật service nếu lỗi",
+        "tắt service nếu lỗi",
+    ],
+)
+def test_service_lifecycle_effects_are_mutations(effect: str) -> None:
+    text = (
+        "Kiểm tra trạng thái Gateway health/ready, chỉ đọc, không sửa gì, "
+        f"nhưng {effect}."
+    )
+    intent = analyze_safety_intent(text)
+
+    assert intent.unnegated_mutation is True

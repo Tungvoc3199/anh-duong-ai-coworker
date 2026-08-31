@@ -147,6 +147,20 @@ _SIDE_EFFECT_MARKERS = _MUTATION_MARKERS + (
     "dung model",
     "use model",
     "call model",
+    "start service",
+    "stop service",
+    "enable service",
+    "disable service",
+    "reload service",
+    "khoi dong service",
+    "dung service",
+    "bat service",
+    "tat service",
+    "reboot",
+    "shutdown",
+    "kill process",
+    "terminate process",
+    "systemctl",
 )
 _INVOKE_MARKERS = (
     "goi",
@@ -225,6 +239,17 @@ def _starts_with_side_effect(text: str) -> bool:
         )
         if condition_end is not None:
             tokens = tokens[condition_end + 1 :]
+        else:
+            effect_start = next(
+                (
+                    index
+                    for index in range(1, len(tokens))
+                    if _starts_with_side_effect(" ".join(tokens[index:]))
+                ),
+                None,
+            )
+            if effect_start is not None:
+                tokens = tokens[effect_start:]
     residual = " ".join(tokens)
     return any(
         residual == marker or residual.startswith(f"{marker} ")
@@ -279,7 +304,7 @@ def _semantic_clauses(text: str) -> list[str]:
     clauses: list[str] = []
     for raw_clause in primary:
         combined = ""
-        for fragment in raw_clause.split(","):
+        for fragment in re.split(r"[,/:\u2013\u2014]+|->|=>", raw_clause):
             normalized_fragment = _normalize_clause(fragment)
             if combined and _comma_starts_new_effect_clause(normalized_fragment):
                 clauses.extend(_split_coordination_boundaries(combined))
@@ -302,6 +327,11 @@ def _negated_scopes(text: str) -> list[str]:
             end = len(tokens)
             for cursor in range(index + 1, len(tokens)):
                 if tokens[cursor] in _CONTRAST_TOKENS or tokens[cursor] in {"khong", "no"}:
+                    end = cursor
+                    break
+                if tokens[cursor] in {"neu", "if"} and _starts_with_side_effect(
+                    " ".join(tokens[cursor:])
+                ):
                     end = cursor
                     break
             scopes.append(" ".join(tokens[index:end]))
@@ -329,9 +359,12 @@ def _fold_preserving_boundaries(text: str) -> str:
     lowered = re.sub(r"don['’]t", "no", lowered)
     lowered = re.sub(r"\bdo not\b", "no", lowered)
     decomposed = unicodedata.normalize("NFKD", lowered)
-    return "".join(
+    folded = "".join(
         character for character in decomposed if not unicodedata.combining(character)
     ).replace("đ", "d")
+    folded = re.sub(r"\bsau\s+(?:do|day)\b", " then ", folded)
+    folded = re.sub(r"\btiep\s+theo\b", " then ", folded)
+    return folded
 
 
 def _contains_any(text: str, phrases: tuple[str, ...]) -> bool:

@@ -1042,6 +1042,10 @@ async def test_database_quick_check_failure_cannot_report_success(
     payload = json.loads(run.result_json or "{}")
     assert payload["artifacts"]["database"]["quick_check"] == "corrupt"
     assert payload["outcome"] == "blocked"
+    criterion = payload["criterion_verification"][0]
+    assert criterion["status"] == "unmet"
+    assert "database quick_check" in criterion["explanation"]
+    assert "health/ready probe did not fully pass" not in criterion["explanation"]
 
 
 @pytest.mark.asyncio
