@@ -273,7 +273,6 @@ _SAFE_REPORT_TOKENS = frozenset(
         "cho",
         "co",
         "conclusion",
-        "continue",
         "database",
         "evidence",
         "explain",
@@ -314,8 +313,6 @@ _SAFE_REPORT_TOKENS = frozenset(
         "ve",
         "when",
         "whether",
-        "work",
-        "working",
         "dang",
         "hay",
         "if",
@@ -329,10 +326,6 @@ _SAFE_REPORT_TOKENS = frozenset(
         "khi",
         "chung",
         "gon",
-        "tiep",
-        "tuc",
-        "lam",
-        "viec",
         "yeu",
         "cau",
         "sang",
@@ -341,6 +334,11 @@ _SAFE_REPORT_TOKENS = frozenset(
 _SAFE_SCAFFOLD_TOKENS = _SAFE_STATUS_OBSERVATION_TOKENS | frozenset(
     {"mot", "workflow", "soan", "checklist", "draft", "buoc"}
 )
+_SAFE_REPORT_EXACT_PREFIXES = (
+    "ket luan co the tiep tuc lam viec hay khong",
+    "conclusion whether can continue working",
+)
+_SAFE_IDENTIFIER_PREFIXES = ("wr", "tg", "dr", "ad", "risk", "run", "task", "session", "request")
 
 
 def _has_status_language(normalized: str) -> bool:
@@ -680,7 +678,9 @@ def _starts_with_any(normalized_clause: str, markers: tuple[str, ...]) -> bool:
 
 def _looks_like_identifier_clause(normalized_clause: str) -> bool:
     tokens = normalized_clause.split()
-    return bool(tokens) and all(any(character.isdigit() for character in token) for token in tokens)
+    if not tokens or not all(any(character.isdigit() for character in token) for token in tokens):
+        return False
+    return any(tokens[0].startswith(prefix) for prefix in _SAFE_IDENTIFIER_PREFIXES)
 
 
 def _is_harmless_readonly_clause(
@@ -717,6 +717,8 @@ def _is_harmless_readonly_clause(
         return True
     if _starts_with_any(stripped, _REPORT_PREFIX_MARKERS):
         if strict_status:
+            if _starts_with_any(stripped, _SAFE_REPORT_EXACT_PREFIXES):
+                return True
             return all(token in _SAFE_REPORT_TOKENS for token in stripped.split())
         return True
     stripped_tokens = stripped.split()
@@ -733,6 +735,8 @@ def _is_harmless_readonly_clause(
                 if not _starts_with_any(tail, _REPORT_PREFIX_MARKERS):
                     return False
                 if strict_status:
+                    if _starts_with_any(tail, _SAFE_REPORT_EXACT_PREFIXES):
+                        return True
                     return all(token in _SAFE_REPORT_TOKENS for token in tail.split())
                 return True
     return False
