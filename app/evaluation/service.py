@@ -77,7 +77,12 @@ def _safe_failure_class(value: object) -> str | None:
 def _safe_capabilities(plan: dict[str, Any]) -> list[str] | None:
     revision = plan.get("revision")
     nodes = plan.get("nodes")
-    if not isinstance(revision, int) or revision < 1 or not isinstance(nodes, list):
+    if (
+        not isinstance(revision, int)
+        or isinstance(revision, bool)
+        or revision < 1
+        or not isinstance(nodes, list)
+    ):
         return None
     capabilities: set[str] = set()
     for node in nodes:
@@ -385,8 +390,9 @@ class EvaluationTelemetryService:
         )
 
         replan_count: int | None = None
-        if plan is not None and isinstance(plan.get("revision"), int):
-            revision = int(plan["revision"])
+        revision_value = plan.get("revision") if plan is not None else None
+        if isinstance(revision_value, int) and not isinstance(revision_value, bool):
+            revision = revision_value
             if revision >= 1:
                 replan_count = revision - 1
         if replan_count is None:

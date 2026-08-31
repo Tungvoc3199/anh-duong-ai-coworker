@@ -622,3 +622,14 @@ def test_autonomous_completion_provenance_names_async_run_status(engine: Engine)
         system.metrics["autonomous_completion_rate"].durable_source
         == "async_task_runs.status+approvals.resolved_at"
     )
+
+
+def test_boolean_plan_revision_is_unsupported(engine: Engine) -> None:
+    plan = _plan()
+    plan["revision"] = True
+    with Session(engine) as session:
+        run_id = _seed_goal(session, suffix="bool_revision", status="completed", plan=plan)
+        goal = _service(session).goal(run_id)
+    assert goal.metrics["replans"].support == "unsupported"
+    assert goal.metrics["route"].support == "unsupported"
+    assert goal.metrics["capabilities"].support == "unsupported"
