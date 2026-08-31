@@ -380,25 +380,8 @@ def _has_observation_language(normalized: str) -> bool:
     return _contains_any(_observation_text(normalized), _OBSERVATION_MARKERS)
 
 
-def _phrase_position(text: str, phrases: tuple[str, ...]) -> int | None:
-    padded = f" {text} "
-    positions = [
-        position
-        for phrase in phrases
-        if (position := padded.find(f" {phrase} ")) >= 0
-    ]
-    return min(positions) if positions else None
-
-
-def _draft_checklist_precedes_observation(normalized: str) -> bool:
-    draft_position = _phrase_position(normalized, _DRAFT_CHECKLIST_MARKERS)
-    if draft_position is None:
-        return False
-    observation_position = _phrase_position(
-        _observation_text(normalized),
-        _OBSERVATION_MARKERS,
-    )
-    return observation_position is None or draft_position < observation_position
+def _has_draft_checklist_intent(normalized: str) -> bool:
+    return _contains_any(normalized, _DRAFT_CHECKLIST_MARKERS)
 
 
 def _has_strong_read_only_boundary(intent: SafetyIntent) -> bool:
@@ -420,7 +403,7 @@ def _has_strong_read_only_boundary(intent: SafetyIntent) -> bool:
 def is_read_only_status_intent(intent: SafetyIntent) -> bool:
     normalized = intent.normalized_text
     return (
-        not _draft_checklist_precedes_observation(normalized)
+        not _has_draft_checklist_intent(normalized)
         and _has_observation_language(normalized)
         and _has_status_language(normalized)
         and "health" in normalized
@@ -440,7 +423,7 @@ def is_read_only_core_status_intent(intent: SafetyIntent) -> bool:
     )
     return (
         has_core_identity
-        and not _draft_checklist_precedes_observation(normalized)
+        and not _has_draft_checklist_intent(normalized)
         and _has_observation_language(normalized)
         and _has_status_language(normalized)
         and "health" in normalized

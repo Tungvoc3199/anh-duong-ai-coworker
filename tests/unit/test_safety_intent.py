@@ -774,6 +774,14 @@ def test_read_only_boundary_alone_is_not_observation_language() -> None:
             "Check status Anh Duong Core health ready, then draft checklist of results. "
             "Read only, no changes, no restart service."
         ),
+        (
+            "Check status Anh Duong Core health ready, then draft checklist. "
+            "Read only, no changes, no restart service."
+        ),
+        (
+            "Kiểm tra trạng thái Ánh Dương Core health ready, sau đó soạn checklist. "
+            "Chỉ đọc, không thay đổi gì, không restart service."
+        ),
     ],
 )
 def test_draft_checklist_never_becomes_live_status_execution(text: str) -> None:
