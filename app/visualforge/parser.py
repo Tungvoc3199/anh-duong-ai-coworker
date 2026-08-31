@@ -18,6 +18,10 @@ class VisualPromptParser:
         r'\s*[:\-]?\s*["“](.+?)["”]',
         re.IGNORECASE,
     )
+    _TEXT_LABEL_PATTERN = re.compile(
+        r'(?:required\s*text|text(?:\s+ch[ií]nh\s+x[aá]c)?|headline|ch[uữ]|n[oộ]i\s+dung|copy|visible\s+text|exact\s+copy)',
+        re.IGNORECASE,
+    )
     _ASPECT_PATTERN = re.compile(r'(?<!\d)(1:1|4:5|5:4|9:16|16:9|3:4|4:3)(?!\d)')
     _QUOTED_PATTERN = re.compile(r'["“](.+?)["”]')
 
@@ -25,9 +29,15 @@ class VisualPromptParser:
         normalized = self._normalize(goal)
         template = self._template(normalized)
         required_match = self._TEXT_PATTERN.search(goal)
+        label_match = self._TEXT_LABEL_PATTERN.search(goal)
         quoted_values = self._QUOTED_PATTERN.findall(goal)
         if required_match:
             required_text = required_match.group(1)
+        elif label_match:
+            raise VisualPromptParseError(
+                "visualforge_visible_text_unquoted",
+                "Visible text labels require quoted exact copy.",
+            )
         elif len(quoted_values) == 1:
             required_text = quoted_values[0]
         elif len(quoted_values) > 1:

@@ -298,3 +298,21 @@ def test_visualforge_compose_argv_enforces_network_namespace(tmp_path: Path) -> 
 
     assert argv[:4] == ["unshare", "-Urn", "--", "/usr/bin/python3"]
     assert "-I" in argv[:6]
+
+
+@pytest.mark.parametrize(
+    "goal",
+    [
+        "Tạo prompt ảnh poster, text GIẢM 50% HÔM NAY",
+        "Tạo prompt ảnh poster, headline SALE 50%",
+        "Tạo prompt ảnh poster, chữ SALE 50%",
+        "Tạo prompt ảnh poster, copy MUA 1 TẶNG 1",
+    ],
+)
+def test_visual_prompt_parser_rejects_unquoted_visible_copy_label(goal: str) -> None:
+    from app.visualforge import VisualPromptParseError, VisualPromptParser
+
+    with pytest.raises(VisualPromptParseError) as caught:
+        VisualPromptParser().parse(goal)
+
+    assert caught.value.code == "visualforge_visible_text_unquoted"
