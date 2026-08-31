@@ -22,6 +22,10 @@ from app.planning import (
     PlanningTruthInspector,
     PlanRepository,
 )
+from app.privacy import (
+    legacy_telegram_idempotency_key,
+    telegram_idempotency_key,
+)
 from app.projects.repository import ProjectRepository
 from app.routing.fast_router import FastRouter
 from app.tasks import TaskCreate, TaskService, TaskStatus
@@ -74,16 +78,45 @@ class AsyncTaskService:
         self,
         request: AsyncTaskCreate,
     ) -> AsyncTaskAccepted:
-        idempotency_key = (
+        provided_key = (
             request.idempotency_key.strip()
             if request.idempotency_key is not None
             else f"api:{uuid4().hex}"
         )
+        idempotency_key = provided_key
+        legacy_key: str | None = None
+        if request.source_channel == "telegram":
+            if request.source_chat_id and request.source_message_id:
+                idempotency_key = telegram_idempotency_key(
+                    source_chat_id=request.source_chat_id,
+                    source_message_id=request.source_message_id,
+                )
+                legacy_key = legacy_telegram_idempotency_key(
+                    source_chat_id=request.source_chat_id,
+                    source_message_id=request.source_message_id,
+                )
+            else:
+                suffix = provided_key.removeprefix("telegram:")
+                is_pseudonymous = len(suffix) == 64 and all(
+                    char in "0123456789abcdef" for char in suffix
+                )
+                if not (provided_key.startswith("telegram:") and is_pseudonymous):
+                    legacy_key = provided_key
+                    idempotency_key = (
+                        "telegram:"
+                        + hashlib.sha256(provided_key.encode("utf-8")).hexdigest()
+                    )
         if request.idempotency_key is not None:
             self.repository.acquire_sqlite_write_lock()
-        existing = self.repository.get_by_idempotency_key(
-            idempotency_key
-        )
+        existing = self.repository.get_by_idempotency_key(idempotency_key)
+        if existing is None and legacy_key and legacy_key != idempotency_key:
+            existing = self.repository.get_by_idempotency_key(legacy_key)
+        if (
+            existing is None
+            and provided_key != idempotency_key
+            and provided_key != legacy_key
+        ):
+            existing = self.repository.get_by_idempotency_key(provided_key)
         if existing is not None:
             return AsyncTaskAccepted(
                 task_id=existing.task_id,
@@ -92,6 +125,8 @@ class AsyncTaskService:
                 replayed=True,
             )
 
+        if request.idempotency_key != idempotency_key:
+            request = request.model_copy(update={"idempotency_key": idempotency_key})
         decision = self.policy_gate.evaluate(request)
         task = self.task_service.create(
             TaskCreate(

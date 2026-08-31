@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 from app.audit import AuditEvent, AuditWriter
 from app.db.models import TaskRow
+from app.privacy import content_fingerprint
 from app.tasks.models import (
     Task,
     TaskCreate,
@@ -223,7 +224,11 @@ class TaskService:
                 payload={
                     "from_status": current_status.value,
                     "project_id": task.project_id,
-                    "result_summary": task.result_summary,
+                    "result_summary_fingerprint": (
+                        content_fingerprint(task.result_summary)
+                        if task.result_summary is not None
+                        else None
+                    ),
                     "task_id": task.id,
                     "to_status": task.status.value,
                     "version": task.version,

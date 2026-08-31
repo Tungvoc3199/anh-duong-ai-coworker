@@ -25,6 +25,7 @@ from app.orchestration import (
 )
 from app.persona import PersonaSnapshot
 from app.policy import DecisionKind, RiskLevel
+from app.privacy import telegram_idempotency_key
 from app.projects import (
     Project,
     ProjectNotFound,
@@ -409,7 +410,10 @@ def test_dr1_preserves_risk_zero_telegram_workflow_route() -> None:
     assert prepared.workflow.source_channel == "telegram"
     assert prepared.workflow.source_chat_id == "chat-42"
     assert prepared.workflow.source_session_id == "session-42"
-    assert prepared.workflow.idempotency_key == "telegram:chat-42:message-99"
+    assert prepared.workflow.idempotency_key == telegram_idempotency_key(
+        source_chat_id="chat-42",
+        source_message_id="message-99",
+    )
     assert prepared.workflow.correlation_id == "tg-run-risk0"
     assert prepared.workflow.policy_decision is DecisionKind.ALLOW
     assert prepared.workflow.policy_rule_id == "risk.read_only.allow"

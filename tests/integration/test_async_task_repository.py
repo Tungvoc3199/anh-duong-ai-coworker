@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -286,3 +287,138 @@ def test_claim_next_uses_fifo_after_equal_schedule_keys(
     with session_factory() as session:
         assert _claim_id(session) == newer
         session.commit()
+
+
+def test_enqueue_minimizes_telegram_routing_ids_in_request_json(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_factory() as session:
+        task = _seed_task(session, "privacy")
+        request = AsyncTaskCreate(
+            project_id=_project_id(task),
+            title="Privacy persistence test",
+            goal="Process only what is necessary",
+            source_channel="telegram",
+            source_chat_id="chat-secret",
+            source_session_id="session-secret",
+            source_message_id="message-secret",
+            idempotency_key="telegram:chat-secret:message-secret",
+        )
+        run = AsyncTaskRepository(session).enqueue(
+            task_id=task.id,
+            request=request,
+            idempotency_key="telegram:chat-secret:message-secret",
+            now=NOW,
+        )
+        session.commit()
+
+        payload = json.loads(run.request_json)
+
+    from app.privacy import telegram_idempotency_key
+
+    expected_key = telegram_idempotency_key(
+        source_chat_id="chat-secret",
+        source_message_id="message-secret",
+    )
+    assert run.source_chat_id == "chat-secret"
+    assert run.idempotency_key == expected_key
+    assert payload["idempotency_key"] == expected_key
+    assert payload["source_chat_id"] is None
+    assert payload["source_session_id"] is None
+    assert payload["source_message_id"] is None
+    assert "chat-secret" not in run.request_json
+    assert "session-secret" not in run.request_json
+    assert "message-secret" not in run.request_json
+
+
+def test_enqueue_replays_prechange_raw_telegram_key(
+    session_factory: sessionmaker[Session],
+) -> None:
+    raw_key = "telegram:chat-legacy:message-legacy"
+    with session_factory() as session:
+        task = _seed_task(session, "legacy-replay")
+        request = AsyncTaskCreate(
+            project_id=_project_id(task),
+            title="Legacy replay",
+            goal="Replay once",
+            source_channel="telegram",
+            source_chat_id="chat-legacy",
+            source_message_id="message-legacy",
+            idempotency_key=raw_key,
+        )
+        first = AsyncTaskRepository(session).enqueue(
+            task_id=task.id, request=request, idempotency_key=raw_key, now=NOW,
+        )
+        row = session.get(AsyncTaskRunRow, first.id)
+        assert row is not None
+        row.idempotency_key = raw_key
+        session.flush()
+        replay = AsyncTaskRepository(session).enqueue(
+            task_id=task.id, request=request, idempotency_key=raw_key, now=NOW,
+        )
+    assert replay.id == first.id
+
+
+
+def test_enqueue_canonical_key_replays_prechange_raw_row(
+    session_factory: sessionmaker[Session],
+) -> None:
+    from app.privacy import telegram_idempotency_key
+
+    chat, message = "chat-old", "message-old"
+    raw_key = f"telegram:{chat}:{message}"
+    canonical = telegram_idempotency_key(
+        source_chat_id=chat, source_message_id=message,
+    )
+    with session_factory() as session:
+        task = _seed_task(session, "canonical-replay")
+        request = AsyncTaskCreate(
+            project_id=_project_id(task), title="Replay", goal="Replay",
+            source_channel="telegram", source_chat_id=chat,
+            source_message_id=message, idempotency_key=canonical,
+        )
+        first = AsyncTaskRepository(session).enqueue(
+            task_id=task.id, request=request, idempotency_key=canonical, now=NOW,
+        )
+        row = session.get(AsyncTaskRunRow, first.id)
+        assert row is not None
+        row.idempotency_key = raw_key
+        session.flush()
+        replay = AsyncTaskRepository(session).enqueue(
+            task_id=task.id, request=request, idempotency_key=canonical, now=NOW,
+        )
+    assert replay.id == first.id
+
+
+
+def test_enqueue_canonical_key_replays_prechange_long_hash_row(
+    session_factory: sessionmaker[Session],
+) -> None:
+    import hashlib
+
+    from app.privacy import telegram_idempotency_key
+
+    chat, message = "c" * 128, "m" * 128
+    legacy_material = f"telegram:{chat}:{message}"
+    legacy_key = "telegram:" + hashlib.sha256(legacy_material.encode()).hexdigest()
+    canonical = telegram_idempotency_key(
+        source_chat_id=chat, source_message_id=message,
+    )
+    with session_factory() as session:
+        task = _seed_task(session, "long-replay")
+        request = AsyncTaskCreate(
+            project_id=_project_id(task), title="Replay", goal="Replay",
+            source_channel="telegram", source_chat_id=chat,
+            source_message_id=message, idempotency_key=canonical,
+        )
+        first = AsyncTaskRepository(session).enqueue(
+            task_id=task.id, request=request, idempotency_key=canonical, now=NOW,
+        )
+        row = session.get(AsyncTaskRunRow, first.id)
+        assert row is not None
+        row.idempotency_key = legacy_key
+        session.flush()
+        replay = AsyncTaskRepository(session).enqueue(
+            task_id=task.id, request=request, idempotency_key=canonical, now=NOW,
+        )
+    assert replay.id == first.id

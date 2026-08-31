@@ -374,3 +374,134 @@ def test_whitespace_equivalent_idempotency_key_replays_same_task_and_run(
     assert replay.run_id == first.run_id
     assert len(tasks) == 1
     assert len(runs) == 1
+
+
+def test_pseudonymous_telegram_key_replays_legacy_raw_idempotency_row(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    from app.privacy import telegram_idempotency_key
+    from app.tasks import TaskCreate
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    with session_factory() as session:
+        project_id = _seed_project(session)
+        service = _service(session, tmp_path)
+        legacy = _request(project_id, tmp_path).model_copy(
+            update={
+                "source_message_id": "message-1",
+                "idempotency_key": "telegram:7535966424:message-1",
+            }
+        )
+        legacy_task = service.task_service.create(
+            TaskCreate(
+                project_id=project_id,
+                title="Legacy Telegram task",
+                description=legacy.goal,
+                source_channel="telegram",
+            )
+        )
+        first = service.repository.enqueue(
+            task_id=legacy_task.id,
+            request=legacy,
+            idempotency_key=legacy.idempotency_key or "",
+        )
+        legacy_row = session.get(AsyncTaskRunRow, first.id)
+        assert legacy_row is not None
+        legacy_row.idempotency_key = legacy.idempotency_key or ""
+        session.flush()
+        replay = service.create(
+            legacy.model_copy(
+                update={
+                    "idempotency_key": telegram_idempotency_key(
+                        source_chat_id="7535966424",
+                        source_message_id="message-1",
+                    )
+                }
+            )
+        )
+        session.commit()
+        runs = list(session.scalars(select(AsyncTaskRunRow)))
+    assert replay.replayed is True
+    assert replay.task_id == first.task_id
+    assert replay.run_id == first.id
+    assert len(runs) == 1
+
+
+
+def test_pseudonymous_telegram_key_replays_legacy_custom_idempotency_row(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    from app.tasks import TaskCreate
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    with session_factory() as session:
+        project_id = _seed_project(session)
+        service = _service(session, tmp_path)
+        legacy = _request(project_id, tmp_path).model_copy(
+            update={
+                "source_message_id": "message-custom",
+                "idempotency_key": "telegram:message-custom",
+            }
+        )
+        legacy_task = service.task_service.create(
+            TaskCreate(
+                project_id=project_id,
+                title="Legacy custom Telegram task",
+                description=legacy.goal,
+                source_channel="telegram",
+            )
+        )
+        first = service.repository.enqueue(
+            task_id=legacy_task.id,
+            request=legacy,
+            idempotency_key=legacy.idempotency_key or "",
+        )
+        legacy_row = session.get(AsyncTaskRunRow, first.id)
+        assert legacy_row is not None
+        legacy_row.idempotency_key = legacy.idempotency_key or ""
+        session.flush()
+        replay = service.create(legacy)
+        session.commit()
+        runs = list(session.scalars(select(AsyncTaskRunRow)))
+
+    assert replay.replayed is True
+    assert replay.task_id == first.task_id
+    assert replay.run_id == first.id
+    assert len(runs) == 1
+
+def test_new_telegram_run_persists_only_canonical_pseudonymous_idempotency_key(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    from app.privacy import telegram_idempotency_key
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    raw_key = "telegram:7535966424:message-2"
+    with session_factory() as session:
+        project_id = _seed_project(session)
+        service = _service(session, tmp_path)
+        request = _request(project_id, tmp_path).model_copy(
+            update={
+                "source_message_id": "message-2",
+                "idempotency_key": raw_key,
+            }
+        )
+        accepted = service.create(request)
+        session.commit()
+        run = session.get(AsyncTaskRunRow, accepted.run_id)
+    assert run is not None
+    expected = telegram_idempotency_key(
+        source_chat_id="7535966424",
+        source_message_id="message-2",
+    )
+    payload = json.loads(run.request_json)
+    assert run.idempotency_key == expected
+    assert payload["idempotency_key"] == expected
+    assert raw_key not in run.request_json
+    assert "7535966424" not in run.request_json
+    assert "message-2" not in run.request_json

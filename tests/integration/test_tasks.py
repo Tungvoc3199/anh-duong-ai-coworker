@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.audit import AuditWriter
+from app.privacy import content_fingerprint
 from app.projects import ProjectCreate, ProjectRepository, ProjectService
 from app.tasks.models import (
     TaskCreate,
@@ -395,8 +396,43 @@ def test_status_changes_are_written_to_audit(
     assert task_records[-1]["payload"] == {
         "from_status": "planning",
         "project_id": project_id,
-        "result_summary": "No longer needed.",
+        "result_summary_fingerprint": content_fingerprint("No longer needed."),
         "task_id": task.id,
         "to_status": "cancelled",
         "version": 3,
     }
+
+
+def test_task_audit_does_not_duplicate_raw_result_summary(
+    task_context: tuple[TaskService, str, Path, Session],
+) -> None:
+    service, project_id, audit_path, _ = task_context
+    task = service.create(
+        TaskCreate(
+            project_id=project_id,
+            title="Privacy audit test",
+            description="Ensure audit stores fingerprints, not result content.",
+        )
+    )
+    for status in (
+        TaskStatus.PLANNING,
+        TaskStatus.QUEUED,
+        TaskStatus.RUNNING,
+        TaskStatus.VERIFYING,
+    ):
+        task = service.transition(task.id, status)
+
+    sensitive_summary = "Nguyễn Văn A phone 0900000000 completed"
+    service.transition(
+        task.id,
+        TaskStatus.COMPLETED,
+        result_summary=sensitive_summary,
+    )
+
+    records = [json.loads(line) for line in audit_path.read_text(encoding="utf-8").splitlines()]
+    event = [record for record in records if record["event_type"] == "task.status_changed"][-1]
+
+    assert sensitive_summary not in audit_path.read_text(encoding="utf-8")
+    assert "result_summary" not in event["payload"]
+    assert event["payload"]["result_summary_fingerprint"]["chars"] == len(sensitive_summary)
+    assert len(event["payload"]["result_summary_fingerprint"]["sha256"]) == 64

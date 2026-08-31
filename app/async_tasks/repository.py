@@ -17,6 +17,11 @@ from app.async_tasks.models import (
 )
 from app.audit import AuditWriter, SecretRedactor
 from app.db.models import AsyncTaskRunRow, TaskRow
+from app.privacy import (
+    canonicalize_telegram_idempotency_key,
+    legacy_telegram_idempotency_key,
+    minimize_async_request_payload,
+)
 
 
 def new_async_run_id() -> str:
@@ -59,16 +64,34 @@ class AsyncTaskRepository:
         error_code: str | None = None,
         error_message: str | None = None,
     ) -> AsyncTaskRun:
-        normalized_key = idempotency_key.strip()
-        if not normalized_key:
+        provided_key = idempotency_key.strip()
+        if not provided_key:
             raise ValueError("idempotency_key cannot be blank")
+        normalized_key = provided_key
+        lookup_keys = [provided_key]
+        if request.source_channel == "telegram":
+            normalized_key = canonicalize_telegram_idempotency_key(
+                provided_key=provided_key,
+                source_chat_id=request.source_chat_id,
+                source_message_id=request.source_message_id,
+            )
+            lookup_keys.insert(0, normalized_key)
+            if request.source_chat_id and request.source_message_id:
+                lookup_keys.append(legacy_telegram_idempotency_key(
+                    source_chat_id=request.source_chat_id,
+                    source_message_id=request.source_message_id,
+                ))
 
-        existing = self.get_by_idempotency_key(normalized_key)
-        if existing is not None:
-            return existing
+        for lookup_key in dict.fromkeys(lookup_keys):
+            existing = self.get_by_idempotency_key(lookup_key)
+            if existing is not None:
+                return existing
 
         timestamp = self._utc(now)
-        request_payload = request.model_dump(mode="json")
+        request_payload = minimize_async_request_payload(
+            request.model_dump(mode="json")
+        )
+        request_payload["idempotency_key"] = normalized_key
         redacted_payload = self.redactor.redact(request_payload)
 
         row = AsyncTaskRunRow(

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -9,6 +8,7 @@ from app.capabilities import CapabilityKind
 from app.orchestration.errors import WorkflowPreparationFailed
 from app.orchestration.models import CoreRequest, WorkflowEnvelope
 from app.policy import DecisionKind, PolicyAction, PolicyEngine, RiskLevel
+from app.privacy import telegram_idempotency_key
 from app.projects import Project
 from app.safety_intent import SafetyConstraint, analyze_safety_intent
 
@@ -209,12 +209,10 @@ class WorkflowResolver:
             return None
         if not request.source_chat_id or not request.source_message_id:
             return None
-        candidate = (
-            f"telegram:{request.source_chat_id}:{request.source_message_id}"
+        return telegram_idempotency_key(
+            source_chat_id=request.source_chat_id,
+            source_message_id=request.source_message_id,
         )
-        if len(candidate) <= 255:
-            return candidate
-        return "telegram:" + hashlib.sha256(candidate.encode("utf-8")).hexdigest()
 
     @staticmethod
     def _stringify(value: Any) -> str:
