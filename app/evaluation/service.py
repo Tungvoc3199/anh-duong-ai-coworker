@@ -468,11 +468,18 @@ class EvaluationTelemetryService:
                     failure = _safe_failure_class(match.group(1))
                     if failure is not None:
                         failure_classes.add(failure)
-        metrics["failure_classes"] = _derived(
-            sorted(failure_classes),
-            producer="evaluation_projection",
-            source="async_task_runs.last_error_code+workflows.plan_payload",
-        )
+        if failure_classes:
+            metrics["failure_classes"] = _derived(
+                sorted(failure_classes),
+                producer="evaluation_projection",
+                source="async_task_runs.last_error_code+workflows.plan_payload",
+            )
+        else:
+            metrics["failure_classes"] = _unsupported(
+                producer="evaluation_projection",
+                source="async_task_runs.last_error_code+workflows.plan_payload",
+                reason="No durable failure-class evidence is available for this run.",
+            )
 
         if plan is None:
             metrics["route"] = _unsupported(

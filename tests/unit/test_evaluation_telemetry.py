@@ -652,3 +652,12 @@ def test_system_projection_uses_bounded_query_count(engine: Engine) -> None:
         finally:
             event.remove(engine, "before_cursor_execute", before_cursor_execute)
     assert len(statements) <= 6
+
+
+def test_failed_goal_without_failure_evidence_is_unsupported(engine: Engine) -> None:
+    with Session(engine) as session:
+        run_id = _seed_goal(session, suffix="missing_failure", status="failed", plan=None)
+        goal = _service(session).goal(run_id)
+    metric = goal.metrics["failure_classes"]
+    assert metric.support == "unsupported"
+    assert metric.value is None
