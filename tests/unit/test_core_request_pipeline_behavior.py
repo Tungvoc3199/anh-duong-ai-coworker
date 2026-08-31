@@ -1126,3 +1126,63 @@ def test_generic_status_with_service_lifecycle_effect_requires_policy_gate(effec
     assert prepared.workflow is not None
     assert prepared.workflow.approval_required is True
     assert prepared.workflow.policy_decision is not DecisionKind.ALLOW
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "Check status Anh Duong Core health/ready. Read only, no changes "
+            "and no restart. Then rotate credentials."
+        ),
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready. Chỉ đọc, "
+            "không sửa gì, rồi format disk nếu lỗi."
+        ),
+        (
+            "Xác minh trạng thái Ánh Dương Core health/ready. Chỉ đọc, "
+            "không thay đổi gì. Then remove the database."
+        ),
+    ],
+)
+def test_unknown_post_readonly_action_never_bypasses_pipeline_policy(text: str) -> None:
+    project = _project()
+    prepared = _pipeline(project_reader=ProjectReader((project,))).prepare(
+        CoreRequest(
+            text=text,
+            request_id=f"unknown-post-readonly-{abs(hash(text))}",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id=f"unknown-post-readonly-message-{abs(hash(text))}",
+        )
+    )
+
+    assert prepared.execution_required is True
+    assert prepared.workflow is not None
+    assert prepared.workflow.approval_required is True
+    assert prepared.workflow.policy_decision is not DecisionKind.ALLOW
+
+
+def test_harmless_readonly_report_clause_stays_approval_free() -> None:
+    project = _project()
+    text = (
+        "Kiểm tra tình trạng Ánh Dương Core health/ready. Chỉ đọc, "
+        "không sửa gì và không restart service. Gửi kết quả và bằng chứng cho anh."
+    )
+    prepared = _pipeline(project_reader=ProjectReader((project,))).prepare(
+        CoreRequest(
+            text=text,
+            request_id="harmless-readonly-report",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id="harmless-readonly-report-message",
+        )
+    )
+
+    assert prepared.workflow is not None
+    assert prepared.workflow.risk_level is RiskLevel.READ_ONLY
+    assert prepared.workflow.approval_required is False
+    assert prepared.workflow.policy_decision is DecisionKind.ALLOW

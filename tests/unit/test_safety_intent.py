@@ -377,3 +377,58 @@ def test_service_lifecycle_effects_are_mutations(effect: str) -> None:
     intent = analyze_safety_intent(text)
 
     assert intent.unnegated_mutation is True
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "Xác minh trạng thái Ánh Dương Core health/ready. "
+            "Chỉ đọc, không thay đổi gì, không restart. Then remove the database."
+        ),
+        (
+            "Check status Anh Duong Core health/ready. "
+            "Read only, no changes and no restart. Then rotate credentials."
+        ),
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready. "
+            "Chỉ đọc, không sửa gì, rồi format disk nếu lỗi."
+        ),
+        (
+            "Check status Anh Duong Core health/ready. "
+            "Read only, no changes and no restart. Then scale the service."
+        ),
+    ],
+)
+def test_unknown_post_readonly_action_fails_closed(text: str) -> None:
+    from app.safety_intent import is_read_only_core_status_intent
+
+    intent = analyze_safety_intent(text)
+
+    assert intent.unnegated_mutation is True
+    assert is_read_only_core_status_intent(intent) is False
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready. "
+            "Chỉ đọc, không sửa gì. Gửi kết quả cho anh."
+        ),
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready. "
+            "Chỉ đọc, không sửa gì. Chỉ báo thành công khi có bằng chứng thật."
+        ),
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready. "
+            "Chỉ đọc, không sửa gì. Xác minh thêm database quick_check."
+        ),
+    ],
+)
+def test_harmless_post_readonly_clauses_remain_allowed(text: str) -> None:
+    from app.safety_intent import is_read_only_core_status_intent
+
+    intent = analyze_safety_intent(text)
+
+    assert intent.unnegated_mutation is False
+    assert is_read_only_core_status_intent(intent) is True

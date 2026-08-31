@@ -35,6 +35,48 @@ class SafetyIntent:
 
 _OBSERVATION_MARKERS = ("kiem tra", "check", "xac minh", "verify", "xem")
 _STATUS_MARKERS = ("trang thai", "tinh trang", "status", "co on", "san sang")
+_READ_ONLY_MARKERS = ("chi doc", "read only", "readonly", "chi xem", "view only")
+_HARMLESS_REPORT_MARKERS = (
+    "ket qua",
+    "bang chung",
+    "evidence",
+    "bao thanh cong",
+    "bao anh",
+    "bao cao",
+    "report",
+    "tell me",
+    "return result",
+    "summary",
+    "tom tat",
+    "giai thich",
+    "explain",
+    "ket luan",
+    "conclusion",
+    "yeu cau",
+    "requirement",
+    "requirements",
+)
+_SAFE_CONTINUATION_CLAUSES = frozenset(
+    {
+        "health",
+        "ready",
+        "status",
+        "core",
+        "core service",
+        "database",
+        "database quick check",
+        "file",
+        "tep",
+        "config",
+        "cau hinh",
+        "service",
+        "git",
+        "model",
+        "openclaw",
+        "he thong",
+        "system",
+    }
+)
 
 
 def _has_status_language(normalized: str) -> bool:
@@ -189,7 +231,7 @@ def analyze_safety_intent(text: str) -> SafetyIntent:
 
     if _contains_any(
         normalized,
-        ("chi doc", "read only", "readonly", "chi xem", "view only"),
+        _READ_ONLY_MARKERS,
     ):
         detected.append(SafetyConstraint.READ_ONLY)
     if any(_is_no_commands(scope) for scope in scopes):
@@ -338,6 +380,69 @@ def _negated_scopes(text: str) -> list[str]:
     return scopes
 
 
+def _is_harmless_post_readonly_clause(normalized_clause: str) -> bool:
+    if not normalized_clause:
+        return True
+    if _contains_any(normalized_clause, _READ_ONLY_MARKERS):
+        return True
+    tokens = normalized_clause.split()
+    if tokens and tokens[0] in {"khong", "no"}:
+        return True
+    if any(
+        normalized_clause == marker or normalized_clause.startswith(f"{marker} ")
+        for marker in _OBSERVATION_MARKERS
+    ):
+        return True
+    if tokens and tokens[0] in {"health", "ready"}:
+        return True
+    if tokens and tokens[0] == "core" and _has_observation_language(normalized_clause):
+        return True
+    if normalized_clause in _SAFE_CONTINUATION_CLAUSES:
+        return True
+    return _contains_any(normalized_clause, _HARMLESS_REPORT_MARKERS)
+
+
+def _sequence_clauses(text: str) -> list[str]:
+    folded = _fold_preserving_boundaries(text)
+    primary = re.split(
+        r"[.!?;:/\n\u2013\u2014]+|->|=>|\b(?:nhung|but|however|then|va|and)\b",
+        folded,
+    )
+    clauses: list[str] = []
+    for primary_clause in primary:
+        fragments = [
+            normalized
+            for raw in primary_clause.split(",")
+            if (normalized := _normalize_clause(raw))
+        ]
+        index = 0
+        while index < len(fragments):
+            current = fragments[index]
+            if (
+                current.split()[:1] in [["khong"], ["no"]]
+                and index + 1 < len(fragments)
+                and _contains_any(fragments[index + 1], ("hoac", "or", "hay"))
+                and not _contains_any(fragments[index + 1], ("neu", "if"))
+            ):
+                clauses.append(f"{current} {fragments[index + 1]}")
+                index += 2
+                continue
+            clauses.append(current)
+            index += 1
+    return clauses
+
+
+def _has_ambiguous_post_readonly_action(text: str) -> bool:
+    read_only_seen = False
+    for normalized_clause in _sequence_clauses(text):
+        if _contains_any(normalized_clause, _READ_ONLY_MARKERS):
+            read_only_seen = True
+            continue
+        if read_only_seen and not _is_harmless_post_readonly_clause(normalized_clause):
+            return True
+    return False
+
+
 def _has_unnegated_mutation(text: str) -> bool:
     for clause in _semantic_clauses(text):
         normalized_clause = _normalize_clause(clause)
@@ -348,7 +453,7 @@ def _has_unnegated_mutation(text: str) -> bool:
             residual = residual.replace(f" {scope} ", " ")
         if _contains_any(" ".join(residual.split()), _SIDE_EFFECT_MARKERS):
             return True
-    return False
+    return _has_ambiguous_post_readonly_action(text)
 
 
 def _fold_preserving_boundaries(text: str) -> str:
