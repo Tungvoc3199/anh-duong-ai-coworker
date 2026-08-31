@@ -100,7 +100,8 @@ def _safe_dod_quality(plan: dict[str, Any]) -> dict[str, object] | None:
     disposition = judgement.get("disposition")
     criteria = judgement.get("criteria")
     if (
-        disposition not in _ALLOWED_OUTCOME_DISPOSITIONS
+        not isinstance(disposition, str)
+        or disposition not in _ALLOWED_OUTCOME_DISPOSITIONS
         or not isinstance(criteria, list)
         or not criteria
     ):
@@ -111,7 +112,11 @@ def _safe_dod_quality(plan: dict[str, Any]) -> dict[str, object] | None:
             return None
         satisfied = item.get("satisfied")
         criterion_status = item.get("status")
-        if not isinstance(satisfied, bool) or criterion_status not in _ALLOWED_CRITERION_STATUSES:
+        if (
+            not isinstance(satisfied, bool)
+            or not isinstance(criterion_status, str)
+            or criterion_status not in _ALLOWED_CRITERION_STATUSES
+        ):
             return None
         verified += satisfied is True and criterion_status == "verified"
     return {
@@ -143,9 +148,7 @@ class EvaluationTelemetryService:
                 .order_by(WorkflowRow.created_at.desc())
             )
         approvals = list(
-            self.session.scalars(
-                select(ApprovalRow).where(ApprovalRow.task_id == run.task_id)
-            )
+            self.session.scalars(select(ApprovalRow).where(ApprovalRow.task_id == run.task_id))
         )
         plan = _plan_dict(workflow)
         metrics = self._goal_metrics(run, task, approvals, plan)
@@ -177,18 +180,16 @@ class EvaluationTelemetryService:
         metrics: dict[str, MetricDatum] = {}
         if goals:
             autonomous_completed = sum(
-                goal.status == "completed"
-                and goal.metrics["human_intervention_count"].value == 0
+                goal.status == "completed" and goal.metrics["human_intervention_count"].value == 0
                 for goal in goals
             )
             metrics["autonomous_completion_rate"] = _derived(
                 autonomous_completed / len(goals),
                 producer="evaluation_projection",
-                source="tasks.status+approvals.resolved_at",
+                source="async_task_runs.status+approvals.resolved_at",
             )
             intervened = sum(
-                int(goal.metrics["human_intervention_count"].value or 0) > 0
-                for goal in goals
+                int(goal.metrics["human_intervention_count"].value or 0) > 0 for goal in goals
             )
             metrics["human_intervention_rate"] = _derived(
                 intervened / len(goals),
@@ -365,8 +366,13 @@ class EvaluationTelemetryService:
         retries_used: int | None = None
         if plan is not None:
             budget = plan.get("execution_budget")
-            if isinstance(budget, dict) and isinstance(budget.get("retries_used"), int):
-                retries_used = max(int(budget["retries_used"]), 0)
+            durable_retries = budget.get("retries_used") if isinstance(budget, dict) else None
+            if (
+                isinstance(durable_retries, int)
+                and not isinstance(durable_retries, bool)
+                and durable_retries >= 0
+            ):
+                retries_used = durable_retries
         if retries_used is None:
             retries_used = max(int(run.attempt) - 1, 0)
             retry_source = "async_task_runs.attempt"

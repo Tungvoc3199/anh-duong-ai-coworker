@@ -372,9 +372,7 @@ def test_projection_never_leaks_prompt_result_or_secret_text(engine: Engine) -> 
             status="completed",
             plan=_plan(
                 revision=2,
-                replan_reason=(
-                    "Evidence-driven replan after dod_unmet_recoverable: " + SECRET
-                ),
+                replan_reason=("Evidence-driven replan after dod_unmet_recoverable: " + SECRET),
             ),
         )
         goal = _service(session).goal(run_id)
@@ -403,9 +401,7 @@ def test_system_aggregation_is_idempotent_restart_safe_and_reproducible(engine: 
             plan=_plan(
                 revision=2,
                 capabilities=("planning", "system_operation"),
-                replan_reason=(
-                    "Evidence-driven replan after dod_unmet_recoverable: unmet"
-                ),
+                replan_reason=("Evidence-driven replan after dod_unmet_recoverable: unmet"),
             ),
         )
         _seed_goal(
@@ -591,3 +587,38 @@ def test_malformed_plan_strings_are_unsupported_without_secret_leak(engine: Engi
     assert goal.metrics["failure_classes"].value == ["unknown"]
     assert SECRET not in serialized
     assert "ownerpassword123" not in serialized
+
+
+@pytest.mark.parametrize("bad_value", [["secret"], {"secret": "value"}])
+def test_unhashable_outcome_fields_are_unsupported_not_500(
+    engine: Engine, bad_value: object
+) -> None:
+    plan = _plan()
+    plan["outcome_judgement"]["disposition"] = bad_value
+    with Session(engine) as session:
+        run_id = _seed_goal(session, suffix="bad_disposition", status="completed", plan=plan)
+        goal = _service(session).goal(run_id)
+    assert goal.metrics["dod_verification_quality"].support == "unsupported"
+
+
+def test_malformed_retry_count_falls_back_to_run_attempt(engine: Engine) -> None:
+    for index, bad_value in enumerate((True, -1)):
+        plan = _plan()
+        plan["execution_budget"]["retries_used"] = bad_value
+        with Session(engine) as session:
+            run_id = _seed_goal(
+                session, suffix=f"bad_retry_{index}", status="failed", attempt=3, plan=plan
+            )
+            goal = _service(session).goal(run_id)
+        assert goal.metrics["retries"].value == 2
+        assert goal.metrics["recovery"].value["opportunity"] is True
+
+
+def test_autonomous_completion_provenance_names_async_run_status(engine: Engine) -> None:
+    with Session(engine) as session:
+        _seed_goal(session, suffix="source", status="completed", plan=_plan())
+        system = _service(session).system()
+    assert (
+        system.metrics["autonomous_completion_rate"].durable_source
+        == "async_task_runs.status+approvals.resolved_at"
+    )
