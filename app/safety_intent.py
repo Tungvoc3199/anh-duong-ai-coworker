@@ -117,6 +117,150 @@ _SAFE_CONTINUATION_CLAUSES = frozenset(
 )
 
 
+_SAFE_STATUS_OBSERVATION_TOKENS = frozenset(
+    {
+        "actual",
+        "anh",
+        "bang",
+        "che",
+        "check",
+        "co",
+        "core",
+        "cua",
+        "database",
+        "db",
+        "do",
+        "duong",
+        "giup",
+        "gateway",
+        "health",
+        "he",
+        "hien",
+        "is",
+        "me",
+        "now",
+        "of",
+        "ok",
+        "on",
+        "pragma",
+        "quick",
+        "ready",
+        "san",
+        "service",
+        "status",
+        "system",
+        "tai",
+        "the",
+        "thong",
+        "thuc",
+        "tinh",
+        "trang",
+        "te",
+        "tu",
+        "va",
+        "and",
+        "whether",
+        "current",
+        "thai",
+        "xem",
+        "only",
+        "read",
+        "readonly",
+        "chi",
+        "doc",
+        "thoi",
+        "kiem",
+        "tra",
+        "xac",
+        "minh",
+        "please",
+        "cho",
+        "dang",
+        "hay",
+        "khong",
+        "slash",
+    }
+)
+_SAFE_NEGATION_TOKENS = frozenset(
+    {
+        "and",
+        "anything",
+        "any",
+        "cai",
+        "cau",
+        "changes",
+        "change",
+        "chay",
+        "chi",
+        "command",
+        "commands",
+        "config",
+        "dat",
+        "deploy",
+        "dich",
+        "doi",
+        "dong",
+        "effect",
+        "file",
+        "git",
+        "gi",
+        "goi",
+        "hay",
+        "he",
+        "hinh",
+        "hoac",
+        "install",
+        "khai",
+        "khong",
+        "khoi",
+        "lai",
+        "lenh",
+        "model",
+        "mo",
+        "no",
+        "openclaw",
+        "or",
+        "package",
+        "restart",
+        "service",
+        "side",
+        "sua",
+        "system",
+        "tep",
+        "thay",
+        "thong",
+        "thuc",
+        "hien",
+        "trien",
+        "use",
+        "vu",
+        "write",
+        "run",
+        "script",
+        "invocation",
+        "mutation",
+        "modify",
+        "edit",
+        "create",
+        "delete",
+        "update",
+        "push",
+        "merge",
+        "commit",
+        "publish",
+        "upload",
+        "email",
+        "slack",
+        "webhook",
+        "zalo",
+        "teams",
+        "messenger",
+        "nothing",
+        "none",
+    }
+)
+
+
 def _has_status_language(normalized: str) -> bool:
     return any(marker in normalized for marker in _STATUS_MARKERS) or (
         "health" in normalized and "ready" in normalized
@@ -157,7 +301,12 @@ def is_read_only_status_intent(intent: SafetyIntent) -> bool:
 def is_read_only_core_status_intent(intent: SafetyIntent) -> bool:
     normalized = intent.normalized_text
     padded = f" {normalized} "
-    has_core_identity = " core " in padded or " anh duong " in padded
+    has_core_identity = (
+        " anh duong " in padded
+        or " core service " in padded
+        or " core tu kiem tra " in padded
+        or " core check " in padded
+    )
     return (
         has_core_identity
         and _has_observation_language(normalized)
@@ -267,15 +416,30 @@ def normalize_semantic_text(text: str) -> str:
     return " ".join(re.sub(r"[^a-z0-9]+", " ", without_marks).split())
 
 
+def _has_unnegated_read_only_marker(text: str) -> bool:
+    for clause in _semantic_clauses(text):
+        tokens = _normalize_clause(clause).split()
+        for marker in _READ_ONLY_MARKERS:
+            marker_tokens = marker.split()
+            width = len(marker_tokens)
+            for index in range(0, len(tokens) - width + 1):
+                if tokens[index : index + width] != marker_tokens:
+                    continue
+                previous = tokens[max(0, index - 2) : index]
+                if previous[-1:] and previous[-1] in {"khong", "no", "not"}:
+                    continue
+                if previous[-2:] in (["khong", "phai"], ["do", "not"]):
+                    continue
+                return True
+    return False
+
+
 def analyze_safety_intent(text: str) -> SafetyIntent:
     normalized = normalize_semantic_text(text)
     scopes = tuple(_negated_scopes(text))
     detected: list[SafetyConstraint] = []
 
-    if _contains_any(
-        normalized,
-        _READ_ONLY_MARKERS,
-    ):
+    if _has_unnegated_read_only_marker(text):
         detected.append(SafetyConstraint.READ_ONLY)
     if any(_is_no_commands(scope) for scope in scopes):
         detected.append(SafetyConstraint.NO_COMMANDS)
@@ -442,7 +606,7 @@ def _is_harmless_readonly_clause(normalized_clause: str) -> bool:
         return True
     tokens = normalized_clause.split()
     if tokens and tokens[0] in {"khong", "no"}:
-        return True
+        return all(token in _SAFE_NEGATION_TOKENS for token in tokens)
     if normalized_clause in _SAFE_CONTINUATION_CLAUSES:
         return True
     if _looks_like_identifier_clause(normalized_clause):
@@ -450,6 +614,8 @@ def _is_harmless_readonly_clause(normalized_clause: str) -> bool:
 
     stripped = _strip_clause_prefixes(normalized_clause)
     if _starts_with_any(stripped, _OBSERVATION_MARKERS):
+        if _has_status_language(stripped) or "health" in stripped or "ready" in stripped:
+            return all(token in _SAFE_STATUS_OBSERVATION_TOKENS for token in stripped.split())
         return True
     if _starts_with_any(stripped, _SAFE_SCAFFOLD_PREFIXES):
         return True
@@ -457,9 +623,9 @@ def _is_harmless_readonly_clause(normalized_clause: str) -> bool:
         return True
     stripped_tokens = stripped.split()
     if stripped_tokens and stripped_tokens[0] in {"health", "ready"}:
-        return True
+        return all(token in _SAFE_STATUS_OBSERVATION_TOKENS for token in stripped_tokens)
     if stripped_tokens and stripped_tokens[0] == "core" and _has_observation_language(stripped):
-        return True
+        return all(token in _SAFE_STATUS_OBSERVATION_TOKENS for token in stripped_tokens)
     if stripped_tokens and stripped_tokens[0] in {"neu", "if"}:
         for boundary in ("thi", "then"):
             if boundary in stripped_tokens:
@@ -500,9 +666,9 @@ def _sequence_clauses(text: str) -> list[str]:
 
 
 def _has_ambiguous_readonly_action(text: str) -> bool:
-    clauses = _sequence_clauses(text)
-    if not any(_contains_any(clause, _READ_ONLY_MARKERS) for clause in clauses):
+    if not _has_unnegated_read_only_marker(text):
         return False
+    clauses = _sequence_clauses(text)
     for clause in clauses:
         matching_marker = next(
             (marker for marker in _READ_ONLY_MARKERS if _contains_any(clause, (marker,))),

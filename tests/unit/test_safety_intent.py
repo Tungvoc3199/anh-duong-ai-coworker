@@ -580,3 +580,41 @@ def test_database_quick_check_aliases_are_detected(text: str) -> None:
     from app.safety_intent import requests_database_quick_check
 
     assert requests_database_quick_check(analyze_safety_intent(text)) is True
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "Check status Anh Duong Core health/ready rotate credentials read only "
+            "no changes no restart."
+        ),
+        (
+            "Check status Anh Duong Core health/ready. Read only, no changes, "
+            "no restart run malware."
+        ),
+    ],
+)
+def test_same_clause_unknown_action_fails_closed(text: str) -> None:
+    from app.safety_intent import is_read_only_core_status_intent
+
+    intent = analyze_safety_intent(text)
+    assert intent.unnegated_mutation is True
+    assert is_read_only_core_status_intent(intent) is False
+
+
+def test_negated_readonly_marker_is_not_a_readonly_boundary() -> None:
+    intent = analyze_safety_intent(
+        "Không chỉ đọc. Kiểm tra trạng thái Ánh Dương Core health/ready, "
+        "không thay đổi gì, không restart."
+    )
+    assert SafetyConstraint.READ_ONLY not in intent.constraints
+
+
+def test_cpu_core_is_not_anh_duong_core_identity() -> None:
+    from app.safety_intent import is_read_only_core_status_intent
+
+    intent = analyze_safety_intent(
+        "Check status of CPU core health/ready. Read only, no changes and no restart."
+    )
+    assert is_read_only_core_status_intent(intent) is False
