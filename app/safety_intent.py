@@ -46,6 +46,16 @@ _OBSERVATION_MARKERS = (
     "list",
 )
 _STATUS_MARKERS = ("trang thai", "tinh trang", "status", "co on", "san sang")
+_DRAFT_CHECKLIST_MARKERS = (
+    "soan checklist",
+    "soan mot checklist",
+    "lap checklist",
+    "tao checklist",
+    "draft checklist",
+    "draft a checklist",
+    "create checklist",
+    "create a checklist",
+)
 _READ_ONLY_MARKERS = ("chi doc", "read only", "readonly", "chi xem", "view only")
 _REPORT_PREFIX_MARKERS = (
     "gui ket qua",
@@ -359,12 +369,36 @@ def _has_status_language(normalized: str) -> bool:
     )
 
 
-def _has_observation_language(normalized: str) -> bool:
+def _observation_text(normalized: str) -> str:
     observation_text = normalized
     for marker in _READ_ONLY_MARKERS:
         observation_text = observation_text.replace(marker, " ")
-    observation_text = " ".join(observation_text.split())
-    return _contains_any(observation_text, _OBSERVATION_MARKERS)
+    return " ".join(observation_text.split())
+
+
+def _has_observation_language(normalized: str) -> bool:
+    return _contains_any(_observation_text(normalized), _OBSERVATION_MARKERS)
+
+
+def _phrase_position(text: str, phrases: tuple[str, ...]) -> int | None:
+    padded = f" {text} "
+    positions = [
+        position
+        for phrase in phrases
+        if (position := padded.find(f" {phrase} ")) >= 0
+    ]
+    return min(positions) if positions else None
+
+
+def _draft_checklist_precedes_observation(normalized: str) -> bool:
+    draft_position = _phrase_position(normalized, _DRAFT_CHECKLIST_MARKERS)
+    if draft_position is None:
+        return False
+    observation_position = _phrase_position(
+        _observation_text(normalized),
+        _OBSERVATION_MARKERS,
+    )
+    return observation_position is None or draft_position < observation_position
 
 
 def _has_strong_read_only_boundary(intent: SafetyIntent) -> bool:
@@ -386,7 +420,8 @@ def _has_strong_read_only_boundary(intent: SafetyIntent) -> bool:
 def is_read_only_status_intent(intent: SafetyIntent) -> bool:
     normalized = intent.normalized_text
     return (
-        _has_observation_language(normalized)
+        not _draft_checklist_precedes_observation(normalized)
+        and _has_observation_language(normalized)
         and _has_status_language(normalized)
         and "health" in normalized
         and "ready" in normalized
@@ -405,6 +440,7 @@ def is_read_only_core_status_intent(intent: SafetyIntent) -> bool:
     )
     return (
         has_core_identity
+        and not _draft_checklist_precedes_observation(normalized)
         and _has_observation_language(normalized)
         and _has_status_language(normalized)
         and "health" in normalized

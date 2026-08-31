@@ -757,3 +757,29 @@ def test_read_only_boundary_alone_is_not_observation_language() -> None:
 
     assert intent.unnegated_mutation is False
     assert is_read_only_core_status_intent(intent) is False
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "Soạn checklist kiểm tra trạng thái Ánh Dương Core health ready. "
+            "Chỉ đọc, không thay đổi gì, không restart service."
+        ),
+        (
+            "Draft checklist check status Anh Duong Core health ready. "
+            "Read only, no changes, no restart service."
+        ),
+        (
+            "Check status Anh Duong Core health ready, then draft checklist of results. "
+            "Read only, no changes, no restart service."
+        ),
+    ],
+)
+def test_draft_checklist_never_becomes_live_status_execution(text: str) -> None:
+    from app.safety_intent import is_read_only_core_status_intent, is_read_only_status_intent
+
+    intent = analyze_safety_intent(text)
+
+    assert is_read_only_status_intent(intent) is False
+    assert is_read_only_core_status_intent(intent) is False
