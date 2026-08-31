@@ -858,3 +858,269 @@ async def test_run_attempt_exhaustion_never_schedules_planned_retry(
     assert task.status is TaskStatus.FAILED
     assert await worker.run_once() is False
     assert len(executor.requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_recoverable_dod_unmet_replans_last_action_and_recovers(
+    session_factory: sessionmaker[Session],
+    tmp_path,
+) -> None:
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="plan-recoverable-dod-replan",
+    )
+    _replace_plan(session_factory, run_id, task_id, max_replans=1)
+    executor = SequenceExecutor(
+        [
+            OpenClawExecutionResult(
+                outcome="completed",
+                summary="source collected",
+                criterion_verification=(
+                    CriterionVerification(
+                        criterion="source collected",
+                        status="verified",
+                        evidence_refs=("ev_source",),
+                    ),
+                ),
+            ),
+            OpenClawExecutionResult(
+                outcome="completed",
+                summary="analysis needs one correction",
+                criterion_verification=(
+                    CriterionVerification(
+                        criterion="source collected",
+                        status="verified",
+                        evidence_refs=("ev_source",),
+                    ),
+                    CriterionVerification(
+                        criterion="analysis verified",
+                        status="unmet",
+                        explanation="analysis check did not pass",
+                    ),
+                ),
+            ),
+            OpenClawExecutionResult(
+                outcome="completed",
+                summary="analysis corrected and verified",
+                criterion_verification=(
+                    CriterionVerification(
+                        criterion="source collected",
+                        status="verified",
+                        evidence_refs=("ev_source",),
+                    ),
+                    CriterionVerification(
+                        criterion="analysis verified",
+                        status="verified",
+                        evidence_refs=("ev_analysis_recovered",),
+                    ),
+                ),
+            ),
+        ],
+        auto_verify_dod=False,
+    )
+
+    processed, run, task, plan = await _run_and_load(
+        session_factory, tmp_path, executor, run_id, task_id
+    )
+
+    assert processed is True
+    assert run.status is AsyncRunStatus.COMPLETED
+    assert task.status is TaskStatus.COMPLETED
+    assert [request.plan_node_id for request in executor.requests] == [
+        "collect",
+        "analyze",
+        "analyze",
+    ]
+    assert plan.revision == 2
+    assert plan.replanned_from_revision == 1
+    assert plan.execution_budget.actions_used == 3
+    assert plan.outcome_judgement is not None
+    assert plan.outcome_judgement["disposition"] == "satisfied"
+    analyze = next(item for item in plan.node_executions if item.node_id == "analyze")
+    assert analyze.state is PlanNodeState.COMPLETED
+    assert analyze.attempts == 2
+    assert analyze.last_failure_class is None
+    assert any(
+        item.source == "replan" and "Definition of done" in item.description
+        for item in plan.constraints
+    )
+    assert any(item.id == "ev:analyze:r1:dod" for item in plan.evidence)
+    assert any(item.id == "ev:analyze:r2:a2" for item in plan.evidence)
+
+
+@pytest.mark.asyncio
+async def test_resume_after_persisted_explicit_unmet_replans_without_terminal_gap(
+    session_factory: sessionmaker[Session],
+    tmp_path,
+) -> None:
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="plan-resume-explicit-unmet",
+    )
+    collect = ExecutionEvidence(
+        id="ev_collect_before_crash",
+        node_id="collect",
+        kind="result",
+        summary="source collected before crash",
+        outcome="completed",
+        criterion_verification=(
+            {
+                "criterion": "source collected",
+                "status": "verified",
+                "evidence_refs": ["ev_source"],
+            },
+        ),
+        created_at=NOW,
+    )
+    analyze = ExecutionEvidence(
+        id="ev_analyze_unmet_before_crash",
+        node_id="analyze",
+        kind="result",
+        summary="analysis explicitly unmet before crash",
+        outcome="completed",
+        criterion_verification=(
+            {
+                "criterion": "analysis verified",
+                "status": "unmet",
+                "evidence_refs": [],
+                "explanation": "analysis check did not pass",
+            },
+        ),
+        created_at=NOW,
+    )
+    _replace_plan(
+        session_factory,
+        run_id,
+        task_id,
+        max_replans=1,
+        executions=(
+            PlanNodeExecution(
+                node_id="collect",
+                state=PlanNodeState.COMPLETED,
+                attempts=1,
+                evidence_ids=(collect.id,),
+            ),
+            PlanNodeExecution(
+                node_id="analyze",
+                state=PlanNodeState.COMPLETED,
+                attempts=1,
+                evidence_ids=(analyze.id,),
+            ),
+        ),
+        evidence=(collect, analyze),
+        budget=ExecutionBudget(max_actions=4, actions_used=2, started_at=NOW),
+    )
+    executor = SequenceExecutor(
+        [
+            OpenClawExecutionResult(
+                outcome="completed",
+                summary="analysis recovered after resume",
+                criterion_verification=(
+                    CriterionVerification(
+                        criterion="source collected",
+                        status="verified",
+                        evidence_refs=("ev_source",),
+                    ),
+                    CriterionVerification(
+                        criterion="analysis verified",
+                        status="verified",
+                        evidence_refs=("ev_analysis_recovered",),
+                    ),
+                ),
+            )
+        ],
+        auto_verify_dod=False,
+    )
+
+    _, run, task, plan = await _run_and_load(
+        session_factory, tmp_path, executor, run_id, task_id
+    )
+
+    assert run.status is AsyncRunStatus.COMPLETED
+    assert task.status is TaskStatus.COMPLETED
+    assert [request.plan_node_id for request in executor.requests] == ["analyze"]
+    assert plan.revision == 2
+    assert plan.replanned_from_revision == 1
+    assert plan.execution_budget.actions_used == 3
+    assert any(item.id == collect.id for item in plan.evidence)
+    assert any(item.id == analyze.id for item in plan.evidence)
+    assert plan.outcome_judgement is not None
+    assert plan.outcome_judgement["disposition"] == "satisfied"
+
+
+@pytest.mark.asyncio
+async def test_stale_unmet_does_not_replay_after_corrective_attempt_omits_fresh_dod_evidence(
+    session_factory: sessionmaker[Session],
+    tmp_path,
+) -> None:
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="plan-stale-unmet-no-replay",
+    )
+    _replace_plan(session_factory, run_id, task_id, max_replans=2)
+    executor = SequenceExecutor(
+        [
+            OpenClawExecutionResult(
+                outcome="completed",
+                summary="source collected",
+                criterion_verification=(
+                    CriterionVerification(
+                        criterion="source collected",
+                        status="verified",
+                        evidence_refs=("ev_source",),
+                    ),
+                ),
+            ),
+            OpenClawExecutionResult(
+                outcome="completed",
+                summary="analysis explicitly unmet",
+                criterion_verification=(
+                    CriterionVerification(
+                        criterion="source collected",
+                        status="verified",
+                        evidence_refs=("ev_source",),
+                    ),
+                    CriterionVerification(
+                        criterion="analysis verified",
+                        status="unmet",
+                        explanation="analysis check did not pass",
+                    ),
+                ),
+            ),
+            OpenClawExecutionResult(
+                outcome="completed",
+                summary="corrective attempt omitted fresh analysis evidence",
+                criterion_verification=(
+                    CriterionVerification(
+                        criterion="source collected",
+                        status="verified",
+                        evidence_refs=("ev_source",),
+                    ),
+                ),
+            ),
+            OpenClawExecutionResult(
+                outcome="completed",
+                summary="must never execute a second corrective replay",
+            ),
+        ],
+        auto_verify_dod=False,
+    )
+
+    _, run, task, plan = await _run_and_load(
+        session_factory, tmp_path, executor, run_id, task_id
+    )
+
+    assert [request.plan_node_id for request in executor.requests] == [
+        "collect",
+        "analyze",
+        "analyze",
+    ]
+    assert run.status is AsyncRunStatus.BLOCKED
+    assert task.status is TaskStatus.BLOCKED
+    assert plan.revision == 2
+    assert plan.execution_budget.actions_used == 3
+    assert plan.outcome_judgement is not None
+    assert plan.outcome_judgement["disposition"] == "replan"

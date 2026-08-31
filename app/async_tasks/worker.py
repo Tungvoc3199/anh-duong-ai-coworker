@@ -630,6 +630,55 @@ class AsyncTaskWorker:
             session.commit()
         return result.outcome != "completed"
 
+    def _plan_with_explicit_unmet_final_action_failure(
+        self,
+        plan: Plan,
+        judgement: OutcomeJudgement,
+    ) -> Plan:
+        if (
+            judgement.disposition is not OutcomeDisposition.REPLAN
+            or judgement.reason_code != "dod_unmet"
+        ):
+            return plan
+        node_id = self._last_action_node_id(plan)
+        execution = self._node_execution(plan, node_id)
+        if execution.state is not PlanNodeState.COMPLETED:
+            return plan
+
+        unmet_criteria = {
+            " ".join(item.criterion.split())
+            for item in judgement.criteria
+            if not item.satisfied and item.status == "unmet"
+        }
+        if not execution.evidence_ids:
+            return plan
+        latest_evidence_id = execution.evidence_ids[-1]
+        latest_evidence = next(
+            (item for item in plan.evidence if item.id == latest_evidence_id),
+            None,
+        )
+        if latest_evidence is None or latest_evidence.kind != "result":
+            return plan
+        if not any(
+            raw.get("status") == "unmet"
+            and " ".join(str(raw.get("criterion", "")).split()) in unmet_criteria
+            for raw in latest_evidence.criterion_verification
+        ):
+            return plan
+
+        failed_execution = execution.model_copy(
+            update={
+                "state": PlanNodeState.FAILED,
+                "last_failure_class": ExecutionFailureClass.DOD_UNMET_RECOVERABLE.value,
+            }
+        )
+        return plan.model_copy(
+            update={
+                "node_executions": self._replace_execution(plan, failed_execution),
+                "outcome_judgement": judgement.model_dump(mode="json"),
+            }
+        )
+
     def _evaluate_planned_verification(
         self,
         run_id: str,
@@ -662,10 +711,14 @@ class AsyncTaskWorker:
             self._persist_result(run_id, task_id, result)
             return "terminal"
         if judgement.disposition is OutcomeDisposition.REPLAN:
+            replan_plan = self._plan_with_explicit_unmet_final_action_failure(
+                plan,
+                judgement,
+            )
             return self._replan_after_judgement(
                 run_id,
                 task_id,
-                plan,
+                replan_plan,
                 judgement,
             )
         terminal_result = OpenClawExecutionResult(
