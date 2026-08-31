@@ -933,3 +933,99 @@ def test_generic_gateway_readonly_health_check_remains_approval_free() -> None:
     assert prepared.workflow.approval_required is False
     assert prepared.workflow.policy_decision is DecisionKind.ALLOW
     assert prepared.workflow.policy_rule_id == "risk.read_only.allow"
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "Dương, kiểm tra tình trạng hệ thống Ánh Dương hiện tại giúp anh. "
+            "Kiểm tra Core service, health, ready và database quick_check; "
+            "chỉ đọc, không sửa hay restart gì."
+        ),
+        (
+            "Xác minh trạng thái Ánh Dương Core: health và ready. "
+            "Chỉ đọc, không thay đổi gì, không khởi động lại dịch vụ."
+        ),
+        (
+            "Xem giúp anh status Ánh Dương Core, health/ready hiện có ổn không. "
+            "Chỉ xem thôi, không sửa gì và không restart service."
+        ),
+        (
+            "Check status Anh Duong Core health/ready. "
+            "Read only, no changes and no restart."
+        ),
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready bằng chế độ chỉ đọc. "
+            "Không install, deploy hoặc thay đổi hệ thống. Gửi kết quả cho anh."
+        ),
+    ],
+)
+def test_readonly_core_status_paraphrase_matrix_is_approval_free(text: str) -> None:
+    project = _project()
+    prepared = _pipeline(project_reader=ProjectReader((project,))).prepare(
+        CoreRequest(
+            text=text,
+            request_id=f"safe-matrix-{abs(hash(text))}",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id=f"safe-message-{abs(hash(text))}",
+        )
+    )
+
+    assert prepared.execution_required is True
+    assert prepared.workflow is not None
+    assert prepared.workflow.risk_level is RiskLevel.READ_ONLY
+    assert prepared.workflow.approval_required is False
+    assert prepared.workflow.policy_decision is DecisionKind.ALLOW
+    assert prepared.workflow.policy_rule_id == "risk.read_only.allow"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+            "không restart service, sửa config nếu lỗi."
+        ),
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+            "không restart service và sửa config nếu lỗi."
+        ),
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+            "không restart service, rồi deploy bản mới."
+        ),
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+            "không restart service. Deploy bản mới nếu lỗi."
+        ),
+        (
+            "Check status Anh Duong Core health/ready, read only, "
+            "no restart, then install package if unhealthy."
+        ),
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+            "không restart service, gửi email cho admin nếu lỗi."
+        ),
+    ],
+)
+def test_readonly_core_status_adversarial_matrix_never_bypasses_policy(text: str) -> None:
+    project = _project()
+    prepared = _pipeline(project_reader=ProjectReader((project,))).prepare(
+        CoreRequest(
+            text=text,
+            request_id=f"unsafe-matrix-{abs(hash(text))}",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id=f"unsafe-message-{abs(hash(text))}",
+        )
+    )
+
+    assert prepared.execution_required is True
+    assert prepared.workflow is not None
+    assert prepared.workflow.approval_required is True
+    assert prepared.workflow.policy_decision is not DecisionKind.ALLOW

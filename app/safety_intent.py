@@ -33,22 +33,44 @@ class SafetyIntent:
         return tuple(item.value for item in self.constraints)
 
 
+_OBSERVATION_MARKERS = ("kiem tra", "check", "xac minh", "verify", "xem")
+_STATUS_MARKERS = ("trang thai", "tinh trang", "status", "co on", "san sang")
+
+
 def _has_status_language(normalized: str) -> bool:
-    return any(marker in normalized for marker in ("trang thai", "tinh trang", "status"))
+    return any(marker in normalized for marker in _STATUS_MARKERS) or (
+        "health" in normalized and "ready" in normalized
+    )
+
+
+def _has_observation_language(normalized: str) -> bool:
+    return any(marker in normalized for marker in _OBSERVATION_MARKERS)
+
+
+def _has_strong_read_only_boundary(intent: SafetyIntent) -> bool:
+    explicit_components = all(
+        intent.has(constraint)
+        for constraint in (
+            SafetyConstraint.NO_FILE_CHANGES,
+            SafetyConstraint.NO_CONFIG_CHANGES,
+            SafetyConstraint.NO_SERVICE_RESTART,
+        )
+    )
+    return (
+        intent.has(SafetyConstraint.READ_ONLY)
+        and (intent.has(SafetyConstraint.NO_SYSTEM_MUTATION) or explicit_components)
+        and not intent.unnegated_mutation
+    )
 
 
 def is_read_only_status_intent(intent: SafetyIntent) -> bool:
     normalized = intent.normalized_text
     return (
-        "kiem tra" in normalized
+        _has_observation_language(normalized)
         and _has_status_language(normalized)
         and "health" in normalized
         and "ready" in normalized
-        and intent.has(SafetyConstraint.READ_ONLY)
-        and intent.has(SafetyConstraint.NO_FILE_CHANGES)
-        and intent.has(SafetyConstraint.NO_CONFIG_CHANGES)
-        and intent.has(SafetyConstraint.NO_SERVICE_RESTART)
-        and not intent.unnegated_mutation
+        and _has_strong_read_only_boundary(intent)
     )
 
 
@@ -58,13 +80,11 @@ def is_read_only_core_status_intent(intent: SafetyIntent) -> bool:
     has_core_identity = " core " in padded or " anh duong " in padded
     return (
         has_core_identity
-        and "kiem tra" in normalized
+        and _has_observation_language(normalized)
         and _has_status_language(normalized)
         and "health" in normalized
         and "ready" in normalized
-        and intent.has(SafetyConstraint.READ_ONLY)
-        and intent.has(SafetyConstraint.NO_SERVICE_RESTART)
-        and not intent.unnegated_mutation
+        and _has_strong_read_only_boundary(intent)
     )
 
 
@@ -85,11 +105,14 @@ _MUTATION_MARKERS = (
     "edit",
     "modify",
     "change",
+    "changes",
     "write",
     "create",
     "delete",
 )
 _SIDE_EFFECT_MARKERS = _MUTATION_MARKERS + (
+    "update",
+    "cap nhat",
     "restart",
     "khoi dong lai",
     "deploy",
@@ -103,8 +126,27 @@ _SIDE_EFFECT_MARKERS = _MUTATION_MARKERS + (
     "commit",
     "publish",
     "upload",
-    "send",
-    "gui",
+    "gui email",
+    "send email",
+    "gui slack",
+    "send slack",
+    "gui webhook",
+    "send webhook",
+    "gui zalo",
+    "send zalo",
+    "gui teams",
+    "send teams",
+    "gui messenger",
+    "send messenger",
+    "chay lenh",
+    "run command",
+    "chay script",
+    "run script",
+    "goi openclaw",
+    "call openclaw",
+    "dung model",
+    "use model",
+    "call model",
 )
 _INVOKE_MARKERS = (
     "goi",
@@ -131,7 +173,10 @@ def analyze_safety_intent(text: str) -> SafetyIntent:
     scopes = tuple(_negated_scopes(text))
     detected: list[SafetyConstraint] = []
 
-    if _contains_any(normalized, ("chi doc", "read only", "readonly")):
+    if _contains_any(
+        normalized,
+        ("chi doc", "read only", "readonly", "chi xem", "view only"),
+    ):
         detected.append(SafetyConstraint.READ_ONLY)
     if any(_is_no_commands(scope) for scope in scopes):
         detected.append(SafetyConstraint.NO_COMMANDS)
@@ -161,72 +206,118 @@ def analyze_safety_intent(text: str) -> SafetyIntent:
     )
 
 
-def _negated_scopes(text: str) -> list[str]:
-    folded = _fold_preserving_boundaries(text)
-    scopes: list[str] = []
-    for clause in re.split(r"[.!?;\n]+", folded):
-        normalized_clause = " ".join(re.sub(r"[^a-z0-9]+", " ", clause).split())
-        tokens = normalized_clause.split()
-        for index, token in enumerate(tokens):
-            if token not in {"khong", "no"}:
-                continue
-            end = len(tokens)
-            for cursor in range(index + 1, len(tokens)):
-                if tokens[cursor] in _CONTRAST_TOKENS:
-                    end = cursor
-                    break
-            scopes.append(" ".join(tokens[index:end]))
-    return scopes
+def _normalize_clause(text: str) -> str:
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", text).split())
 
 
-def _starts_with_positive_command(text: str) -> bool:
+def _starts_with_side_effect(text: str) -> bool:
     tokens = text.split()
-    if not tokens or tokens[0] not in {"hay", "please", "then", "roi"}:
-        return False
-    tokens.pop(0)
+    while tokens and tokens[0] in {"imperative", "please", "then"}:
+        tokens.pop(0)
     residual = " ".join(tokens)
     return any(
-        residual == marker or residual.startswith(f"{marker} ") for marker in _SIDE_EFFECT_MARKERS
+        residual == marker or residual.startswith(f"{marker} ")
+        for marker in _SIDE_EFFECT_MARKERS
     )
 
 
-def _side_effect_clauses(text: str) -> list[str]:
+def _looks_like_negated_enumeration(text: str) -> bool:
+    return (
+        _contains_any(text, ("hoac", "or", "hay"))
+        and not _contains_any(text, ("neu", "if"))
+        and not text.startswith(("imperative ", "please ", "then "))
+    )
+
+
+def _comma_starts_new_effect_clause(text: str) -> bool:
+    if not _starts_with_side_effect(text):
+        return False
+    return not _looks_like_negated_enumeration(text)
+
+
+def _split_coordination_boundaries(clause: str) -> list[str]:
+    normalized = _normalize_clause(clause)
+    tokens = normalized.split()
+    if not tokens:
+        return []
+    boundaries: list[int] = []
+    for index, token in enumerate(tokens[:-1]):
+        if token not in {"va", "and"}:
+            continue
+        tail = " ".join(tokens[index + 1 :])
+        if _starts_with_side_effect(tail):
+            boundaries.append(index)
+    if not boundaries:
+        return [clause]
+
+    pieces: list[str] = []
+    start = 0
+    for boundary in boundaries:
+        pieces.append(" ".join(tokens[start:boundary]))
+        start = boundary + 1
+    pieces.append(" ".join(tokens[start:]))
+    return [piece for piece in pieces if piece]
+
+
+def _semantic_clauses(text: str) -> list[str]:
     folded = _fold_preserving_boundaries(text)
     primary = re.split(
-        r"[.!?;\n]+|\b(?:nhung|but|however)\b",
+        r"[.!?;\n]+|\b(?:nhung|but|however|then)\b",
         folded,
     )
     clauses: list[str] = []
     for raw_clause in primary:
         combined = ""
         for fragment in raw_clause.split(","):
-            normalized_fragment = " ".join(re.sub(r"[^a-z0-9]+", " ", fragment).split())
-            if combined and _starts_with_positive_command(normalized_fragment):
-                clauses.append(combined)
+            normalized_fragment = _normalize_clause(fragment)
+            if combined and _comma_starts_new_effect_clause(normalized_fragment):
+                clauses.extend(_split_coordination_boundaries(combined))
                 combined = fragment
             else:
                 combined = f"{combined} {fragment}".strip()
         if combined:
-            clauses.append(combined)
+            clauses.extend(_split_coordination_boundaries(combined))
     return clauses
 
 
+def _negated_scopes(text: str) -> list[str]:
+    scopes: list[str] = []
+    for clause in _semantic_clauses(text):
+        normalized_clause = _normalize_clause(clause)
+        tokens = normalized_clause.split()
+        for index, token in enumerate(tokens):
+            if token not in {"khong", "no"}:
+                continue
+            end = len(tokens)
+            for cursor in range(index + 1, len(tokens)):
+                if tokens[cursor] in _CONTRAST_TOKENS or tokens[cursor] in {"khong", "no"}:
+                    end = cursor
+                    break
+            scopes.append(" ".join(tokens[index:end]))
+    return scopes
+
+
 def _has_unnegated_mutation(text: str) -> bool:
-    for clause in _side_effect_clauses(text):
-        normalized_clause = " ".join(re.sub(r"[^a-z0-9]+", " ", clause).split())
+    for clause in _semantic_clauses(text):
+        normalized_clause = _normalize_clause(clause)
+        if not _contains_any(normalized_clause, _SIDE_EFFECT_MARKERS):
+            continue
         residual = f" {normalized_clause} "
         for scope in _negated_scopes(clause):
             residual = residual.replace(f" {scope} ", " ")
-        if _contains_any(
-            " ".join(residual.split()),
-            _SIDE_EFFECT_MARKERS,
-        ):
+        if _contains_any(" ".join(residual.split()), _SIDE_EFFECT_MARKERS):
             return True
     return False
 
 
 def _fold_preserving_boundaries(text: str) -> str:
-    decomposed = unicodedata.normalize("NFKD", text.casefold())
+    lowered = text.casefold()
+    lowered = lowered.replace("đừng", "không")
+    lowered = lowered.replace("hãy", "imperative")
+    lowered = lowered.replace("rồi", "then")
+    lowered = re.sub(r"don['’]t", "no", lowered)
+    lowered = re.sub(r"\bdo not\b", "no", lowered)
+    decomposed = unicodedata.normalize("NFKD", lowered)
     return "".join(
         character for character in decomposed if not unicodedata.combining(character)
     ).replace("đ", "d")
@@ -275,5 +366,13 @@ def _is_no_invocation(scope: str, targets: tuple[str, ...]) -> bool:
 def _is_no_system_mutation(scope: str) -> bool:
     if _contains_any(scope, ("side effect", "system mutation")):
         return True
+    if _contains_any(scope, ("no changes", "khong thay doi gi", "khong sua gi")):
+        return True
+    has_broad_quantifier = _contains_any(
+        scope,
+        ("gi", "anything", "any change", "any changes"),
+    )
+    if has_broad_quantifier and _contains_any(scope, _SIDE_EFFECT_MARKERS):
+        return True
     has_system = _contains_any(scope, ("he thong", "system"))
-    return has_system and _contains_any(scope, _MUTATION_MARKERS)
+    return has_system and _contains_any(scope, _SIDE_EFFECT_MARKERS)
