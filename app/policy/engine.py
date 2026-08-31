@@ -17,6 +17,7 @@ ACTION_RISK_CATALOG: dict[str, RiskLevel] = {
     "read_file": RiskLevel.READ_ONLY,
     "read_log": RiskLevel.READ_ONLY,
     "view_status": RiskLevel.READ_ONLY,
+    "compose_visual_prompt": RiskLevel.READ_ONLY,
     "summarize_document": RiskLevel.READ_ONLY,
     "analyze_repository": RiskLevel.READ_ONLY,
     "search_memory": RiskLevel.READ_ONLY,

@@ -272,7 +272,7 @@ class CapabilityRouter:
             )
         if route_decision.route is FastRoute.CORE_READ:
             return self._route_core_read(route_decision.route, normalized)
-        return self._route_workflow(route_decision.route, normalized)
+        return self._route_workflow(route_decision.route, normalized, request)
 
     def _route_core_read(
         self,
@@ -320,9 +320,21 @@ class CapabilityRouter:
         self,
         source_route: FastRoute,
         normalized: str,
+        request: str,
     ) -> CapabilityDecision:
+        visual_actions = self._signals(
+            normalized, "visual:action", _VISUAL_PROMPT_ACTION_SIGNALS
+        )
+        visual_targets = self._signals(
+            normalized, "visual:target", _VISUAL_PROMPT_TARGET_SIGNALS
+        )
+        side_effect_text = (
+            self._visual_side_effect_text(request)
+            if visual_actions and visual_targets
+            else normalized
+        )
         system_signals = self._compound_signals(
-            normalized,
+            side_effect_text,
             "system",
             _SYSTEM_INHERENT_SIGNALS,
             _SYSTEM_ACTION_SIGNALS,
@@ -337,7 +349,7 @@ class CapabilityRouter:
             )
 
         external_signals = self._compound_signals(
-            normalized,
+            side_effect_text,
             "external",
             _EXTERNAL_INHERENT_SIGNALS,
             _EXTERNAL_ACTION_SIGNALS,
@@ -351,10 +363,15 @@ class CapabilityRouter:
                 external_signals,
             )
 
+        code_inherent = (
+            tuple(item for item in _CODE_INHERENT_SIGNALS if item not in {"build", "compile"})
+            if visual_actions and visual_targets
+            else _CODE_INHERENT_SIGNALS
+        )
         code_signals = self._compound_signals(
-            normalized,
+            side_effect_text,
             "code",
-            _CODE_INHERENT_SIGNALS,
+            code_inherent,
             _CODE_ACTION_SIGNALS,
             _CODE_TARGET_SIGNALS,
         )
@@ -367,7 +384,7 @@ class CapabilityRouter:
             )
 
         file_signals = self._compound_signals(
-            normalized,
+            side_effect_text,
             "file",
             (),
             _FILE_ACTION_SIGNALS,
@@ -381,12 +398,6 @@ class CapabilityRouter:
                 file_signals,
             )
 
-        visual_actions = self._signals(
-            normalized, "visual:action", _VISUAL_PROMPT_ACTION_SIGNALS
-        )
-        visual_targets = self._signals(
-            normalized, "visual:target", _VISUAL_PROMPT_TARGET_SIGNALS
-        )
         if visual_actions and visual_targets:
             return self._decision(
                 CapabilityKind.VISUAL_PROMPT_COMPOSE,
@@ -413,6 +424,25 @@ class CapabilityRouter:
             source_route,
             "capability.workflow.unknown",
         )
+
+    @classmethod
+    def _visual_side_effect_text(cls, request: str) -> str:
+        without_copy = re.sub(r'["“][^"”]*["”]', ' ', request)
+        folded = unicodedata.normalize("NFKD", without_copy.casefold())
+        folded = "".join(c for c in folded if not unicodedata.combining(c)).replace("đ", "d")
+        pieces = re.split(r"[.!?;\n]+|\s+-\s+|,|\bnhung\b|\bbut\b|\bhowever\b", folded)
+        positive: list[str] = []
+        for piece in pieces:
+            normalized_piece = cls._normalize(piece)
+            if not normalized_piece:
+                continue
+            tokens = normalized_piece.split()
+            negated = [i for i, token in enumerate(tokens) if token in {"khong", "no"}]
+            if negated:
+                tokens = tokens[: min(negated)]
+            if tokens:
+                positive.append(" ".join(tokens))
+        return " ".join(positive)
 
     @classmethod
     def _compound_signals(
