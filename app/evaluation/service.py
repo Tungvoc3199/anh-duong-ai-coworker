@@ -8,11 +8,18 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.capabilities.models import CapabilityKind
 from app.db.models import ApprovalRow, AsyncTaskRunRow, TaskRow, WorkflowRow
 from app.evaluation.models import GoalTelemetry, MetricDatum, MetricSupport, SystemTelemetry
+from app.planning.failure import ExecutionFailureClass
+from app.planning.outcome import OutcomeDisposition
 
 _TERMINAL = frozenset({"completed", "blocked", "failed"})
 _REPLAN_CLASS = re.compile(r"\bafter\s+([a-z0-9_]+)\s*:", re.IGNORECASE)
+_ALLOWED_CAPABILITIES = frozenset(item.value for item in CapabilityKind)
+_ALLOWED_FAILURE_CLASSES = frozenset(item.value for item in ExecutionFailureClass)
+_ALLOWED_OUTCOME_DISPOSITIONS = frozenset(item.value for item in OutcomeDisposition)
+_ALLOWED_CRITERION_STATUSES = frozenset({"verified", "unmet", "unknown"})
 
 
 class GoalTelemetryNotFound(LookupError):
@@ -56,6 +63,63 @@ def _as_utc(value: datetime) -> datetime:
 def _plan_dict(workflow: WorkflowRow | None) -> dict[str, Any] | None:
     payload = workflow.plan_payload if workflow is not None else None
     return payload if isinstance(payload, dict) and payload else None
+
+
+def _safe_failure_class(value: object) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    normalized = value.strip().casefold()
+    if normalized in _ALLOWED_FAILURE_CLASSES:
+        return normalized
+    return ExecutionFailureClass.UNKNOWN.value
+
+
+def _safe_capabilities(plan: dict[str, Any]) -> list[str] | None:
+    revision = plan.get("revision")
+    nodes = plan.get("nodes")
+    if not isinstance(revision, int) or revision < 1 or not isinstance(nodes, list):
+        return None
+    capabilities: set[str] = set()
+    for node in nodes:
+        if not isinstance(node, dict):
+            return None
+        values = node.get("capability_requirements")
+        if not isinstance(values, list):
+            return None
+        for item in values:
+            if not isinstance(item, str) or item not in _ALLOWED_CAPABILITIES:
+                return None
+            capabilities.add(item)
+    return sorted(capabilities)
+
+
+def _safe_dod_quality(plan: dict[str, Any]) -> dict[str, object] | None:
+    judgement = plan.get("outcome_judgement")
+    if not isinstance(judgement, dict):
+        return None
+    disposition = judgement.get("disposition")
+    criteria = judgement.get("criteria")
+    if (
+        disposition not in _ALLOWED_OUTCOME_DISPOSITIONS
+        or not isinstance(criteria, list)
+        or not criteria
+    ):
+        return None
+    verified = 0
+    for item in criteria:
+        if not isinstance(item, dict):
+            return None
+        satisfied = item.get("satisfied")
+        criterion_status = item.get("status")
+        if not isinstance(satisfied, bool) or criterion_status not in _ALLOWED_CRITERION_STATUSES:
+            return None
+        verified += satisfied is True and criterion_status == "verified"
+    return {
+        "score": verified / len(criteria),
+        "verified": verified,
+        "total": len(criteria),
+        "disposition": disposition,
+    }
 
 
 class EvaluationTelemetryService:
@@ -333,21 +397,25 @@ class EvaluationTelemetryService:
             )
 
         failure_classes: set[str] = set()
-        if run.last_error_code:
-            failure_classes.add(run.last_error_code)
+        run_failure = _safe_failure_class(run.last_error_code)
+        if run_failure is not None:
+            failure_classes.add(run_failure)
         if plan is not None:
             executions = plan.get("node_executions")
             if isinstance(executions, list):
                 for item in executions:
-                    if isinstance(item, dict) and isinstance(item.get("last_failure_class"), str):
-                        value = item["last_failure_class"].strip()
-                        if value:
-                            failure_classes.add(value)
+                    if not isinstance(item, dict):
+                        continue
+                    failure = _safe_failure_class(item.get("last_failure_class"))
+                    if failure is not None:
+                        failure_classes.add(failure)
             replan_reason = plan.get("replan_reason")
             if isinstance(replan_reason, str):
                 match = _REPLAN_CLASS.search(replan_reason)
                 if match:
-                    failure_classes.add(match.group(1).casefold())
+                    failure = _safe_failure_class(match.group(1))
+                    if failure is not None:
+                        failure_classes.add(failure)
         metrics["failure_classes"] = _derived(
             sorted(failure_classes),
             producer="evaluation_projection",
@@ -371,44 +439,33 @@ class EvaluationTelemetryService:
                 reason="Final Outcome Judge criteria are unavailable.",
             )
         else:
-            metrics["route"] = _derived(
-                "workflow",
-                producer="evaluation_projection",
-                source="workflows.plan_payload",
-            )
-            capabilities: set[str] = set()
-            nodes = plan.get("nodes")
-            if isinstance(nodes, list):
-                for node in nodes:
-                    if not isinstance(node, dict):
-                        continue
-                    values = node.get("capability_requirements")
-                    if isinstance(values, list):
-                        capabilities.update(
-                            item for item in values if isinstance(item, str) and item.strip()
-                        )
-            metrics["capabilities"] = _derived(
-                sorted(capabilities),
-                producer="goal_planner",
-                source="workflows.plan_payload.nodes.capability_requirements",
-            )
-            judgement = plan.get("outcome_judgement")
-            criteria = judgement.get("criteria") if isinstance(judgement, dict) else None
-            if isinstance(criteria, list) and criteria:
-                total = len(criteria)
-                verified = sum(
-                    isinstance(item, dict)
-                    and item.get("satisfied") is True
-                    and item.get("status") == "verified"
-                    for item in criteria
+            safe_capabilities = _safe_capabilities(plan)
+            if safe_capabilities is None:
+                metrics["route"] = _unsupported(
+                    producer="evaluation_projection",
+                    source="workflows.plan_payload",
+                    reason="Durable workflow plan structure is invalid for safe projection.",
                 )
+                metrics["capabilities"] = _unsupported(
+                    producer="goal_planner",
+                    source="workflows.plan_payload.nodes.capability_requirements",
+                    reason="Capability attribution contains invalid or untrusted values.",
+                )
+            else:
+                metrics["route"] = _derived(
+                    "workflow",
+                    producer="evaluation_projection",
+                    source="workflows.plan_payload",
+                )
+                metrics["capabilities"] = _derived(
+                    safe_capabilities,
+                    producer="goal_planner",
+                    source="workflows.plan_payload.nodes.capability_requirements",
+                )
+            dod_quality = _safe_dod_quality(plan)
+            if dod_quality is not None:
                 metrics["dod_verification_quality"] = _derived(
-                    {
-                        "score": verified / total,
-                        "verified": verified,
-                        "total": total,
-                        "disposition": judgement.get("disposition"),
-                    },
+                    dod_quality,
                     producer="core_outcome_judge",
                     source="workflows.plan_payload.outcome_judgement.criteria",
                 )
@@ -416,7 +473,7 @@ class EvaluationTelemetryService:
                 metrics["dod_verification_quality"] = _unsupported(
                     producer="core_outcome_judge",
                     source="workflows.plan_payload.outcome_judgement.criteria",
-                    reason="Final Outcome Judge criteria are unavailable.",
+                    reason="Final Outcome Judge criteria are unavailable or invalid.",
                 )
 
         replan_known = metrics["replans"].support is not MetricSupport.UNSUPPORTED

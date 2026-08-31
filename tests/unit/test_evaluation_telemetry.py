@@ -249,7 +249,7 @@ def test_blocked_failed_and_approval_required_goals_remain_distinct(engine: Engi
             suffix="failed",
             status="failed",
             plan=_plan(dod=False),
-            last_error_code="provider_error",
+            last_error_code="execution_failed",
         )
         service = _service(session)
         blocked_goal = service.goal(blocked)
@@ -259,7 +259,7 @@ def test_blocked_failed_and_approval_required_goals_remain_distinct(engine: Engi
     assert blocked_goal.metrics["approvals"].value["pending"] == 1
     assert blocked_goal.metrics["human_intervention_count"].value == 0
     assert failed_goal.metrics["outcome"].value == "failed"
-    assert failed_goal.metrics["failure_classes"].value == ["provider_error"]
+    assert failed_goal.metrics["failure_classes"].value == ["execution_failed"]
 
 
 def test_resolved_approval_is_human_intervention(engine: Engine) -> None:
@@ -548,3 +548,46 @@ def test_system_recovery_rate_discloses_observation_coverage(engine: Engine) -> 
         "terminal_goals": 4,
         "coverage_rate": 0.75,
     }
+
+
+def test_arbitrary_error_code_is_normalized_without_secret_leak(engine: Engine) -> None:
+    with Session(engine) as session:
+        run_id = _seed_goal(
+            session,
+            suffix="unsafe_error_code",
+            status="failed",
+            plan=_plan(dod=False),
+            last_error_code=SECRET,
+        )
+        goal = _service(session).goal(run_id)
+        serialized = goal.model_dump_json()
+
+    assert goal.metrics["failure_classes"].value == ["unknown"]
+    assert SECRET not in serialized
+
+
+def test_malformed_plan_strings_are_unsupported_without_secret_leak(engine: Engine) -> None:
+    unsafe_plan = _plan()
+    unsafe_plan["nodes"][0]["capability_requirements"] = [SECRET]
+    unsafe_plan["outcome_judgement"]["disposition"] = SECRET
+    unsafe_plan["node_executions"][0]["last_failure_class"] = SECRET
+    unsafe_plan["replan_reason"] = "Evidence-driven replan after ownerpassword123: private"
+
+    with Session(engine) as session:
+        run_id = _seed_goal(
+            session,
+            suffix="unsafe_plan",
+            status="failed",
+            plan=unsafe_plan,
+        )
+        goal = _service(session).goal(run_id)
+        serialized = goal.model_dump_json()
+
+    assert goal.metrics["route"].support == "unsupported"
+    assert goal.metrics["capabilities"].support == "unsupported"
+    assert goal.metrics["capabilities"].value is None
+    assert goal.metrics["dod_verification_quality"].support == "unsupported"
+    assert goal.metrics["dod_verification_quality"].value is None
+    assert goal.metrics["failure_classes"].value == ["unknown"]
+    assert SECRET not in serialized
+    assert "ownerpassword123" not in serialized
