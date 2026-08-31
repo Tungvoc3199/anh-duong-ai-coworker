@@ -9,6 +9,7 @@ const CAPABILITIES = new Set([
   "project_read",
   "task_read",
   "core_status_read",
+  "visual_prompt_compose",
   "planning",
   "file_operation",
   "code_operation",
