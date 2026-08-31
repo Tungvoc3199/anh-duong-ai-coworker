@@ -432,8 +432,10 @@ def test_system_aggregation_is_idempotent_restart_safe_and_reproducible(engine: 
     assert first.metrics["autonomous_recovery_rate"].value == 1.0
     assert first.metrics["p95_completion_seconds"].value == 30.0
     assert first.metrics["capability_utilization"].value == {
-        "planning": 2,
-        "system_operation": 2,
+        "counts": {"planning": 2, "system_operation": 2},
+        "observed_goals": 3,
+        "terminal_goals": 3,
+        "coverage_rate": 1.0,
     }
     for metric_name in (
         "token_per_successful_goal",
@@ -456,3 +458,27 @@ def test_recovery_rate_is_unsupported_when_no_recovery_opportunity(engine: Engin
     assert metric.support == "unsupported"
     assert metric.value is None
     assert "opportunity" in metric.reason.lower()
+
+
+def test_capability_utilization_reports_partial_coverage(engine: Engine) -> None:
+    with Session(engine) as session:
+        _seed_goal(
+            session,
+            suffix="cap_observed",
+            status="completed",
+            plan=_plan(capabilities=("planning",)),
+        )
+        _seed_goal(
+            session,
+            suffix="cap_missing",
+            status="failed",
+            plan=None,
+        )
+        system = _service(session).system()
+
+    assert system.metrics["capability_utilization"].value == {
+        "counts": {"planning": 1},
+        "observed_goals": 1,
+        "terminal_goals": 2,
+        "coverage_rate": 0.5,
+    }

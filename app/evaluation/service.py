@@ -196,7 +196,12 @@ class EvaluationTelemetryService:
                 capability_counts[str(capability)] = capability_counts.get(str(capability), 0) + 1
         if observed_capability_goals:
             metrics["capability_utilization"] = _derived(
-                dict(sorted(capability_counts.items())),
+                {
+                    "counts": dict(sorted(capability_counts.items())),
+                    "observed_goals": observed_capability_goals,
+                    "terminal_goals": len(goals),
+                    "coverage_rate": observed_capability_goals / len(goals),
+                },
                 producer="evaluation_projection",
                 source="workflows.plan_payload.nodes.capability_requirements",
             )
