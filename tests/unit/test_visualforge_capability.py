@@ -316,3 +316,16 @@ def test_visual_prompt_parser_rejects_unquoted_visible_copy_label(goal: str) -> 
         VisualPromptParser().parse(goal)
 
     assert caught.value.code == "visualforge_visible_text_unquoted"
+
+
+def test_visual_prompt_parser_accepts_vietnamese_exact_display_label() -> None:
+    from app.visualforge import VisualPromptParser
+
+    goal = (
+        'Dùng VisualForge tạo prompt ảnh TikTok bán serum dưỡng sáng, tỷ lệ 9:16. '
+        'Text hiển thị chính xác: "DƯỠNG SÁNG DA – GIẢM 50% HÔM NAY"'
+    )
+    spec = VisualPromptParser().parse(goal)
+
+    assert spec.required_text == "DƯỠNG SÁNG DA – GIẢM 50% HÔM NAY"
+    assert spec.aspect_ratio == "9:16"

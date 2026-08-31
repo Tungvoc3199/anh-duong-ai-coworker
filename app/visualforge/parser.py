@@ -14,12 +14,12 @@ class VisualPromptParseError(ValueError):
 
 class VisualPromptParser:
     _TEXT_PATTERN = re.compile(
-        r'(?:required\s*text|text(?:\s+ch[ií]nh\s+x[aá]c)?|headline|ch[uữ]|n[oộ]i\s+dung|copy|visible\s+text|exact\s+copy)'
+        r'(?:required\s*text|text(?:\s+(?:hi[eể]n\s+th[iị]\s+)?ch[ií]nh\s+x[aá]c)?|headline|ch[uữ]|n[oộ]i\s+dung|copy|visible\s+text|exact\s+copy)'
         r'\s*[:\-]?\s*["“](.+?)["”]',
         re.IGNORECASE,
     )
     _TEXT_LABEL_PATTERN = re.compile(
-        r'(?:required\s*text|text(?:\s+ch[ií]nh\s+x[aá]c)?|headline|ch[uữ]|n[oộ]i\s+dung|copy|visible\s+text|exact\s+copy)',
+        r'(?:required\s*text|text(?:\s+(?:hi[eể]n\s+th[iị]\s+)?ch[ií]nh\s+x[aá]c)?|headline|ch[uữ]|n[oộ]i\s+dung|copy|visible\s+text|exact\s+copy)',
         re.IGNORECASE,
     )
     _ASPECT_PATTERN = re.compile(r'(?<!\d)(1:1|4:5|5:4|9:16|16:9|3:4|4:3)(?!\d)')
