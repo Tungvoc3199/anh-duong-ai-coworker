@@ -265,3 +265,28 @@ def test_readonly_core_status_generated_adversarial_matrix(
 
     assert intent.unnegated_mutation is True
     assert is_read_only_core_status_intent(intent) is False
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+            "không restart service và nếu lỗi thì deploy bản mới."
+        ),
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+            "không restart service and if unhealthy then install package."
+        ),
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+            "không restart service và nếu lỗi thì chạy lệnh kiểm tra sâu."
+        ),
+    ],
+)
+def test_conditional_side_effect_after_negation_is_never_swallowed(text: str) -> None:
+    from app.safety_intent import is_read_only_core_status_intent
+
+    intent = analyze_safety_intent(text)
+
+    assert intent.unnegated_mutation is True
+    assert is_read_only_core_status_intent(intent) is False

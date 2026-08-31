@@ -214,6 +214,17 @@ def _starts_with_side_effect(text: str) -> bool:
     tokens = text.split()
     while tokens and tokens[0] in {"imperative", "please", "then"}:
         tokens.pop(0)
+    if tokens and tokens[0] in {"neu", "if"}:
+        condition_end = next(
+            (
+                index
+                for index, token in enumerate(tokens[1:], start=1)
+                if token in {"thi", "then"}
+            ),
+            None,
+        )
+        if condition_end is not None:
+            tokens = tokens[condition_end + 1 :]
     residual = " ".join(tokens)
     return any(
         residual == marker or residual.startswith(f"{marker} ")

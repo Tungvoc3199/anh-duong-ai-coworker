@@ -156,20 +156,24 @@ class WorkflowResolver:
             )
             return "view_status", RiskLevel.READ_ONLY, constraints
 
-        has_legacy_read_only_boundaries = all(
-            safety.has(constraint)
-            for constraint in (
-                SafetyConstraint.READ_ONLY,
-                SafetyConstraint.NO_COMMANDS,
-                SafetyConstraint.NO_FILE_CHANGES,
-                SafetyConstraint.NO_CONFIG_CHANGES,
-                SafetyConstraint.NO_SERVICE_RESTART,
+        has_legacy_read_only_boundaries = (
+            all(
+                safety.has(constraint)
+                for constraint in (
+                    SafetyConstraint.READ_ONLY,
+                    SafetyConstraint.NO_COMMANDS,
+                    SafetyConstraint.NO_FILE_CHANGES,
+                    SafetyConstraint.NO_CONFIG_CHANGES,
+                    SafetyConstraint.NO_SERVICE_RESTART,
+                )
             )
+            and not safety.unnegated_mutation
         )
         has_bounded_no_side_effect = (
             safety.has(SafetyConstraint.READ_ONLY)
             and safety.has(SafetyConstraint.NO_FILE_CHANGES)
             and safety.has(SafetyConstraint.NO_SYSTEM_MUTATION)
+            and not safety.unnegated_mutation
         )
         if has_legacy_read_only_boundaries or has_bounded_no_side_effect:
             constraints = tuple(

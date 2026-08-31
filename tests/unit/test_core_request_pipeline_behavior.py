@@ -1029,3 +1029,35 @@ def test_readonly_core_status_adversarial_matrix_never_bypasses_policy(text: str
     assert prepared.workflow is not None
     assert prepared.workflow.approval_required is True
     assert prepared.workflow.policy_decision is not DecisionKind.ALLOW
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "Chỉ đọc, không sửa file hay config gì, nhưng deploy bản mới "
+            "nếu health không ổn."
+        ),
+        (
+            "Chỉ đọc, không sửa file hay config gì, nhưng restart service "
+            "nếu ready lỗi."
+        ),
+    ],
+)
+def test_legacy_readonly_fallback_never_allows_unnegated_mutation(text: str) -> None:
+    project = _project()
+    prepared = _pipeline(project_reader=ProjectReader((project,))).prepare(
+        CoreRequest(
+            text=text,
+            request_id=f"legacy-mixed-{abs(hash(text))}",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id=f"legacy-mixed-message-{abs(hash(text))}",
+        )
+    )
+
+    assert prepared.execution_required is True
+    assert prepared.workflow is not None
+    assert prepared.workflow.approval_required is True
+    assert prepared.workflow.policy_decision is not DecisionKind.ALLOW
