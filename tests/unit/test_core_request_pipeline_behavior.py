@@ -890,3 +890,26 @@ def test_exact_user_readonly_system_check_never_requires_owner_approval() -> Non
     assert "no_config_changes" in prepared.workflow.constraints
     assert "no_service_restart" in prepared.workflow.constraints
     assert "no_system_mutation" in prepared.workflow.constraints
+
+
+def test_mixed_readonly_and_mutation_never_uses_readonly_fast_path() -> None:
+    project = _project()
+    text = (
+        "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+        "không restart service, nhưng sửa config nếu lỗi."
+    )
+    prepared = _pipeline(project_reader=ProjectReader((project,))).prepare(
+        CoreRequest(
+            text=text,
+            request_id="ad-bug-tg-readonly-mixed-mutation",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id="message-readonly-mixed-mutation",
+        )
+    )
+
+    assert prepared.workflow is not None
+    assert prepared.workflow.approval_required is True
+    assert prepared.workflow.policy_decision is not DecisionKind.ALLOW

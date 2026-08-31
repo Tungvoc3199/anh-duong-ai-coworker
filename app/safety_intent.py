@@ -24,6 +24,7 @@ class SafetyConstraint(StrEnum):
 class SafetyIntent:
     normalized_text: str
     constraints: tuple[SafetyConstraint, ...]
+    unnegated_mutation: bool
 
     def has(self, constraint: SafetyConstraint) -> bool:
         return constraint in self.constraints
@@ -48,6 +49,7 @@ def is_read_only_core_status_intent(intent: SafetyIntent) -> bool:
         and "ready" in normalized
         and intent.has(SafetyConstraint.READ_ONLY)
         and intent.has(SafetyConstraint.NO_SERVICE_RESTART)
+        and not intent.unnegated_mutation
     )
 
 
@@ -125,6 +127,7 @@ def analyze_safety_intent(text: str) -> SafetyIntent:
     return SafetyIntent(
         normalized_text=normalized,
         constraints=tuple(dict.fromkeys(detected)),
+        unnegated_mutation=_has_unnegated_mutation(text),
     )
 
 
@@ -146,6 +149,20 @@ def _negated_scopes(text: str) -> list[str]:
                     break
             scopes.append(" ".join(tokens[index:end]))
     return scopes
+
+
+def _has_unnegated_mutation(text: str) -> bool:
+    folded = _fold_preserving_boundaries(text)
+    for clause in re.split(r"[.!?;\n]+", folded):
+        normalized_clause = " ".join(
+            re.sub(r"[^a-z0-9]+", " ", clause).split()
+        )
+        residual = f" {normalized_clause} "
+        for scope in _negated_scopes(clause):
+            residual = residual.replace(f" {scope} ", " ")
+        if _contains_any(" ".join(residual.split()), _MUTATION_MARKERS):
+            return True
+    return False
 
 
 def _fold_preserving_boundaries(text: str) -> str:

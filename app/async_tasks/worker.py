@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any, Literal, Protocol
@@ -1225,6 +1226,14 @@ class AsyncTaskWorker:
             and ready.get("status") == "ready"
         )
         database = statuses.get("database", {})
+        if require_database_quick_check and not (
+            isinstance(database, dict) and "quick_check" in database
+        ):
+            database = {
+                "quick_check": await asyncio.to_thread(
+                    self._probe_database_quick_check
+                )
+            }
         database_ok = (
             isinstance(database, dict)
             and database.get("quick_check") == "ok"
@@ -1326,10 +1335,6 @@ class AsyncTaskWorker:
         async with httpx.AsyncClient(timeout=5.0) as client:
             health_response = await client.get("http://127.0.0.1:8790/health")
             ready_response = await client.get("http://127.0.0.1:8790/ready")
-        with self.session_factory() as session:
-            quick_check = session.connection().exec_driver_sql(
-                "PRAGMA quick_check"
-            ).scalar()
         return {
             "service": {
                 "status": (
@@ -1347,8 +1352,13 @@ class AsyncTaskWorker:
                 "http_status": ready_response.status_code,
                 **ready_response.json(),
             },
-            "database": {"quick_check": quick_check},
         }
+
+    def _probe_database_quick_check(self) -> str | None:
+        with self.session_factory() as session:
+            return session.connection().exec_driver_sql(
+                "PRAGMA quick_check"
+            ).scalar()
 
     def _handle_transport_error(
         self,

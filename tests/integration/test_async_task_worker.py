@@ -1042,3 +1042,83 @@ async def test_database_quick_check_failure_cannot_report_success(
     payload = json.loads(run.result_json or "{}")
     assert payload["artifacts"]["database"]["quick_check"] == "corrupt"
     assert payload["outcome"] == "blocked"
+
+
+@pytest.mark.asyncio
+async def test_default_http_probe_does_not_scan_database(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeResponse:
+        def __init__(self, status: str) -> None:
+            self.status_code = 200
+            self._status = status
+
+        def json(self) -> dict[str, str]:
+            return {"status": self._status}
+
+    class FakeClient:
+        async def __aenter__(self) -> FakeClient:
+            return self
+
+        async def __aexit__(self, *args: object) -> None:
+            return None
+
+        async def get(self, url: str) -> FakeResponse:
+            return FakeResponse("ready" if url.endswith("/ready") else "ok")
+
+    monkeypatch.setattr(
+        "app.async_tasks.worker.httpx.AsyncClient",
+        lambda **_: FakeClient(),
+    )
+    worker = _worker(
+        session_factory=session_factory,
+        tmp_path=tmp_path,
+        executor=SequenceExecutor([]),
+        clock=[NOW],
+    )
+
+    result = await worker._probe_local_core_status()
+
+    assert "database" not in result
+
+
+@pytest.mark.asyncio
+async def test_requested_quick_check_uses_separate_database_probe(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    goal = (
+        "Kiểm tra tình trạng Ánh Dương Core health/ready và database quick_check. "
+        "Chỉ đọc, không sửa hay restart gì."
+    )
+    _, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="separate-db-quick-check",
+        goal=goal,
+    )
+
+    async def core_status_probe() -> dict[str, object]:
+        return {
+            "service": {"status": "running", "evidence": "local_http:/health"},
+            "health": {"http_status": 200, "status": "ok"},
+            "ready": {"http_status": 200, "status": "ready"},
+        }
+
+    worker = _worker(
+        session_factory=session_factory,
+        tmp_path=tmp_path,
+        executor=SequenceExecutor([]),
+        clock=[NOW],
+        core_status_probe=core_status_probe,
+    )
+    worker._probe_database_quick_check = lambda: "ok"  # type: ignore[attr-defined]
+
+    assert await worker.run_once() is True
+    with session_factory() as session:
+        run = AsyncTaskRepository(session).get(run_id)
+    assert run.status is AsyncRunStatus.COMPLETED
+    payload = json.loads(run.result_json or "{}")
+    assert payload["artifacts"]["database"]["quick_check"] == "ok"
