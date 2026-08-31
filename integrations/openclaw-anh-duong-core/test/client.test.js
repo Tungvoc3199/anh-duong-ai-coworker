@@ -5,6 +5,7 @@ import {
   buildAsyncTaskCreate,
   buildCoreRequest,
   getAsyncTaskRun,
+  parseApprovalIntent,
   prepareCoreRequest,
   submitAsyncTask,
   validateAsyncTaskAccepted,
@@ -414,4 +415,19 @@ test("prepared prompt contains only explicit routing metadata and rendered Core 
   assert.match(context, /Bạn là Ánh Dương/);
   assert.equal(context.includes(TOKEN), false);
   assert.equal(context.includes("created_at"), false);
+});
+test("parseApprovalIntent accepts a real-space approve command with action text", () => {
+  const parsed = parseApprovalIntent(
+    "approve f5c8231e880ff805cd6fe6f26e4b44ec Hãy viết một unit test",
+  );
+  assert.ok(parsed, "approve command should parse");
+  assert.equal(parsed.approvalId, "f5c8231e880ff805cd6fe6f26e4b44ec");
+  assert.equal(parsed.action, "Hãy viết một unit test");
+});
+
+test("parseApprovalIntent returns undefined for non-approve or malformed text", () => {
+  assert.equal(parseApprovalIntent("tạo một unit test"), undefined);
+  assert.equal(parseApprovalIntent(""), undefined);
+  assert.equal(parseApprovalIntent(undefined), undefined);
+  assert.equal(parseApprovalIntent(42), undefined);
 });
