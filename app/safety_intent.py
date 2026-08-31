@@ -691,6 +691,8 @@ def _is_harmless_readonly_clause(
     if not normalized_clause:
         return True
     tokens = normalized_clause.split()
+    if normalized_clause in {"make no change", "make no changes"}:
+        return True
     if tokens and tokens[0] in {"khong", "no"}:
         return all(token in _SAFE_NEGATION_TOKENS for token in tokens)
     if normalized_clause in _SAFE_CONTINUATION_CLAUSES:
@@ -717,7 +719,7 @@ def _is_harmless_readonly_clause(
         return True
     if _starts_with_any(stripped, _REPORT_PREFIX_MARKERS):
         if strict_status:
-            if _starts_with_any(stripped, _SAFE_REPORT_EXACT_PREFIXES):
+            if stripped in _SAFE_REPORT_EXACT_PREFIXES:
                 return True
             return all(token in _SAFE_REPORT_TOKENS for token in stripped.split())
         return True
@@ -735,7 +737,7 @@ def _is_harmless_readonly_clause(
                 if not _starts_with_any(tail, _REPORT_PREFIX_MARKERS):
                     return False
                 if strict_status:
-                    if _starts_with_any(tail, _SAFE_REPORT_EXACT_PREFIXES):
+                    if tail in _SAFE_REPORT_EXACT_PREFIXES:
                         return True
                     return all(token in _SAFE_REPORT_TOKENS for token in tail.split())
                 return True

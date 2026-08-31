@@ -677,3 +677,29 @@ def test_ambiguous_report_action_fails_closed(suffix: str) -> None:
     intent = analyze_safety_intent(text)
     assert intent.unnegated_mutation is True
     assert is_read_only_core_status_intent(intent) is False
+
+
+
+
+def test_exact_report_prefix_does_not_hide_appended_unknown_action() -> None:
+    from app.safety_intent import is_read_only_core_status_intent
+
+    text = (
+        "Check status Anh Duong Core health/ready. Read only, no changes and no restart. "
+        "Conclusion whether can continue working rotate credentials."
+    )
+    intent = analyze_safety_intent(text)
+    assert intent.unnegated_mutation is True
+    assert is_read_only_core_status_intent(intent) is False
+
+
+def test_make_no_changes_is_safe_readonly_negation() -> None:
+    from app.safety_intent import is_read_only_core_status_intent
+
+    text = (
+        "Check status Anh Duong Core health/ready. Read only and make no changes. "
+        "Do not restart service."
+    )
+    intent = analyze_safety_intent(text)
+    assert intent.unnegated_mutation is False
+    assert is_read_only_core_status_intent(intent) is True
