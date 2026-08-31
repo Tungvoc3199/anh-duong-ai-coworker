@@ -33,23 +33,45 @@ class SafetyIntent:
         return tuple(item.value for item in self.constraints)
 
 
-_OBSERVATION_MARKERS = ("kiem tra", "check", "xac minh", "verify", "xem")
+_OBSERVATION_MARKERS = (
+    "kiem tra",
+    "check",
+    "xac minh",
+    "verify",
+    "xem",
+    "doc",
+    "read",
+    "inspect",
+    "liet ke",
+    "list",
+)
 _STATUS_MARKERS = ("trang thai", "tinh trang", "status", "co on", "san sang")
 _READ_ONLY_MARKERS = ("chi doc", "read only", "readonly", "chi xem", "view only")
-_HARMLESS_REPORT_MARKERS = (
-    "ket qua",
+_REPORT_PREFIX_MARKERS = (
+    "gui ket qua",
     "bang chung",
     "evidence",
+    "send result",
+    "send results",
+    "tra loi",
+    "answer",
+    "return result",
+    "return results",
+    "provide the result",
+    "provide the results",
+    "show me the result",
+    "show me the results",
+    "report",
+    "tell me",
+    "bao ngan gon",
+    "bao ket qua",
+    "bao lai ket qua",
+    "tra ve ket qua",
     "bao thanh cong",
     "bao anh",
     "bao cao",
-    "report",
-    "tell me",
-    "return result",
     "summary",
     "tom tat",
-    "bao ngan gon",
-    "report briefly",
     "giai thich",
     "explain",
     "ket luan",
@@ -57,6 +79,13 @@ _HARMLESS_REPORT_MARKERS = (
     "yeu cau",
     "requirement",
     "requirements",
+    "chi bao thanh cong",
+)
+_SAFE_SCAFFOLD_PREFIXES = (
+    "thuc hien mot workflow",
+    "workflow",
+    "soan checklist",
+    "draft checklist",
 )
 _SAFE_CONTINUATION_CLAUSES = frozenset(
     {
@@ -67,6 +96,11 @@ _SAFE_CONTINUATION_CLAUSES = frozenset(
         "core service",
         "database",
         "database quick check",
+        "db",
+        "db quick check",
+        "pragma",
+        "pragma quick check",
+        "quick check",
         "file",
         "tep",
         "config",
@@ -136,7 +170,10 @@ def is_read_only_core_status_intent(intent: SafetyIntent) -> bool:
 
 def requests_database_quick_check(intent: SafetyIntent) -> bool:
     normalized = intent.normalized_text
-    return "database" in normalized and "quick check" in normalized
+    return "quick check" in normalized and _contains_any(
+        normalized,
+        ("database", "db", "pragma"),
+    )
 
 
 _CONTRAST_TOKENS = frozenset(
@@ -278,11 +315,7 @@ def _starts_with_side_effect(text: str) -> bool:
         tokens.pop(0)
     if tokens and tokens[0] in {"neu", "if"}:
         condition_end = next(
-            (
-                index
-                for index, token in enumerate(tokens[1:], start=1)
-                if token in {"thi", "then"}
-            ),
+            (index for index, token in enumerate(tokens[1:], start=1) if token in {"thi", "then"}),
             None,
         )
         if condition_end is not None:
@@ -300,8 +333,7 @@ def _starts_with_side_effect(text: str) -> bool:
                 tokens = tokens[effect_start:]
     residual = " ".join(tokens)
     return any(
-        residual == marker or residual.startswith(f"{marker} ")
-        for marker in _SIDE_EFFECT_MARKERS
+        residual == marker or residual.startswith(f"{marker} ") for marker in _SIDE_EFFECT_MARKERS
     )
 
 
@@ -386,30 +418,59 @@ def _negated_scopes(text: str) -> list[str]:
     return scopes
 
 
-def _is_harmless_post_readonly_clause(normalized_clause: str) -> bool:
+def _strip_clause_prefixes(normalized_clause: str) -> str:
+    tokens = normalized_clause.split()
+    while tokens and tokens[0] in {"please", "imperative", "chi", "only"}:
+        tokens.pop(0)
+    return " ".join(tokens)
+
+
+def _starts_with_any(normalized_clause: str, markers: tuple[str, ...]) -> bool:
+    return any(
+        normalized_clause == marker or normalized_clause.startswith(f"{marker} ")
+        for marker in markers
+    )
+
+
+def _looks_like_identifier_clause(normalized_clause: str) -> bool:
+    tokens = normalized_clause.split()
+    return bool(tokens) and all(any(character.isdigit() for character in token) for token in tokens)
+
+
+def _is_harmless_readonly_clause(normalized_clause: str) -> bool:
     if not normalized_clause:
-        return True
-    if _contains_any(normalized_clause, _READ_ONLY_MARKERS):
         return True
     tokens = normalized_clause.split()
     if tokens and tokens[0] in {"khong", "no"}:
         return True
-    if any(
-        normalized_clause == marker or normalized_clause.startswith(f"{marker} ")
-        for marker in _OBSERVATION_MARKERS
-    ):
-        return True
-    if tokens and tokens[0] in {"health", "ready"}:
-        return True
-    if tokens and tokens[0] == "core" and _has_observation_language(normalized_clause):
-        return True
     if normalized_clause in _SAFE_CONTINUATION_CLAUSES:
         return True
-    return _contains_any(normalized_clause, _HARMLESS_REPORT_MARKERS)
+    if _looks_like_identifier_clause(normalized_clause):
+        return True
+
+    stripped = _strip_clause_prefixes(normalized_clause)
+    if _starts_with_any(stripped, _OBSERVATION_MARKERS):
+        return True
+    if _starts_with_any(stripped, _SAFE_SCAFFOLD_PREFIXES):
+        return True
+    if _starts_with_any(stripped, _REPORT_PREFIX_MARKERS):
+        return True
+    stripped_tokens = stripped.split()
+    if stripped_tokens and stripped_tokens[0] in {"health", "ready"}:
+        return True
+    if stripped_tokens and stripped_tokens[0] == "core" and _has_observation_language(stripped):
+        return True
+    if stripped_tokens and stripped_tokens[0] in {"neu", "if"}:
+        for boundary in ("thi", "then"):
+            if boundary in stripped_tokens:
+                tail = " ".join(stripped_tokens[stripped_tokens.index(boundary) + 1 :])
+                return _starts_with_any(_strip_clause_prefixes(tail), _REPORT_PREFIX_MARKERS)
+    return False
 
 
 def _sequence_clauses(text: str) -> list[str]:
     folded = _fold_preserving_boundaries(text)
+    folded = re.sub(r"(?<=[a-z0-9])\.(?=[a-z0-9])", " ", folded)
     primary = re.split(
         r"[.!?;:/\n\u2013\u2014]+|->|=>|\b(?:nhung|but|however|then|except|excluding|ngoai\s+tru|tru\s+khi|unless|before|after|while|truoc\s+khi|sau\s+khi|trong\s+khi|va|and)\b",
         folded,
@@ -439,13 +500,6 @@ def _sequence_clauses(text: str) -> list[str]:
 
 
 def _has_ambiguous_readonly_action(text: str) -> bool:
-    normalized = normalize_semantic_text(text)
-    if not (
-        _has_status_language(normalized)
-        and "health" in normalized
-        and "ready" in normalized
-    ):
-        return False
     clauses = _sequence_clauses(text)
     if not any(_contains_any(clause, _READ_ONLY_MARKERS) for clause in clauses):
         return False
@@ -455,11 +509,15 @@ def _has_ambiguous_readonly_action(text: str) -> bool:
             None,
         )
         if matching_marker is not None:
-            suffix = clause.split(matching_marker, 1)[1].strip()
-            if suffix and not _is_harmless_post_readonly_clause(suffix):
+            prefix, suffix = clause.split(matching_marker, 1)
+            prefix = prefix.strip()
+            suffix = suffix.strip()
+            if prefix and not _is_harmless_readonly_clause(prefix):
+                return True
+            if suffix and not _is_harmless_readonly_clause(suffix):
                 return True
             continue
-        if not _is_harmless_post_readonly_clause(clause):
+        if not _is_harmless_readonly_clause(clause):
             return True
     return False
 

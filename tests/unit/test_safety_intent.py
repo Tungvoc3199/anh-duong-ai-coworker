@@ -86,6 +86,7 @@ def test_readonly_status_intent_detects_unnegated_side_effects(text: str) -> Non
     intent = analyze_safety_intent(text)
     assert intent.unnegated_mutation is True
 
+
 SAFE_CORE_STATUS_PARAPHRASES = (
     (
         "Dương, kiểm tra tình trạng hệ thống Ánh Dương hiện tại giúp anh. "
@@ -100,10 +101,7 @@ SAFE_CORE_STATUS_PARAPHRASES = (
         "Xem giúp anh status Ánh Dương Core, health/ready hiện có ổn không. "
         "Chỉ xem thôi, không sửa gì và không restart service."
     ),
-    (
-        "Check status Anh Duong Core health/ready. "
-        "Read only, no changes and no restart."
-    ),
+    ("Check status Anh Duong Core health/ready. Read only, no changes and no restart."),
     (
         "Kiểm tra tình trạng Ánh Dương Core health/ready bằng chế độ chỉ đọc. "
         "Không install, deploy hoặc thay đổi hệ thống. Gửi kết quả cho anh."
@@ -174,6 +172,7 @@ def test_broad_no_change_language_produces_system_mutation_boundary(text: str) -
     assert SafetyConstraint.READ_ONLY in intent.constraints
     assert SafetyConstraint.NO_SYSTEM_MUTATION in intent.constraints
 
+
 @pytest.mark.parametrize(
     "suffix",
     [
@@ -211,6 +210,7 @@ def test_harmless_result_delivery_does_not_become_mutation() -> None:
     assert SafetyConstraint.NO_SYSTEM_MUTATION in intent.constraints
     assert SafetyConstraint.NO_SERVICE_RESTART in intent.constraints
     assert is_read_only_core_status_intent(intent) is True
+
 
 @pytest.mark.parametrize("observation", ["Kiểm tra", "Xác minh", "Xem"])
 @pytest.mark.parametrize("status_word", ["trạng thái", "tình trạng", "status"])
@@ -266,6 +266,7 @@ def test_readonly_core_status_generated_adversarial_matrix(
     assert intent.unnegated_mutation is True
     assert is_read_only_core_status_intent(intent) is False
 
+
 @pytest.mark.parametrize(
     "text",
     [
@@ -290,6 +291,7 @@ def test_conditional_side_effect_after_negation_is_never_swallowed(text: str) ->
 
     assert intent.unnegated_mutation is True
     assert is_read_only_core_status_intent(intent) is False
+
 
 @pytest.mark.parametrize(
     "text",
@@ -319,6 +321,7 @@ def test_conditional_side_effect_without_explicit_then_fails_closed(text: str) -
 
     assert intent.unnegated_mutation is True
     assert is_read_only_core_status_intent(intent) is False
+
 
 @pytest.mark.parametrize(
     "text",
@@ -353,6 +356,7 @@ def test_side_effect_separator_variants_fail_closed(text: str) -> None:
     assert intent.unnegated_mutation is True
     assert is_read_only_core_status_intent(intent) is False
 
+
 @pytest.mark.parametrize(
     "effect",
     [
@@ -370,13 +374,11 @@ def test_side_effect_separator_variants_fail_closed(text: str) -> None:
     ],
 )
 def test_service_lifecycle_effects_are_mutations(effect: str) -> None:
-    text = (
-        "Kiểm tra trạng thái Gateway health/ready, chỉ đọc, không sửa gì, "
-        f"nhưng {effect}."
-    )
+    text = f"Kiểm tra trạng thái Gateway health/ready, chỉ đọc, không sửa gì, nhưng {effect}."
     intent = analyze_safety_intent(text)
 
     assert intent.unnegated_mutation is True
+
 
 @pytest.mark.parametrize(
     "text",
@@ -433,6 +435,7 @@ def test_harmless_post_readonly_clauses_remain_allowed(text: str) -> None:
     assert intent.unnegated_mutation is False
     assert is_read_only_core_status_intent(intent) is True
 
+
 @pytest.mark.parametrize(
     "text",
     [
@@ -476,6 +479,7 @@ def test_unknown_action_before_readonly_boundary_fails_closed(text: str) -> None
     assert intent.unnegated_mutation is True
     assert is_read_only_core_status_intent(intent) is False
 
+
 @pytest.mark.parametrize(
     "text",
     [
@@ -490,6 +494,7 @@ def test_unknown_action_in_same_readonly_clause_fails_closed(text: str) -> None:
 
     assert intent.unnegated_mutation is True
     assert is_read_only_core_status_intent(intent) is False
+
 
 @pytest.mark.parametrize(
     "text",
@@ -523,3 +528,55 @@ def test_temporal_connector_never_hides_readonly_side_effect(text: str) -> None:
 
     assert intent.unnegated_mutation is True
     assert is_read_only_core_status_intent(intent) is False
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Check status Anh Duong Core health/ready. Rotate credentials read only. No changes.",
+        "Check status Anh Duong Core health/ready. Format disk readonly. No changes.",
+        (
+            "Check status Anh Duong Core health/ready. Rotate credentials to report results. "
+            "Read only, no changes and no restart."
+        ),
+        (
+            "Read only. No commands, no file changes, no config changes, no restart. "
+            "Rotate credentials."
+        ),
+    ],
+)
+def test_unknown_action_anywhere_in_readonly_request_fails_closed(text: str) -> None:
+    intent = analyze_safety_intent(text)
+    assert intent.unnegated_mutation is True
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "Check status Anh Duong Core health/ready. Read only, no changes and no restart. "
+            "Please provide the results."
+        ),
+        (
+            "Check status Anh Duong Core health/ready. Read only, no changes and no restart. "
+            "Please show me the results."
+        ),
+    ],
+)
+def test_polite_report_followups_remain_readonly(text: str) -> None:
+    intent = analyze_safety_intent(text)
+    assert intent.unnegated_mutation is False
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Check status Anh Duong Core health/ready and database quick_check. Read only, no changes.",
+        "Check status Anh Duong Core health/ready and DB quick_check. Read only, no changes.",
+        "Check status Anh Duong Core health/ready and PRAGMA quick_check. Read only, no changes.",
+    ],
+)
+def test_database_quick_check_aliases_are_detected(text: str) -> None:
+    from app.safety_intent import requests_database_quick_check
+
+    assert requests_database_quick_check(analyze_safety_intent(text)) is True

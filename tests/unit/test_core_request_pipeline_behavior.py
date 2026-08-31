@@ -934,6 +934,7 @@ def test_generic_gateway_readonly_health_check_remains_approval_free() -> None:
     assert prepared.workflow.policy_decision is DecisionKind.ALLOW
     assert prepared.workflow.policy_rule_id == "risk.read_only.allow"
 
+
 @pytest.mark.parametrize(
     "text",
     [
@@ -950,10 +951,7 @@ def test_generic_gateway_readonly_health_check_remains_approval_free() -> None:
             "Xem giúp anh status Ánh Dương Core, health/ready hiện có ổn không. "
             "Chỉ xem thôi, không sửa gì và không restart service."
         ),
-        (
-            "Check status Anh Duong Core health/ready. "
-            "Read only, no changes and no restart."
-        ),
+        ("Check status Anh Duong Core health/ready. Read only, no changes and no restart."),
         (
             "Kiểm tra tình trạng Ánh Dương Core health/ready bằng chế độ chỉ đọc. "
             "Không install, deploy hoặc thay đổi hệ thống. Gửi kết quả cho anh."
@@ -1030,17 +1028,12 @@ def test_readonly_core_status_adversarial_matrix_never_bypasses_policy(text: str
     assert prepared.workflow.approval_required is True
     assert prepared.workflow.policy_decision is not DecisionKind.ALLOW
 
+
 @pytest.mark.parametrize(
     "text",
     [
-        (
-            "Chỉ đọc, không sửa file hay config gì, nhưng deploy bản mới "
-            "nếu health không ổn."
-        ),
-        (
-            "Chỉ đọc, không sửa file hay config gì, nhưng restart service "
-            "nếu ready lỗi."
-        ),
+        ("Chỉ đọc, không sửa file hay config gì, nhưng deploy bản mới nếu health không ổn."),
+        ("Chỉ đọc, không sửa file hay config gì, nhưng restart service nếu ready lỗi."),
     ],
 )
 def test_legacy_readonly_fallback_never_allows_unnegated_mutation(text: str) -> None:
@@ -1061,6 +1054,7 @@ def test_legacy_readonly_fallback_never_allows_unnegated_mutation(text: str) -> 
     assert prepared.workflow is not None
     assert prepared.workflow.approval_required is True
     assert prepared.workflow.policy_decision is not DecisionKind.ALLOW
+
 
 @pytest.mark.parametrize(
     "text",
@@ -1094,6 +1088,7 @@ def test_conditional_mutation_without_then_never_gets_readonly_policy(text: str)
     assert prepared.workflow.approval_required is True
     assert prepared.workflow.policy_decision is not DecisionKind.ALLOW
 
+
 @pytest.mark.parametrize(
     "effect",
     [
@@ -1107,10 +1102,7 @@ def test_conditional_mutation_without_then_never_gets_readonly_policy(text: str)
 )
 def test_generic_status_with_service_lifecycle_effect_requires_policy_gate(effect: str) -> None:
     project = _project()
-    text = (
-        "Kiểm tra trạng thái Gateway health/ready, chỉ đọc, không sửa gì, "
-        f"nhưng {effect}."
-    )
+    text = f"Kiểm tra trạng thái Gateway health/ready, chỉ đọc, không sửa gì, nhưng {effect}."
     prepared = _pipeline(project_reader=ProjectReader((project,))).prepare(
         CoreRequest(
             text=text,
@@ -1126,6 +1118,7 @@ def test_generic_status_with_service_lifecycle_effect_requires_policy_gate(effec
     assert prepared.workflow is not None
     assert prepared.workflow.approval_required is True
     assert prepared.workflow.policy_decision is not DecisionKind.ALLOW
+
 
 @pytest.mark.parametrize(
     "text",
@@ -1187,6 +1180,7 @@ def test_harmless_readonly_report_clause_stays_approval_free() -> None:
     assert prepared.workflow.approval_required is False
     assert prepared.workflow.policy_decision is DecisionKind.ALLOW
 
+
 @pytest.mark.parametrize(
     "text",
     [
@@ -1214,6 +1208,28 @@ def test_readonly_mixed_action_on_either_side_never_bypasses_policy(text: str) -
         )
     )
 
+    assert prepared.workflow is not None
+    assert prepared.workflow.approval_required is True
+    assert prepared.workflow.policy_decision is not DecisionKind.ALLOW
+
+
+def test_legacy_readonly_unknown_action_never_gets_allow() -> None:
+    project = _project()
+    text = (
+        "Read only. No commands, no file changes, no config changes, no restart. "
+        "Rotate credentials."
+    )
+    prepared = _pipeline(project_reader=ProjectReader((project,))).prepare(
+        CoreRequest(
+            text=text,
+            request_id="legacy-readonly-unknown-action",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id="legacy-readonly-unknown-action-message",
+        )
+    )
     assert prepared.workflow is not None
     assert prepared.workflow.approval_required is True
     assert prepared.workflow.policy_decision is not DecisionKind.ALLOW
