@@ -12,7 +12,7 @@ from app.openclaw.models import (
 from app.routing import FastRouter
 from app.visualforge.client import VisualForgeRuntimeError
 from app.visualforge.models import VisualForgeCompiledPrompt, VisualPromptSpec
-from app.visualforge.parser import VisualPromptParser
+from app.visualforge.parser import VisualPromptParseError, VisualPromptParser
 
 
 class ExecutorDelegate(Protocol):
@@ -35,10 +35,10 @@ class VisualForgeRoutingExecutor:
         if capability.capability is not CapabilityKind.VISUAL_PROMPT_COMPOSE:
             return await self.delegate.execute(request)
 
-        spec = self.parser.parse(request.goal)
         try:
+            spec = self.parser.parse(request.goal)
             compiled = await self.client.compose(spec)
-        except VisualForgeRuntimeError as error:
+        except (VisualPromptParseError, VisualForgeRuntimeError) as error:
             raise OpenClawTransportError(
                 error.code,
                 str(error),
@@ -62,6 +62,7 @@ class VisualForgeRoutingExecutor:
             verification={
                 "method": "visualforge_local_compiler",
                 "network_calls": 0,
+                "network_isolation": "linux_user_network_namespace",
                 "files_changed": 0,
                 "exact_text_preserved": compiled.required_text == spec.required_text,
             },

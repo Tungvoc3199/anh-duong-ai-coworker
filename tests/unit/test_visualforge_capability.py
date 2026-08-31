@@ -253,7 +253,48 @@ def test_visualforge_client_uses_isolated_python_argv(tmp_path: Path) -> None:
     spec = VisualPromptParser().parse('Tạo prompt ảnh serum, text "GIẢM 50%"')
     argv = client._compose_argv(spec)
 
-    assert argv[0] == "/usr/bin/python3"
-    assert argv[1] == "-I"
+    assert argv[:4] == ["unshare", "-Urn", "--", "/usr/bin/python3"]
+    assert argv[4] == "-I"
     assert str(tmp_path / "src") in argv
-    assert "-m" not in argv[:4]
+    assert "-m" not in argv[:7]
+
+def test_visual_prompt_parser_extracts_noi_dung_copy() -> None:
+    from app.visualforge import VisualPromptParser
+
+    spec = VisualPromptParser().parse(
+        'Tạo prompt ảnh sản phẩm, nội dung "MUA 1 TẶNG 1"'
+    )
+
+    assert spec.required_text == "MUA 1 TẶNG 1"
+
+
+def test_visual_prompt_parser_uses_single_unlabelled_quote_as_visible_copy() -> None:
+    from app.visualforge import VisualPromptParser
+
+    spec = VisualPromptParser().parse(
+        'Tạo prompt ảnh poster khai trương "KHAI TRƯƠNG -30%"'
+    )
+
+    assert spec.required_text == "KHAI TRƯƠNG -30%"
+
+
+def test_visual_prompt_parser_rejects_ambiguous_unlabelled_quotes() -> None:
+    from app.visualforge import VisualPromptParseError, VisualPromptParser
+
+    with pytest.raises(VisualPromptParseError):
+        VisualPromptParser().parse(
+            'Tạo prompt ảnh poster "SALE" theo phong cách "minimal"'
+        )
+
+
+def test_visualforge_compose_argv_enforces_network_namespace(tmp_path: Path) -> None:
+    from app.visualforge import VisualForgeClient, VisualPromptParser
+
+    client = VisualForgeClient(root=tmp_path, expected_commit="abc")
+    spec = VisualPromptParser().parse(
+        'Tạo prompt ảnh serum, text "GIẢM 50%"'
+    )
+    argv = client._compose_argv(spec)
+
+    assert argv[:4] == ["unshare", "-Urn", "--", "/usr/bin/python3"]
+    assert "-I" in argv[:6]

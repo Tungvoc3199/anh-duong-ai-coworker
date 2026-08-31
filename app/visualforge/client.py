@@ -53,6 +53,9 @@ class VisualForgeClient:
 
     def _compose_argv(self, spec: VisualPromptSpec) -> list[str]:
         argv = [
+            "unshare",
+            "-Urn",
+            "--",
             self.python_executable,
             "-I",
             "-c",

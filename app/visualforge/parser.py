@@ -6,25 +6,44 @@ import unicodedata
 from app.visualforge.models import VisualPromptSpec
 
 
+class VisualPromptParseError(ValueError):
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
 class VisualPromptParser:
     _TEXT_PATTERN = re.compile(
-        r'(?:required\s*text|text(?:\s+ch[ií]nh\s+x[aá]c)?|headline|ch[uữ])'
+        r'(?:required\s*text|text(?:\s+ch[ií]nh\s+x[aá]c)?|headline|ch[uữ]|n[oộ]i\s+dung|copy|visible\s+text|exact\s+copy)'
         r'\s*[:\-]?\s*["“](.+?)["”]',
         re.IGNORECASE,
     )
     _ASPECT_PATTERN = re.compile(r'(?<!\d)(1:1|4:5|5:4|9:16|16:9|3:4|4:3)(?!\d)')
+    _QUOTED_PATTERN = re.compile(r'["“](.+?)["”]')
 
     def parse(self, goal: str) -> VisualPromptSpec:
         normalized = self._normalize(goal)
         template = self._template(normalized)
         required_match = self._TEXT_PATTERN.search(goal)
+        quoted_values = self._QUOTED_PATTERN.findall(goal)
+        if required_match:
+            required_text = required_match.group(1)
+        elif len(quoted_values) == 1:
+            required_text = quoted_values[0]
+        elif len(quoted_values) > 1:
+            raise VisualPromptParseError(
+                "visualforge_visible_text_ambiguous",
+                "Multiple quoted values were found without a visible-text label.",
+            )
+        else:
+            required_text = ""
         aspect_match = self._ASPECT_PATTERN.search(goal)
         return VisualPromptSpec(
             query=self._query(template, normalized),
             brief=goal.strip(),
             template=template,
             adapter="gpt-image",
-            required_text=(required_match.group(1) if required_match else ""),
+            required_text=required_text,
             aspect_ratio=(aspect_match.group(1) if aspect_match else ""),
         )
 
