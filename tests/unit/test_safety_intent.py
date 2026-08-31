@@ -432,3 +432,61 @@ def test_harmless_post_readonly_clauses_remain_allowed(text: str) -> None:
 
     assert intent.unnegated_mutation is False
     assert is_read_only_core_status_intent(intent) is True
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "Check status Anh Duong Core health/ready. "
+            "Read only, no changes except deploy if unhealthy, no restart."
+        ),
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready. "
+            "Chỉ đọc, không thay đổi gì ngoại trừ deploy nếu lỗi, không restart."
+        ),
+    ],
+)
+def test_readonly_exception_clause_preserves_positive_mutation(text: str) -> None:
+    from app.safety_intent import is_read_only_core_status_intent
+
+    intent = analyze_safety_intent(text)
+
+    assert intent.unnegated_mutation is True
+    assert is_read_only_core_status_intent(intent) is False
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "Rotate credentials, then check status Anh Duong Core health/ready. "
+            "Read only, no changes and no restart."
+        ),
+        (
+            "Format disk, rồi kiểm tra tình trạng Ánh Dương Core health/ready. "
+            "Chỉ đọc, không sửa gì và không restart."
+        ),
+    ],
+)
+def test_unknown_action_before_readonly_boundary_fails_closed(text: str) -> None:
+    from app.safety_intent import is_read_only_core_status_intent
+
+    intent = analyze_safety_intent(text)
+
+    assert intent.unnegated_mutation is True
+    assert is_read_only_core_status_intent(intent) is False
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Check status Anh Duong Core health/ready. Read only rotate credentials; no changes.",
+        "Kiểm tra tình trạng Ánh Dương Core health/ready. Chỉ đọc format disk; không sửa gì.",
+    ],
+)
+def test_unknown_action_in_same_readonly_clause_fails_closed(text: str) -> None:
+    from app.safety_intent import is_read_only_core_status_intent
+
+    intent = analyze_safety_intent(text)
+
+    assert intent.unnegated_mutation is True
+    assert is_read_only_core_status_intent(intent) is False

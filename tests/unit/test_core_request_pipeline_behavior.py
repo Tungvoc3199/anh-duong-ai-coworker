@@ -1186,3 +1186,34 @@ def test_harmless_readonly_report_clause_stays_approval_free() -> None:
     assert prepared.workflow.risk_level is RiskLevel.READ_ONLY
     assert prepared.workflow.approval_required is False
     assert prepared.workflow.policy_decision is DecisionKind.ALLOW
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "Check status Anh Duong Core health/ready. "
+            "Read only, no changes except deploy if unhealthy, no restart."
+        ),
+        (
+            "Rotate credentials, then check status Anh Duong Core health/ready. "
+            "Read only, no changes and no restart."
+        ),
+    ],
+)
+def test_readonly_mixed_action_on_either_side_never_bypasses_policy(text: str) -> None:
+    project = _project()
+    prepared = _pipeline(project_reader=ProjectReader((project,))).prepare(
+        CoreRequest(
+            text=text,
+            request_id=f"readonly-bidirectional-{abs(hash(text))}",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id=f"readonly-bidirectional-message-{abs(hash(text))}",
+        )
+    )
+
+    assert prepared.workflow is not None
+    assert prepared.workflow.approval_required is True
+    assert prepared.workflow.policy_decision is not DecisionKind.ALLOW

@@ -48,6 +48,8 @@ _HARMLESS_REPORT_MARKERS = (
     "return result",
     "summary",
     "tom tat",
+    "bao ngan gon",
+    "report briefly",
     "giai thich",
     "explain",
     "ket luan",
@@ -75,6 +77,8 @@ _SAFE_CONTINUATION_CLAUSES = frozenset(
         "openclaw",
         "he thong",
         "system",
+        "duong",
+        "thoi",
     }
 )
 
@@ -135,7 +139,9 @@ def requests_database_quick_check(intent: SafetyIntent) -> bool:
     return "database" in normalized and "quick check" in normalized
 
 
-_CONTRAST_TOKENS = frozenset({"nhung", "but", "however"})
+_CONTRAST_TOKENS = frozenset(
+    {"nhung", "but", "however", "except", "excluding", "ngoai", "tru", "unless"}
+)
 _MUTATION_MARKERS = (
     "sua",
     "chinh sua",
@@ -340,7 +346,7 @@ def _split_coordination_boundaries(clause: str) -> list[str]:
 def _semantic_clauses(text: str) -> list[str]:
     folded = _fold_preserving_boundaries(text)
     primary = re.split(
-        r"[.!?;\n]+|\b(?:nhung|but|however|then)\b",
+        r"[.!?;\n]+|\b(?:nhung|but|however|then|except|excluding|ngoai\s+tru|tru\s+khi|unless)\b",
         folded,
     )
     clauses: list[str] = []
@@ -405,7 +411,7 @@ def _is_harmless_post_readonly_clause(normalized_clause: str) -> bool:
 def _sequence_clauses(text: str) -> list[str]:
     folded = _fold_preserving_boundaries(text)
     primary = re.split(
-        r"[.!?;:/\n\u2013\u2014]+|->|=>|\b(?:nhung|but|however|then|va|and)\b",
+        r"[.!?;:/\n\u2013\u2014]+|->|=>|\b(?:nhung|but|however|then|except|excluding|ngoai\s+tru|tru\s+khi|unless|va|and)\b",
         folded,
     )
     clauses: list[str] = []
@@ -432,13 +438,28 @@ def _sequence_clauses(text: str) -> list[str]:
     return clauses
 
 
-def _has_ambiguous_post_readonly_action(text: str) -> bool:
-    read_only_seen = False
-    for normalized_clause in _sequence_clauses(text):
-        if _contains_any(normalized_clause, _READ_ONLY_MARKERS):
-            read_only_seen = True
+def _has_ambiguous_readonly_action(text: str) -> bool:
+    normalized = normalize_semantic_text(text)
+    if not (
+        _has_status_language(normalized)
+        and "health" in normalized
+        and "ready" in normalized
+    ):
+        return False
+    clauses = _sequence_clauses(text)
+    if not any(_contains_any(clause, _READ_ONLY_MARKERS) for clause in clauses):
+        return False
+    for clause in clauses:
+        matching_marker = next(
+            (marker for marker in _READ_ONLY_MARKERS if _contains_any(clause, (marker,))),
+            None,
+        )
+        if matching_marker is not None:
+            suffix = clause.split(matching_marker, 1)[1].strip()
+            if suffix and not _is_harmless_post_readonly_clause(suffix):
+                return True
             continue
-        if read_only_seen and not _is_harmless_post_readonly_clause(normalized_clause):
+        if not _is_harmless_post_readonly_clause(clause):
             return True
     return False
 
@@ -453,7 +474,7 @@ def _has_unnegated_mutation(text: str) -> bool:
             residual = residual.replace(f" {scope} ", " ")
         if _contains_any(" ".join(residual.split()), _SIDE_EFFECT_MARKERS):
             return True
-    return _has_ambiguous_post_readonly_action(text)
+    return _has_ambiguous_readonly_action(text)
 
 
 def _fold_preserving_boundaries(text: str) -> str:
