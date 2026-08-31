@@ -14,6 +14,7 @@ from app.safety_intent import (
     SafetyConstraint,
     analyze_safety_intent,
     is_read_only_core_status_intent,
+    is_read_only_status_intent,
 )
 
 _OPERATIONAL_GUIDANCE_MARKERS = (
@@ -69,25 +70,17 @@ class WorkflowResolver:
             PolicyAction(
                 name=action_name,
                 declared_risk_level=declared_risk,
-                workspace_root=(
-                    Path(project.path_wsl)
-                    if project.path_wsl is not None
-                    else None
-                ),
+                workspace_root=(Path(project.path_wsl) if project.path_wsl is not None else None),
             )
         )
-        constraints = tuple(
-            self._stringify(item) for item in project.constraints
-        ) + safety_constraints
+        constraints = (
+            tuple(self._stringify(item) for item in project.constraints) + safety_constraints
+        )
         return WorkflowEnvelope(
             project_id=project.id,
             title=normalized_text[:255],
             goal=normalized_text,
-            mode=(
-                "quick"
-                if decision.effective_risk_level is RiskLevel.READ_ONLY
-                else "build"
-            ),
+            mode=("quick" if decision.effective_risk_level is RiskLevel.READ_ONLY else "build"),
             priority=project.priority.value,
             risk_level=decision.effective_risk_level,
             approval_required=decision.kind is not DecisionKind.ALLOW,
@@ -112,13 +105,11 @@ class WorkflowResolver:
     ) -> tuple[str, RiskLevel | None, tuple[str, ...]]:
         safety = analyze_safety_intent(text)
         folded = text.casefold()
-        has_read_only_status_check = is_read_only_core_status_intent(safety)
-        has_operational_guidance = (
-            capability is CapabilityKind.SYSTEM_OPERATION
-            and any(
-                marker in folded
-                for marker in _OPERATIONAL_GUIDANCE_MARKERS
-            )
+        has_read_only_status_check = is_read_only_status_intent(
+            safety
+        ) or is_read_only_core_status_intent(safety)
+        has_operational_guidance = capability is CapabilityKind.SYSTEM_OPERATION and any(
+            marker in folded for marker in _OPERATIONAL_GUIDANCE_MARKERS
         )
         if capability is CapabilityKind.VISUAL_PROMPT_COMPOSE:
             return (

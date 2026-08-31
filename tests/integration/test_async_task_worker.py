@@ -1122,3 +1122,50 @@ async def test_requested_quick_check_uses_separate_database_probe(
     assert run.status is AsyncRunStatus.COMPLETED
     payload = json.loads(run.result_json or "{}")
     assert payload["artifacts"]["database"]["quick_check"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_requested_quick_check_failure_blocks_instead_of_stranding_run(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    goal = (
+        "Kiểm tra tình trạng Ánh Dương Core health/ready và database quick_check. "
+        "Chỉ đọc, không sửa hay restart gì."
+    )
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="quick-check-probe-failure",
+        goal=goal,
+    )
+
+    async def core_status_probe() -> dict[str, object]:
+        return {
+            "service": {"status": "running", "evidence": "local_http:/health"},
+            "health": {"http_status": 200, "status": "ok"},
+            "ready": {"http_status": 200, "status": "ready"},
+        }
+
+    worker = _worker(
+        session_factory=session_factory,
+        tmp_path=tmp_path,
+        executor=SequenceExecutor([]),
+        clock=[NOW],
+        core_status_probe=core_status_probe,
+    )
+
+    def fail_quick_check() -> str:
+        raise RuntimeError("database unavailable")
+
+    worker._probe_database_quick_check = fail_quick_check  # type: ignore[method-assign]
+    assert await worker.run_once() is True
+    with session_factory() as session:
+        run = AsyncTaskRepository(session).get(run_id)
+        task = TaskService(TaskRepository(session), _audit(tmp_path)).get(task_id)
+    assert run.status is AsyncRunStatus.BLOCKED
+    assert task.status is TaskStatus.BLOCKED
+    assert run.last_error_code == "database_quick_check_failed"
+    payload = json.loads(run.result_json or "{}")
+    assert payload["artifacts"]["database"]["quick_check"] == "unavailable"
+    assert "database unavailable" not in (run.last_error_message or "")

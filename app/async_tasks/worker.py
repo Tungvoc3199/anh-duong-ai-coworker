@@ -1202,9 +1202,7 @@ class AsyncTaskWorker:
     def _is_core_health_ready_workflow(
         request: AsyncTaskCreate,
     ) -> bool:
-        return is_read_only_core_status_intent(
-            analyze_safety_intent(request.goal)
-        )
+        return is_read_only_core_status_intent(analyze_safety_intent(request.goal))
 
     async def _execute_core_health_ready_workflow(
         self,
@@ -1226,24 +1224,21 @@ class AsyncTaskWorker:
             and ready.get("status") == "ready"
         )
         database = statuses.get("database", {})
+        database_probe_failed = False
         if require_database_quick_check and not (
             isinstance(database, dict) and "quick_check" in database
         ):
-            database = {
-                "quick_check": await asyncio.to_thread(
-                    self._probe_database_quick_check
-                )
-            }
-        database_ok = (
-            isinstance(database, dict)
-            and database.get("quick_check") == "ok"
+            try:
+                quick_check = await asyncio.to_thread(self._probe_database_quick_check)
+            except Exception:
+                database_probe_failed = True
+                quick_check = "unavailable"
+            database = {"quick_check": quick_check}
+        database_ok = isinstance(database, dict) and database.get("quick_check") == "ok"
+        required_checks_ok = (
+            health_ok and ready_ok and (database_ok if require_database_quick_check else True)
         )
-        required_checks_ok = health_ok and ready_ok and (
-            database_ok if require_database_quick_check else True
-        )
-        outcome: Literal["completed", "blocked"] = (
-            "completed" if required_checks_ok else "blocked"
-        )
+        outcome: Literal["completed", "blocked"] = "completed" if required_checks_ok else "blocked"
         service = statuses.get("service", {})
         service_status = (
             service.get("status")
@@ -1293,6 +1288,7 @@ class AsyncTaskWorker:
             files_changed=(),
             commands_run=(),
             tests=(),
+            error_code=("database_quick_check_failed" if database_probe_failed else None),
             profile="CE-2",
             criterion_verification=(
                 tuple(
@@ -1302,11 +1298,7 @@ class AsyncTaskWorker:
                         evidence_refs=(
                             "core:http:/health",
                             "core:http:/ready",
-                            *(
-                                ("core:db:quick_check",)
-                                if require_database_quick_check
-                                else ()
-                            ),
+                            *(("core:db:quick_check",) if require_database_quick_check else ()),
                         ),
                         explanation=(
                             "Core-owned read-only health/ready probes passed"
@@ -1337,11 +1329,7 @@ class AsyncTaskWorker:
             ready_response = await client.get("http://127.0.0.1:8790/ready")
         return {
             "service": {
-                "status": (
-                    "running"
-                    if health_response.status_code == 200
-                    else "unavailable"
-                ),
+                "status": ("running" if health_response.status_code == 200 else "unavailable"),
                 "evidence": "local_http:/health",
             },
             "health": {
@@ -1356,9 +1344,7 @@ class AsyncTaskWorker:
 
     def _probe_database_quick_check(self) -> str | None:
         with self.session_factory() as session:
-            return session.connection().exec_driver_sql(
-                "PRAGMA quick_check"
-            ).scalar()
+            return session.connection().exec_driver_sql("PRAGMA quick_check").scalar()
 
     def _handle_transport_error(
         self,

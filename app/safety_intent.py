@@ -33,18 +33,33 @@ class SafetyIntent:
         return tuple(item.value for item in self.constraints)
 
 
+def _has_status_language(normalized: str) -> bool:
+    return any(marker in normalized for marker in ("trang thai", "tinh trang", "status"))
+
+
+def is_read_only_status_intent(intent: SafetyIntent) -> bool:
+    normalized = intent.normalized_text
+    return (
+        "kiem tra" in normalized
+        and _has_status_language(normalized)
+        and "health" in normalized
+        and "ready" in normalized
+        and intent.has(SafetyConstraint.READ_ONLY)
+        and intent.has(SafetyConstraint.NO_FILE_CHANGES)
+        and intent.has(SafetyConstraint.NO_CONFIG_CHANGES)
+        and intent.has(SafetyConstraint.NO_SERVICE_RESTART)
+        and not intent.unnegated_mutation
+    )
+
+
 def is_read_only_core_status_intent(intent: SafetyIntent) -> bool:
     normalized = intent.normalized_text
     padded = f" {normalized} "
     has_core_identity = " core " in padded or " anh duong " in padded
-    has_status_language = any(
-        marker in normalized
-        for marker in ("trang thai", "tinh trang", "status")
-    )
     return (
         has_core_identity
         and "kiem tra" in normalized
-        and has_status_language
+        and _has_status_language(normalized)
         and "health" in normalized
         and "ready" in normalized
         and intent.has(SafetyConstraint.READ_ONLY)
@@ -74,6 +89,23 @@ _MUTATION_MARKERS = (
     "create",
     "delete",
 )
+_SIDE_EFFECT_MARKERS = _MUTATION_MARKERS + (
+    "restart",
+    "khoi dong lai",
+    "deploy",
+    "trien khai",
+    "install",
+    "cai dat",
+    "uninstall",
+    "go cai dat",
+    "push",
+    "merge",
+    "commit",
+    "publish",
+    "upload",
+    "send",
+    "gui",
+)
 _INVOKE_MARKERS = (
     "goi",
     "dung",
@@ -89,9 +121,7 @@ _INVOKE_MARKERS = (
 def normalize_semantic_text(text: str) -> str:
     decomposed = unicodedata.normalize("NFKD", text.casefold())
     without_marks = "".join(
-        character
-        for character in decomposed
-        if not unicodedata.combining(character)
+        character for character in decomposed if not unicodedata.combining(character)
     ).replace("đ", "d")
     return " ".join(re.sub(r"[^a-z0-9]+", " ", without_marks).split())
 
@@ -135,9 +165,7 @@ def _negated_scopes(text: str) -> list[str]:
     folded = _fold_preserving_boundaries(text)
     scopes: list[str] = []
     for clause in re.split(r"[.!?;\n]+", folded):
-        normalized_clause = " ".join(
-            re.sub(r"[^a-z0-9]+", " ", clause).split()
-        )
+        normalized_clause = " ".join(re.sub(r"[^a-z0-9]+", " ", clause).split())
         tokens = normalized_clause.split()
         for index, token in enumerate(tokens):
             if token not in {"khong", "no"}:
@@ -151,16 +179,48 @@ def _negated_scopes(text: str) -> list[str]:
     return scopes
 
 
-def _has_unnegated_mutation(text: str) -> bool:
+def _starts_with_positive_command(text: str) -> bool:
+    tokens = text.split()
+    if not tokens or tokens[0] not in {"hay", "please", "then", "roi"}:
+        return False
+    tokens.pop(0)
+    residual = " ".join(tokens)
+    return any(
+        residual == marker or residual.startswith(f"{marker} ") for marker in _SIDE_EFFECT_MARKERS
+    )
+
+
+def _side_effect_clauses(text: str) -> list[str]:
     folded = _fold_preserving_boundaries(text)
-    for clause in re.split(r"[.!?;\n]+", folded):
-        normalized_clause = " ".join(
-            re.sub(r"[^a-z0-9]+", " ", clause).split()
-        )
+    primary = re.split(
+        r"[.!?;\n]+|\b(?:nhung|but|however)\b",
+        folded,
+    )
+    clauses: list[str] = []
+    for raw_clause in primary:
+        combined = ""
+        for fragment in raw_clause.split(","):
+            normalized_fragment = " ".join(re.sub(r"[^a-z0-9]+", " ", fragment).split())
+            if combined and _starts_with_positive_command(normalized_fragment):
+                clauses.append(combined)
+                combined = fragment
+            else:
+                combined = f"{combined} {fragment}".strip()
+        if combined:
+            clauses.append(combined)
+    return clauses
+
+
+def _has_unnegated_mutation(text: str) -> bool:
+    for clause in _side_effect_clauses(text):
+        normalized_clause = " ".join(re.sub(r"[^a-z0-9]+", " ", clause).split())
         residual = f" {normalized_clause} "
         for scope in _negated_scopes(clause):
             residual = residual.replace(f" {scope} ", " ")
-        if _contains_any(" ".join(residual.split()), _MUTATION_MARKERS):
+        if _contains_any(
+            " ".join(residual.split()),
+            _SIDE_EFFECT_MARKERS,
+        ):
             return True
     return False
 
@@ -168,9 +228,7 @@ def _has_unnegated_mutation(text: str) -> bool:
 def _fold_preserving_boundaries(text: str) -> str:
     decomposed = unicodedata.normalize("NFKD", text.casefold())
     return "".join(
-        character
-        for character in decomposed
-        if not unicodedata.combining(character)
+        character for character in decomposed if not unicodedata.combining(character)
     ).replace("đ", "d")
 
 
@@ -210,8 +268,7 @@ def _is_no_invocation(scope: str, targets: tuple[str, ...]) -> bool:
     if not _contains_any(scope, targets):
         return False
     return _contains_any(scope, _INVOKE_MARKERS) or any(
-        scope == f"khong {target}" or scope == f"no {target}"
-        for target in targets
+        scope == f"khong {target}" or scope == f"no {target}" for target in targets
     )
 
 

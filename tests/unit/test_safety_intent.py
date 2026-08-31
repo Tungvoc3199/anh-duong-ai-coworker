@@ -59,3 +59,29 @@ def test_negation_scope_does_not_cross_contrast_boundary() -> None:
 
     assert SafetyConstraint.NO_FILE_CHANGES in intent.constraints
     assert SafetyConstraint.NO_CONFIG_CHANGES not in intent.constraints
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+            "không restart service, nhưng deploy bản mới."
+        ),
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+            "không restart service, nhưng restart nếu lỗi."
+        ),
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+            "không restart service, nhưng install package nếu lỗi."
+        ),
+        (
+            "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+            "không restart service, hãy sửa config nếu lỗi."
+        ),
+    ],
+)
+def test_readonly_status_intent_detects_unnegated_side_effects(text: str) -> None:
+    intent = analyze_safety_intent(text)
+    assert intent.unnegated_mutation is True

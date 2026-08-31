@@ -220,13 +220,11 @@ def test_direct_request_produces_complete_prepared_request() -> None:
         content_hash="b" * 64,
     )
     assert prepared.route_decision.route is FastRoute.DIRECT
-    assert (
-        prepared.capability_decision.capability
-        is CapabilityKind.CONVERSATIONAL_RESPONSE
-    )
+    assert prepared.capability_decision.capability is CapabilityKind.CONVERSATIONAL_RESPONSE
     assert prepared.execution_required is False
     assert prepared.workflow is None
     assert prepared.created_at == NOW
+
 
 def test_workflow_context_includes_effective_runtime_policy() -> None:
     project = _project()
@@ -295,28 +293,21 @@ def test_dr1_casual_conversation_does_not_create_workflow(text: str) -> None:
     ).prepare(CoreRequest(text=text))
 
     assert prepared.route_decision.route is FastRoute.DIRECT
-    assert (
-        prepared.capability_decision.capability
-        is CapabilityKind.CONVERSATIONAL_RESPONSE
-    )
+    assert prepared.capability_decision.capability is CapabilityKind.CONVERSATIONAL_RESPONSE
     assert prepared.execution_required is False
     assert prepared.workflow is None
+
 
 def test_tg1_simple_arithmetic_request_routes_direct() -> None:
     prepared = _pipeline().prepare(
         CoreRequest(
-            text=(
-                "TG1-DIRECT-20260801 — Tính 27 + 15 và trả lời ngắn gọn."
-            ),
+            text=("TG1-DIRECT-20260801 — Tính 27 + 15 và trả lời ngắn gọn."),
             request_id="tg1-direct-regression",
         )
     )
 
     assert prepared.route_decision.route is FastRoute.DIRECT
-    assert (
-        prepared.capability_decision.capability
-        is CapabilityKind.CONVERSATIONAL_RESPONSE
-    )
+    assert prepared.capability_decision.capability is CapabilityKind.CONVERSATIONAL_RESPONSE
     assert prepared.execution_required is False
 
 
@@ -442,10 +433,7 @@ def test_dr1r_exact_telegram_gate_is_risk_zero_without_approval() -> None:
     )
 
     assert prepared.route_decision.route is FastRoute.WORKFLOW
-    assert (
-        prepared.capability_decision.capability
-        is not CapabilityKind.UNKNOWN_WORKFLOW
-    )
+    assert prepared.capability_decision.capability is not CapabilityKind.UNKNOWN_WORKFLOW
     assert prepared.execution_required is True
     assert prepared.workflow is not None
     assert prepared.workflow.risk_level is RiskLevel.READ_ONLY
@@ -519,10 +507,7 @@ def test_advisory_action_mentions_do_not_create_workflow(text: str) -> None:
 
     assert prepared.route_decision.route is FastRoute.DIRECT
     assert prepared.route_decision.rule_id == "routing.direct.advisory_action_mention"
-    assert (
-        prepared.capability_decision.capability
-        is CapabilityKind.CONVERSATIONAL_RESPONSE
-    )
+    assert prepared.capability_decision.capability is CapabilityKind.CONVERSATIONAL_RESPONSE
     assert prepared.execution_required is False
     assert prepared.workflow is None
     assert prepared.project_id is None
@@ -542,10 +527,7 @@ def test_advisory_workflow_mentions_do_not_create_workflow(text: str) -> None:
 
     assert prepared.route_decision.route is FastRoute.DIRECT
     assert prepared.route_decision.rule_id == "routing.direct.advisory_action_mention"
-    assert (
-        prepared.capability_decision.capability
-        is CapabilityKind.CONVERSATIONAL_RESPONSE
-    )
+    assert prepared.capability_decision.capability is CapabilityKind.CONVERSATIONAL_RESPONSE
     assert prepared.execution_required is False
     assert prepared.workflow is None
 
@@ -639,13 +621,9 @@ def test_missing_project_and_task_raise_clear_pipeline_errors() -> None:
     pipeline = _pipeline()
 
     with pytest.raises(ProjectContextNotFound, match="proj_missing"):
-        pipeline.prepare(
-            CoreRequest(text="Xem Project missing.", project_id="proj_missing")
-        )
+        pipeline.prepare(CoreRequest(text="Xem Project missing.", project_id="proj_missing"))
     with pytest.raises(TaskContextNotFound, match="task_missing"):
-        pipeline.prepare(
-            CoreRequest(text="Xem Task missing.", task_id="task_missing")
-        )
+        pipeline.prepare(CoreRequest(text="Xem Task missing.", task_id="task_missing"))
 
 
 def test_explicit_task_project_mismatch_is_rejected() -> None:
@@ -673,22 +651,15 @@ def test_fixed_clock_and_id_make_output_deterministic() -> None:
 
 
 def test_context_warning_budget_decisions_and_provenance_are_propagated() -> None:
-    prepared = _pipeline(retriever=FailingRetriever()).prepare(
-        CoreRequest(text="Xin chào!")
-    )
+    prepared = _pipeline(retriever=FailingRetriever()).prepare(CoreRequest(text="Xin chào!"))
 
-    assert prepared.warnings == (
-        "memory_retrieval_failed: MemoryRepositoryError",
-    )
+    assert prepared.warnings == ("memory_retrieval_failed: MemoryRepositoryError",)
     assert prepared.warnings == prepared.context.warnings
     assert prepared.context.estimated_tokens <= (
         prepared.context.token_budget.usable_context_tokens
     )
     assert prepared.provenance.route_rule_id == prepared.route_decision.rule_id
-    assert (
-        prepared.provenance.capability_reason_code
-        == prepared.capability_decision.reason_code
-    )
+    assert prepared.provenance.capability_reason_code == prepared.capability_decision.reason_code
     assert "request:current" in prepared.provenance.context_source_refs
 
 
@@ -697,9 +668,7 @@ def test_secret_is_redacted_from_all_prepared_response_text() -> None:
 
     prepared = _pipeline(
         project_reader=ProjectReader((_project(),)),
-    ).prepare(
-        CoreRequest(text=f"Ghi nhớ api_key={secret}")
-    )
+    ).prepare(CoreRequest(text=f"Ghi nhớ api_key={secret}"))
 
     serialized = str(prepared.model_dump(mode="json"))
     assert secret not in serialized
@@ -743,9 +712,7 @@ def test_success_writes_one_minimal_audit_event() -> None:
 def test_context_bundle_preserves_required_section_order() -> None:
     prepared = _pipeline().prepare(CoreRequest(text="Xin chào!"))
 
-    assert tuple(section.kind for section in prepared.context.sections) == tuple(
-        ContextSectionKind
-    )
+    assert tuple(section.kind for section in prepared.context.sections) == tuple(ContextSectionKind)
 
 
 def test_natural_vietnamese_readonly_health_ready_preserves_safety() -> None:
@@ -913,3 +880,56 @@ def test_mixed_readonly_and_mutation_never_uses_readonly_fast_path() -> None:
     assert prepared.workflow is not None
     assert prepared.workflow.approval_required is True
     assert prepared.workflow.policy_decision is not DecisionKind.ALLOW
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    [
+        "nhưng deploy bản mới",
+        "nhưng restart nếu lỗi",
+        "nhưng install package nếu lỗi",
+        "hãy sửa config nếu lỗi",
+    ],
+)
+def test_mixed_readonly_status_and_positive_side_effect_requires_approval(suffix: str) -> None:
+    project = _project()
+    text = (
+        "Kiểm tra tình trạng Ánh Dương Core health/ready, chỉ đọc, "
+        f"không restart service, {suffix}."
+    )
+    prepared = _pipeline(project_reader=ProjectReader((project,))).prepare(
+        CoreRequest(
+            text=text,
+            request_id=f"mixed-side-effect-{suffix}",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id=f"message-{suffix}",
+        )
+    )
+    assert prepared.workflow is not None
+    assert prepared.workflow.approval_required is True
+
+
+def test_generic_gateway_readonly_health_check_remains_approval_free() -> None:
+    project = _project()
+    text = (
+        "Kiểm tra trạng thái Gateway health và ready bằng chế độ chỉ đọc, "
+        "không sửa file, không sửa config, không restart service."
+    )
+    prepared = _pipeline(project_reader=ProjectReader((project,))).prepare(
+        CoreRequest(
+            text=text,
+            request_id="generic-gateway-readonly-health",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id="message-gateway-readonly-health",
+        )
+    )
+    assert prepared.workflow is not None
+    assert prepared.workflow.approval_required is False
+    assert prepared.workflow.policy_decision is DecisionKind.ALLOW
+    assert prepared.workflow.policy_rule_id == "risk.read_only.allow"
