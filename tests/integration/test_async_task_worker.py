@@ -1174,3 +1174,46 @@ async def test_requested_quick_check_failure_blocks_instead_of_stranding_run(
     payload = json.loads(run.result_json or "{}")
     assert payload["artifacts"]["database"]["quick_check"] == "unavailable"
     assert "database unavailable" not in (run.last_error_message or "")
+
+
+@pytest.mark.asyncio
+async def test_http_response_proves_service_running_even_when_health_fails(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeResponse:
+        def __init__(self, status_code: int, status: str) -> None:
+            self.status_code = status_code
+            self._status = status
+
+        def json(self) -> dict[str, str]:
+            return {"status": self._status}
+
+    class FakeClient:
+        async def __aenter__(self) -> FakeClient:
+            return self
+
+        async def __aexit__(self, *args: object) -> None:
+            return None
+
+        async def get(self, url: str) -> FakeResponse:
+            if url.endswith("/health"):
+                return FakeResponse(503, "degraded")
+            return FakeResponse(200, "ready")
+
+    monkeypatch.setattr(
+        "app.async_tasks.worker.httpx.AsyncClient",
+        lambda **_: FakeClient(),
+    )
+    worker = _worker(
+        session_factory=session_factory,
+        tmp_path=tmp_path,
+        executor=SequenceExecutor([]),
+        clock=[NOW],
+    )
+
+    result = await worker._probe_local_core_status()
+
+    assert result["service"]["status"] == "running"
+    assert result["health"]["http_status"] == 503

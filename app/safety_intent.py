@@ -360,7 +360,11 @@ def _has_status_language(normalized: str) -> bool:
 
 
 def _has_observation_language(normalized: str) -> bool:
-    return any(marker in normalized for marker in _OBSERVATION_MARKERS)
+    observation_text = normalized
+    for marker in _READ_ONLY_MARKERS:
+        observation_text = observation_text.replace(marker, " ")
+    observation_text = " ".join(observation_text.split())
+    return _contains_any(observation_text, _OBSERVATION_MARKERS)
 
 
 def _has_strong_read_only_boundary(intent: SafetyIntent) -> bool:
