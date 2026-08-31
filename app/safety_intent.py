@@ -32,6 +32,30 @@ class SafetyIntent:
         return tuple(item.value for item in self.constraints)
 
 
+def is_read_only_core_status_intent(intent: SafetyIntent) -> bool:
+    normalized = intent.normalized_text
+    padded = f" {normalized} "
+    has_core_identity = " core " in padded or " anh duong " in padded
+    has_status_language = any(
+        marker in normalized
+        for marker in ("trang thai", "tinh trang", "status")
+    )
+    return (
+        has_core_identity
+        and "kiem tra" in normalized
+        and has_status_language
+        and "health" in normalized
+        and "ready" in normalized
+        and intent.has(SafetyConstraint.READ_ONLY)
+        and intent.has(SafetyConstraint.NO_SERVICE_RESTART)
+    )
+
+
+def requests_database_quick_check(intent: SafetyIntent) -> bool:
+    normalized = intent.normalized_text
+    return "database" in normalized and "quick check" in normalized
+
+
 _CONTRAST_TOKENS = frozenset({"nhung", "but", "however"})
 _MUTATION_MARKERS = (
     "sua",

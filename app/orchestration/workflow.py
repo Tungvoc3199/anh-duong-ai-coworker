@@ -10,7 +10,11 @@ from app.orchestration.models import CoreRequest, WorkflowEnvelope
 from app.policy import DecisionKind, PolicyAction, PolicyEngine, RiskLevel
 from app.privacy import telegram_idempotency_key
 from app.projects import Project
-from app.safety_intent import SafetyConstraint, analyze_safety_intent
+from app.safety_intent import (
+    SafetyConstraint,
+    analyze_safety_intent,
+    is_read_only_core_status_intent,
+)
 
 _OPERATIONAL_GUIDANCE_MARKERS = (
     "hướng dẫn",
@@ -108,17 +112,7 @@ class WorkflowResolver:
     ) -> tuple[str, RiskLevel | None, tuple[str, ...]]:
         safety = analyze_safety_intent(text)
         folded = text.casefold()
-        normalized = safety.normalized_text
-        has_read_only_status_check = (
-            safety.has(SafetyConstraint.READ_ONLY)
-            and "kiem tra" in normalized
-            and "trang thai" in normalized
-            and "health" in normalized
-            and "ready" in normalized
-            and safety.has(SafetyConstraint.NO_FILE_CHANGES)
-            and safety.has(SafetyConstraint.NO_CONFIG_CHANGES)
-            and safety.has(SafetyConstraint.NO_SERVICE_RESTART)
-        )
+        has_read_only_status_check = is_read_only_core_status_intent(safety)
         has_operational_guidance = (
             capability is CapabilityKind.SYSTEM_OPERATION
             and any(
@@ -164,6 +158,7 @@ class WorkflowResolver:
                         SafetyConstraint.NO_SERVICE_RESTART.value,
                         SafetyConstraint.NO_PACKAGE_INSTALL.value,
                         SafetyConstraint.NO_DEPLOY.value,
+                        SafetyConstraint.NO_SYSTEM_MUTATION.value,
                         *safety.values(),
                     )
                 )

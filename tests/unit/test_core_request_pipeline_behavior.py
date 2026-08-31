@@ -853,3 +853,40 @@ def test_question_mark_follow_up_does_not_create_execution_workflow() -> None:
     assert prepared.execution_required is False
     assert prepared.workflow is None
     assert prepared.project_id is None
+
+
+def test_exact_user_readonly_system_check_never_requires_owner_approval() -> None:
+    project = _project()
+    text = (
+        "Dương, kiểm tra tình trạng hệ thống Ánh Dương hiện tại giúp anh.\n\n"
+        "Yêu cầu:\n"
+        "- kiểm tra Core service;\n"
+        "- kiểm tra /health và /ready;\n"
+        "- kiểm tra database quick_check;\n"
+        "- chỉ đọc, không sửa hay restart gì;\n"
+        "- chỉ báo thành công khi có bằng chứng kiểm tra thật."
+    )
+    prepared = _pipeline(project_reader=ProjectReader((project,))).prepare(
+        CoreRequest(
+            text=text,
+            request_id="ad-bug-tg-readonly-intent-1",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id="message-readonly-intent-1",
+        )
+    )
+
+    assert prepared.route_decision.route is FastRoute.WORKFLOW
+    assert prepared.workflow is not None
+    assert prepared.workflow.mode == "quick"
+    assert prepared.workflow.risk_level is RiskLevel.READ_ONLY
+    assert prepared.workflow.approval_required is False
+    assert prepared.workflow.policy_decision is DecisionKind.ALLOW
+    assert prepared.workflow.policy_rule_id == "risk.read_only.allow"
+    assert "read_only" in prepared.workflow.constraints
+    assert "no_file_changes" in prepared.workflow.constraints
+    assert "no_config_changes" in prepared.workflow.constraints
+    assert "no_service_restart" in prepared.workflow.constraints
+    assert "no_system_mutation" in prepared.workflow.constraints

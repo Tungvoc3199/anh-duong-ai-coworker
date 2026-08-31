@@ -44,7 +44,11 @@ from app.planning.repository import PlanPersistenceConflict, PlanRepository
 from app.planning.scheduler import PlanNodeScheduler
 from app.planning.truth import PlanningTruthError, PlanningTruthInspector
 from app.projects.repository import ProjectRepository
-from app.safety_intent import SafetyConstraint, analyze_safety_intent
+from app.safety_intent import (
+    analyze_safety_intent,
+    is_read_only_core_status_intent,
+    requests_database_quick_check,
+)
 from app.tasks import TaskRepository, TaskService, TaskStatus
 
 RETRY_DELAYS_SECONDS = (5, 30)
@@ -392,7 +396,10 @@ class AsyncTaskWorker:
                 if self._is_core_health_ready_workflow(request):
                     provenance = "core"
                     result = await self._execute_core_health_ready_workflow(
-                        dod_criteria=plan.definition_of_done.criteria
+                        dod_criteria=plan.definition_of_done.criteria,
+                        require_database_quick_check=requests_database_quick_check(
+                            analyze_safety_intent(request.goal)
+                        ),
                     )
                 else:
                     result = await self.executor.execute(execution_request)
@@ -1194,26 +1201,15 @@ class AsyncTaskWorker:
     def _is_core_health_ready_workflow(
         request: AsyncTaskCreate,
     ) -> bool:
-        safety = analyze_safety_intent(request.goal)
-        goal = safety.normalized_text
-        padded_goal = f" {goal} "
-        has_core_identity = " core " in padded_goal or " anh duong " in padded_goal
-        return (
-            has_core_identity
-            and "kiem tra" in goal
-            and "trang thai" in goal
-            and "health" in goal
-            and "ready" in goal
-            and safety.has(SafetyConstraint.READ_ONLY)
-            and safety.has(SafetyConstraint.NO_FILE_CHANGES)
-            and safety.has(SafetyConstraint.NO_CONFIG_CHANGES)
-            and safety.has(SafetyConstraint.NO_SERVICE_RESTART)
+        return is_read_only_core_status_intent(
+            analyze_safety_intent(request.goal)
         )
 
     async def _execute_core_health_ready_workflow(
         self,
         *,
         dod_criteria: tuple[str, ...] = (),
+        require_database_quick_check: bool = False,
     ) -> OpenClawExecutionResult:
         statuses = await self.core_status_probe()
         health = statuses.get("health", {})
@@ -1228,24 +1224,49 @@ class AsyncTaskWorker:
             and ready.get("http_status") == 200
             and ready.get("status") == "ready"
         )
+        database = statuses.get("database", {})
+        database_ok = (
+            isinstance(database, dict)
+            and database.get("quick_check") == "ok"
+        )
+        required_checks_ok = health_ok and ready_ok and (
+            database_ok if require_database_quick_check else True
+        )
         outcome: Literal["completed", "blocked"] = (
-            "completed" if health_ok and ready_ok else "blocked"
+            "completed" if required_checks_ok else "blocked"
+        )
+        service = statuses.get("service", {})
+        service_status = (
+            service.get("status")
+            if isinstance(service, dict) and service.get("status")
+            else ("running" if health_ok else "unavailable")
+        )
+        quick_check_summary = (
+            f", quick_check={database.get('quick_check')!s}"
+            if require_database_quick_check and isinstance(database, dict)
+            else ""
         )
         summary = (
-            "Đã kiểm tra read-only /health và /ready của Ánh Dương Core: "
-            f"/health={health.get('status')!s}, /ready={ready.get('status')!s}."
+            "Đã kiểm tra read-only: "
+            f"Core service={service_status!s}, "
+            f"/health={health.get('status')!s}, "
+            f"/ready={ready.get('status')!s}{quick_check_summary}."
             if outcome == "completed"
             else (
-                "Không xác minh được đầy đủ /health và /ready của "
-                "Ánh Dương Core bằng kiểm tra read-only nội bộ."
+                "Kiểm tra read-only chưa đạt: "
+                f"Core service={service_status!s}, "
+                f"/health={health.get('status')!s}, "
+                f"/ready={ready.get('status')!s}{quick_check_summary}."
             )
         )
         return OpenClawExecutionResult(
             outcome=outcome,
             summary=summary,
             artifacts={
+                "service": service,
                 "health": health,
                 "ready": ready,
+                "database": database,
                 "changes_made": "none",
                 "file_changes": "none",
                 "config_changes": "none",
@@ -1269,8 +1290,23 @@ class AsyncTaskWorker:
                     CriterionVerification(
                         criterion=criterion,
                         status="verified",
-                        evidence_refs=("core:http:/health", "core:http:/ready"),
-                        explanation="Core-owned read-only HTTP probes both passed.",
+                        evidence_refs=(
+                            "core:http:/health",
+                            "core:http:/ready",
+                            *(
+                                ("core:db:quick_check",)
+                                if require_database_quick_check
+                                else ()
+                            ),
+                        ),
+                        explanation=(
+                            "Core-owned read-only health/ready probes passed"
+                            + (
+                                " and database quick_check returned ok."
+                                if require_database_quick_check
+                                else "."
+                            )
+                        ),
                     )
                     for criterion in dod_criteria
                 )
@@ -1286,12 +1322,23 @@ class AsyncTaskWorker:
             ),
         )
 
-    @staticmethod
-    async def _probe_local_core_status() -> dict[str, Any]:
+    async def _probe_local_core_status(self) -> dict[str, Any]:
         async with httpx.AsyncClient(timeout=5.0) as client:
             health_response = await client.get("http://127.0.0.1:8790/health")
             ready_response = await client.get("http://127.0.0.1:8790/ready")
+        with self.session_factory() as session:
+            quick_check = session.connection().exec_driver_sql(
+                "PRAGMA quick_check"
+            ).scalar()
         return {
+            "service": {
+                "status": (
+                    "running"
+                    if health_response.status_code == 200
+                    else "unavailable"
+                ),
+                "evidence": "local_http:/health",
+            },
             "health": {
                 "http_status": health_response.status_code,
                 **health_response.json(),
@@ -1300,6 +1347,7 @@ class AsyncTaskWorker:
                 "http_status": ready_response.status_code,
                 **ready_response.json(),
             },
+            "database": {"quick_check": quick_check},
         }
 
     def _handle_transport_error(
