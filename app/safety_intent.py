@@ -180,6 +180,18 @@ _SAFE_STATUS_OBSERVATION_TOKENS = frozenset(
         "hay",
         "khong",
         "slash",
+        "file",
+        "tep",
+        "readme",
+        "md",
+        "du",
+        "an",
+        "project",
+        "inspect",
+        "list",
+        "liet",
+        "ke",
+        "verify",
     }
 )
 _SAFE_NEGATION_TOKENS = frozenset(
@@ -619,8 +631,16 @@ def _split_coordination_boundaries(clause: str) -> list[str]:
     return [piece for piece in pieces if piece]
 
 
+
+def _preserve_shared_negation_target_slashes(text: str) -> str:
+    return re.sub(
+        r"\b(file|config|tep|cau hinh)\s*/\s*(file|config|tep|cau hinh)\b",
+        r"\1 \2",
+        text,
+    )
+
 def _semantic_clauses(text: str) -> list[str]:
-    folded = _fold_preserving_boundaries(text)
+    folded = _preserve_shared_negation_target_slashes(_fold_preserving_boundaries(text))
     primary = re.split(
         r"[.!?;\n]+|\b(?:nhung|but|however|then|except|excluding|ngoai\s+tru|tru\s+khi|unless|before|after|while|truoc\s+khi|sau\s+khi|trong\s+khi)\b",
         folded,
@@ -691,7 +711,14 @@ def _is_harmless_readonly_clause(
     if not normalized_clause:
         return True
     tokens = normalized_clause.split()
-    if normalized_clause in {"make no change", "make no changes"}:
+    if normalized_clause in {
+        "make no change",
+        "make no changes",
+        "no make change",
+        "no make changes",
+        "no make any change",
+        "no make any changes",
+    }:
         return True
     if tokens and tokens[0] in {"khong", "no"}:
         return all(token in _SAFE_NEGATION_TOKENS for token in tokens)
@@ -702,14 +729,7 @@ def _is_harmless_readonly_clause(
 
     stripped = _strip_clause_prefixes(normalized_clause)
     if _starts_with_any(stripped, _OBSERVATION_MARKERS):
-        if (
-            strict_status
-            or _has_status_language(stripped)
-            or "health" in stripped
-            or "ready" in stripped
-        ):
-            return all(token in _SAFE_STATUS_OBSERVATION_TOKENS for token in stripped.split())
-        return True
+        return all(token in _SAFE_STATUS_OBSERVATION_TOKENS for token in stripped.split())
     if _starts_with_any(stripped, _SAFE_SCAFFOLD_PREFIXES):
         if strict_status:
             return all(
@@ -745,7 +765,7 @@ def _is_harmless_readonly_clause(
 
 
 def _sequence_clauses(text: str) -> list[str]:
-    folded = _fold_preserving_boundaries(text)
+    folded = _preserve_shared_negation_target_slashes(_fold_preserving_boundaries(text))
     folded = re.sub(r"(?<=[a-z0-9])\.(?=[a-z0-9])", " ", folded)
     primary = re.split(
         r"[.!?;:/\n\u2013\u2014]+|->|=>|\b(?:nhung|but|however|then|except|excluding|ngoai\s+tru|tru\s+khi|unless|before|after|while|truoc\s+khi|sau\s+khi|trong\s+khi|va|and)\b",
@@ -874,7 +894,20 @@ def _is_no_invocation(scope: str, targets: tuple[str, ...]) -> bool:
 def _is_no_system_mutation(scope: str) -> bool:
     if _contains_any(scope, ("side effect", "system mutation")):
         return True
-    if _contains_any(scope, ("no changes", "khong thay doi gi", "khong sua gi")):
+    if _contains_any(
+        scope,
+        (
+            "no changes",
+            "no make change",
+            "no make changes",
+            "no make any change",
+            "no make any changes",
+            "make no change",
+            "make no changes",
+            "khong thay doi gi",
+            "khong sua gi",
+        ),
+    ):
         return True
     has_broad_quantifier = _contains_any(
         scope,

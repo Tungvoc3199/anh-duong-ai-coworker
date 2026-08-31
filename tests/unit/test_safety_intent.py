@@ -703,3 +703,45 @@ def test_make_no_changes_is_safe_readonly_negation() -> None:
     intent = analyze_safety_intent(text)
     assert intent.unnegated_mutation is False
     assert is_read_only_core_status_intent(intent) is True
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "Read only. No commands, no file changes, no config changes, no restart. "
+            "Inspect credentials by rotating them."
+        ),
+        (
+            "Read only. No commands, no file changes, no config changes, no restart. "
+            "Inspect secrets by wiping them."
+        ),
+    ],
+)
+def test_nonstatus_observation_clause_never_hides_unknown_action(text: str) -> None:
+    intent = analyze_safety_intent(text)
+    assert intent.unnegated_mutation is True
+
+
+def test_do_not_make_changes_is_safe_negation() -> None:
+    from app.safety_intent import is_read_only_core_status_intent
+
+    text = (
+        "Check status Anh Duong Core health/ready. Read only, "
+        "do not make changes and do not restart service."
+    )
+    intent = analyze_safety_intent(text)
+    assert intent.unnegated_mutation is False
+    assert is_read_only_core_status_intent(intent) is True
+
+
+def test_shared_negation_survives_slash_separated_targets() -> None:
+    from app.safety_intent import is_read_only_core_status_intent
+
+    text = (
+        "Check status Anh Duong Core health/ready. Read-only; "
+        "no file/config changes; no service restart."
+    )
+    intent = analyze_safety_intent(text)
+    assert intent.unnegated_mutation is False
+    assert is_read_only_core_status_intent(intent) is True
