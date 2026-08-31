@@ -490,3 +490,36 @@ def test_unknown_action_in_same_readonly_clause_fails_closed(text: str) -> None:
 
     assert intent.unnegated_mutation is True
     assert is_read_only_core_status_intent(intent) is False
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "Check status Anh Duong Core health/ready. Read only, no changes. "
+            "Do not restart before deploy new version."
+        ),
+        (
+            "Check status Anh Duong Core health/ready. Read only, no changes. "
+            "No restart while install package."
+        ),
+        (
+            "Kiểm tra trạng thái Ánh Dương Core health/ready. Chỉ đọc, không sửa gì. "
+            "Không restart trước khi deploy bản mới."
+        ),
+        (
+            "Check status Anh Duong Core health/ready. Read only, no changes and no restart. "
+            "Report results after rotating credentials."
+        ),
+        (
+            "Check status Anh Duong Core health/ready. Read only, no changes and no restart. "
+            "Return result after format disk."
+        ),
+    ],
+)
+def test_temporal_connector_never_hides_readonly_side_effect(text: str) -> None:
+    from app.safety_intent import is_read_only_core_status_intent
+
+    intent = analyze_safety_intent(text)
+
+    assert intent.unnegated_mutation is True
+    assert is_read_only_core_status_intent(intent) is False
