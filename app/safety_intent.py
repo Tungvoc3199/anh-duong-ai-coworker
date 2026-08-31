@@ -151,6 +151,7 @@ _SAFE_STATUS_OBSERVATION_TOKENS = frozenset(
         "system",
         "tai",
         "the",
+        "them",
         "thong",
         "thuc",
         "tinh",
@@ -258,6 +259,87 @@ _SAFE_NEGATION_TOKENS = frozenset(
         "nothing",
         "none",
     }
+)
+
+_SAFE_REPORT_TOKENS = frozenset(
+    {
+        "actual",
+        "anh",
+        "answer",
+        "bang",
+        "bao",
+        "briefly",
+        "cao",
+        "cho",
+        "co",
+        "conclusion",
+        "continue",
+        "database",
+        "evidence",
+        "explain",
+        "giai",
+        "gui",
+        "health",
+        "he",
+        "is",
+        "ket",
+        "khong",
+        "luan",
+        "me",
+        "ngan",
+        "only",
+        "provide",
+        "qua",
+        "quick",
+        "ready",
+        "real",
+        "report",
+        "result",
+        "results",
+        "return",
+        "san",
+        "send",
+        "show",
+        "summary",
+        "system",
+        "tell",
+        "thanh",
+        "that",
+        "thich",
+        "thong",
+        "thuc",
+        "to",
+        "tom",
+        "tra",
+        "ve",
+        "when",
+        "whether",
+        "work",
+        "working",
+        "dang",
+        "hay",
+        "if",
+        "the",
+        "a",
+        "lai",
+        "success",
+        "check",
+        "kiem",
+        "cong",
+        "khi",
+        "chung",
+        "gon",
+        "tiep",
+        "tuc",
+        "lam",
+        "viec",
+        "yeu",
+        "cau",
+        "sang",
+    }
+)
+_SAFE_SCAFFOLD_TOKENS = _SAFE_STATUS_OBSERVATION_TOKENS | frozenset(
+    {"mot", "workflow", "soan", "checklist", "draft", "buoc"}
 )
 
 
@@ -601,7 +683,11 @@ def _looks_like_identifier_clause(normalized_clause: str) -> bool:
     return bool(tokens) and all(any(character.isdigit() for character in token) for token in tokens)
 
 
-def _is_harmless_readonly_clause(normalized_clause: str) -> bool:
+def _is_harmless_readonly_clause(
+    normalized_clause: str,
+    *,
+    strict_status: bool = False,
+) -> bool:
     if not normalized_clause:
         return True
     tokens = normalized_clause.split()
@@ -614,12 +700,24 @@ def _is_harmless_readonly_clause(normalized_clause: str) -> bool:
 
     stripped = _strip_clause_prefixes(normalized_clause)
     if _starts_with_any(stripped, _OBSERVATION_MARKERS):
-        if _has_status_language(stripped) or "health" in stripped or "ready" in stripped:
+        if (
+            strict_status
+            or _has_status_language(stripped)
+            or "health" in stripped
+            or "ready" in stripped
+        ):
             return all(token in _SAFE_STATUS_OBSERVATION_TOKENS for token in stripped.split())
         return True
     if _starts_with_any(stripped, _SAFE_SCAFFOLD_PREFIXES):
+        if strict_status:
+            return all(
+                token in _SAFE_SCAFFOLD_TOKENS or any(character.isdigit() for character in token)
+                for token in stripped.split()
+            )
         return True
     if _starts_with_any(stripped, _REPORT_PREFIX_MARKERS):
+        if strict_status:
+            return all(token in _SAFE_REPORT_TOKENS for token in stripped.split())
         return True
     stripped_tokens = stripped.split()
     if stripped_tokens and stripped_tokens[0] in {"health", "ready"}:
@@ -629,8 +727,14 @@ def _is_harmless_readonly_clause(normalized_clause: str) -> bool:
     if stripped_tokens and stripped_tokens[0] in {"neu", "if"}:
         for boundary in ("thi", "then"):
             if boundary in stripped_tokens:
-                tail = " ".join(stripped_tokens[stripped_tokens.index(boundary) + 1 :])
-                return _starts_with_any(_strip_clause_prefixes(tail), _REPORT_PREFIX_MARKERS)
+                tail = _strip_clause_prefixes(
+                    " ".join(stripped_tokens[stripped_tokens.index(boundary) + 1 :])
+                )
+                if not _starts_with_any(tail, _REPORT_PREFIX_MARKERS):
+                    return False
+                if strict_status:
+                    return all(token in _SAFE_REPORT_TOKENS for token in tail.split())
+                return True
     return False
 
 
@@ -668,6 +772,10 @@ def _sequence_clauses(text: str) -> list[str]:
 def _has_ambiguous_readonly_action(text: str) -> bool:
     if not _has_unnegated_read_only_marker(text):
         return False
+    normalized = normalize_semantic_text(text)
+    strict_status = (
+        _has_status_language(normalized) and "health" in normalized and "ready" in normalized
+    )
     clauses = _sequence_clauses(text)
     for clause in clauses:
         matching_marker = next(
@@ -678,12 +786,12 @@ def _has_ambiguous_readonly_action(text: str) -> bool:
             prefix, suffix = clause.split(matching_marker, 1)
             prefix = prefix.strip()
             suffix = suffix.strip()
-            if prefix and not _is_harmless_readonly_clause(prefix):
+            if prefix and not _is_harmless_readonly_clause(prefix, strict_status=strict_status):
                 return True
-            if suffix and not _is_harmless_readonly_clause(suffix):
+            if suffix and not _is_harmless_readonly_clause(suffix, strict_status=strict_status):
                 return True
             continue
-        if not _is_harmless_readonly_clause(clause):
+        if not _is_harmless_readonly_clause(clause, strict_status=strict_status):
             return True
     return False
 

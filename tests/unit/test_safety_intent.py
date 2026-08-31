@@ -618,3 +618,28 @@ def test_cpu_core_is_not_anh_duong_core_identity() -> None:
         "Check status of CPU core health/ready. Read only, no changes and no restart."
     )
     assert is_read_only_core_status_intent(intent) is False
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "Check status Anh Duong Core health/ready. Read only, no changes and no restart. "
+            "Report results by rotating credentials."
+        ),
+        (
+            "Check status Anh Duong Core health/ready. Read only, no changes and no restart. "
+            "Inspect rotating credentials."
+        ),
+        (
+            "Check status Anh Duong Core health/ready. Read only, no changes and no restart. "
+            "Tell me the result by wiping secrets."
+        ),
+    ],
+)
+def test_safe_prefix_never_hides_status_side_effect(text: str) -> None:
+    from app.safety_intent import is_read_only_core_status_intent
+
+    intent = analyze_safety_intent(text)
+    assert intent.unnegated_mutation is True
+    assert is_read_only_core_status_intent(intent) is False
