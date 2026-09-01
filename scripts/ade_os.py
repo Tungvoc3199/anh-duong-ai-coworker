@@ -55,7 +55,11 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = parser().parse_args(argv)
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
+    args = parser().parse_args(raw_argv)
+    explicit_root = any(
+        item == "--root" or item.startswith("--root=") for item in raw_argv
+    )
     try:
         config = project_config(args.root)
         if args.command == "project":
@@ -84,6 +88,12 @@ def main(argv: list[str] | None = None) -> int:
                 return emit(append_memory(args.root, name, json.loads(args.data)))
             return emit(read_memory(args.root, name))
         if args.command == "checkpoint":
+            if args.action in {"review", "close"} and not explicit_root:
+                return emit_checkpoint({
+                    "status": "BLOCKED",
+                    "reason": "GOVERNANCE_FAILURE",
+                    "code": "EXPLICIT_ROOT_REQUIRED",
+                })
             evidence = (
                 json.loads(args.evidence.read_text(encoding="utf-8"))
                 if args.evidence

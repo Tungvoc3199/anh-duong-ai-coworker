@@ -9,6 +9,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -333,3 +335,29 @@ def test_checkpoint_start_cli_rejects_forged_evidence_outside_artifact_directory
     )
     assert result.returncode == 4
     assert json.loads(result.stdout)["code"] == "CHECKPOINT_PROVENANCE_FAILURE"
+
+
+@pytest.mark.parametrize("action", ["review", "close"])
+def test_checkpoint_review_close_requires_explicit_root(tmp_path: Path, action: str) -> None:
+    candidate_sha = _git_head(ROOT)
+    evidence = tmp_path / f"{action}.json"
+    evidence.write_text(
+        json.dumps(_close_evidence("AD-REVIEW-CLOSURE-PROTOCOL", candidate_sha)),
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts/ade_os.py"),
+            "checkpoint",
+            action,
+            "--evidence",
+            str(evidence),
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 4
+    assert json.loads(result.stdout)["code"] == "EXPLICIT_ROOT_REQUIRED"

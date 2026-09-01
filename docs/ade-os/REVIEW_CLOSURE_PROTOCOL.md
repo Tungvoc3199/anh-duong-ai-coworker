@@ -37,10 +37,12 @@
 ```
 
 `semantic_review_rounds` may be 1 or 2 only. `tool_failures` is tracked separately and does not consume review budget. `candidate_sha` and `reviewed_sha` must be the same full 40-character Git SHA, and that SHA must equal the repository HEAD independently resolved by the CLI at `checkpoint review` / `checkpoint close`.
+`checkpoint review` and `checkpoint close` require an explicit `--root`; the CLI must not infer the repository from the script location.
 Blocked `checkpoint review` and `checkpoint close` return process exit code `4`; PASS returns `0`. Callers must check both the exit code and JSON status.
 
 ## Fail-closed codes
 
+- `EXPLICIT_ROOT_REQUIRED`: review/close omitted the repository root.
 - `CLOSURE_REVIEW_PROTOCOL_REQUIRED`: no protocol evidence.
 - `CLOSURE_REVIEW_PROTOCOL_INVALID`: malformed or incomplete evidence.
 - `REVIEW_CANDIDATE_UNBOUND`: repository HEAD cannot be independently resolved.
