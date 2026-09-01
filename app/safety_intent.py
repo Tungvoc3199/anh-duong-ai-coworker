@@ -713,7 +713,7 @@ def _preserve_shared_negation_target_slashes(text: str) -> str:
 def _semantic_clauses(text: str) -> list[str]:
     folded = _preserve_shared_negation_target_slashes(_fold_preserving_boundaries(text))
     primary = re.split(
-        r"[.!?;\n]+|\b(?:nhung|but|however|then|except|excluding|ngoai\s+tru|tru\s+khi|unless|before|after|while|truoc\s+khi|sau\s+khi|trong\s+khi)\b",
+        r"[.!?;\n]+|\s+(?:&|\+|\||-)\s+|\b(?:nhung|but|however|then|except|excluding|ngoai\s+tru|tru\s+khi|unless|before|after|while|truoc\s+khi|sau\s+khi|trong\s+khi)\b",
         folded,
     )
     clauses: list[str] = []
@@ -851,7 +851,7 @@ def _sequence_clauses(text: str) -> list[str]:
     folded = _preserve_shared_negation_target_slashes(_fold_preserving_boundaries(text))
     folded = re.sub(r"(?<=[a-z0-9])\.(?=[a-z0-9])", " ", folded)
     primary = re.split(
-        r"[.!?;:/\n\u2013\u2014]+|->|=>|\b(?:nhung|but|however|then|except|excluding|ngoai\s+tru|tru\s+khi|unless|before|after|while|truoc\s+khi|sau\s+khi|trong\s+khi|va|and)\b",
+        r"[.!?;:/\n\u2013\u2014]+|\s+(?:&|\+|\||-)\s+|->|=>|\b(?:nhung|but|however|then|except|excluding|ngoai\s+tru|tru\s+khi|unless|before|after|while|truoc\s+khi|sau\s+khi|trong\s+khi|va|and)\b",
         folded,
     )
     clauses: list[str] = []

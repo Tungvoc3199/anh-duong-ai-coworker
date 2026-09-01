@@ -796,6 +796,20 @@ def test_draft_checklist_never_becomes_live_status_execution(text: str) -> None:
     assert is_read_only_core_status_intent(intent) is False
 
 
+@pytest.mark.parametrize("separator", [" & ", " + ", " | ", " - "])
+def test_readonly_separator_side_effect_fails_closed(separator: str) -> None:
+    from app.safety_intent import is_read_only_core_status_intent
+
+    text = (
+        "Check status Anh Duong Core health ready. "
+        f"Read only{separator}no changes{separator}deploy. No restart service."
+    )
+    intent = analyze_safety_intent(text)
+
+    assert intent.unnegated_mutation is True
+    assert is_read_only_core_status_intent(intent) is False
+
+
 @pytest.mark.parametrize("suffix", ["deploy", "update", "publish"])
 def test_ambiguous_no_changes_or_side_effect_fails_closed(suffix: str) -> None:
     from app.safety_intent import is_read_only_core_status_intent
