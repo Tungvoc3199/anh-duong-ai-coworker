@@ -865,7 +865,12 @@ def validate_closure_review_protocol(payload: Any, *, action: str) -> dict[str, 
     """Validate an immutable candidate and bounded independent final review."""
     if not isinstance(payload, Mapping):
         return _closure_block("CLOSURE_REVIEW_PROTOCOL_REQUIRED")
-    if payload.get("protocol_version") != CLOSURE_REVIEW_PROTOCOL_VERSION:
+    protocol_version = payload.get("protocol_version")
+    if (
+        isinstance(protocol_version, bool)
+        or not isinstance(protocol_version, int)
+        or protocol_version != CLOSURE_REVIEW_PROTOCOL_VERSION
+    ):
         return _closure_block("CLOSURE_REVIEW_PROTOCOL_INVALID", field="protocol_version")
 
     sha_fields = ("base_sha", "candidate_sha", "reviewed_sha")
@@ -923,7 +928,16 @@ def validate_closure_review_protocol(payload: Any, *, action: str) -> dict[str, 
             return _closure_block("CLOSURE_REVIEW_PROTOCOL_INVALID", field="finding_batch_id")
         if payload.get("findings_batched") is not True:
             return _closure_block("REVIEW_FINDINGS_NOT_BATCHED")
-        if payload.get("last_finding_batch_generation") != source_generation:
+        last_finding_batch_generation = payload.get("last_finding_batch_generation")
+        if (
+            isinstance(last_finding_batch_generation, bool)
+            or not isinstance(last_finding_batch_generation, int)
+            or last_finding_batch_generation < 1
+        ):
+            return _closure_block(
+                "CLOSURE_REVIEW_PROTOCOL_INVALID", field="last_finding_batch_generation"
+            )
+        if last_finding_batch_generation != source_generation:
             return _closure_block("REVIEW_FINDINGS_NOT_BATCHED")
         if payload["full_regression_generation"] != source_generation:
             return _closure_block("FINDING_BATCH_FULL_REGRESSION_REQUIRED")

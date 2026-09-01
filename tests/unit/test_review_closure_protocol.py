@@ -401,3 +401,17 @@ def test_finding_batch_id_must_be_nonempty_string(batch_id: object) -> None:
         finding_batch_id=batch_id,
         last_finding_batch_generation=1,
     )
+
+
+def test_protocol_version_boolean_is_rejected() -> None:
+    _assert_blocked("CLOSURE_REVIEW_PROTOCOL_INVALID", protocol_version=True)
+
+
+def test_last_finding_batch_generation_boolean_is_rejected() -> None:
+    _assert_blocked(
+        "CLOSURE_REVIEW_PROTOCOL_INVALID",
+        final_review_count=2,
+        rereview_reason="finding_batch",
+        finding_batch_id="RECOVERY-FINDING-BATCH-1",
+        last_finding_batch_generation=True,
+    )
