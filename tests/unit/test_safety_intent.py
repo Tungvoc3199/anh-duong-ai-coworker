@@ -647,7 +647,13 @@ def test_safe_prefix_never_hides_status_side_effect(text: str) -> None:
 
 @pytest.mark.parametrize(
     "suffix",
-    ["deploy2 prod3.", "rotate2 credentials3.", "format1 disk2.", "AD1 deploy2 prod3."],
+    [
+        "deploy2 prod3.",
+        "rotate2 credentials3.",
+        "format1 disk2.",
+        "AD1 deploy2 prod3.",
+        "DR1deploy2.",
+    ],
 )
 def test_numeric_looking_action_is_not_treated_as_safe_identifier(suffix: str) -> None:
     from app.safety_intent import is_read_only_core_status_intent

@@ -770,7 +770,7 @@ def _starts_with_any(normalized_clause: str, markers: tuple[str, ...]) -> bool:
 def _looks_like_identifier_token(token: str) -> bool:
     prefixed_identifier = "|".join(re.escape(prefix) for prefix in _SAFE_IDENTIFIER_PREFIXES)
     return bool(
-        re.fullmatch(rf"(?:{prefixed_identifier})\d+[a-z0-9]*", token)
+        re.fullmatch(rf"(?:{prefixed_identifier})\d+[a-z]?", token)
         or re.fullmatch(r"\d{6,}(?:t\d{4,6}z?)?", token)
     )
 
