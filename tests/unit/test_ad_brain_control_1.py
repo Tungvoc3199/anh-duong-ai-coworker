@@ -73,3 +73,13 @@ def test_operational_guidance_unknown_followup_action_never_becomes_readonly() -
 
     assert action == "workflow_system_operation"
     assert risk is None
+
+
+def test_operational_guidance_same_clause_unknown_action_never_becomes_readonly() -> None:
+    action, risk, _ = WorkflowResolver._action(
+        "Tell me how to check Core health by rotating credentials.",
+        CapabilityKind.SYSTEM_OPERATION,
+    )
+
+    assert action == "workflow_system_operation"
+    assert risk is None

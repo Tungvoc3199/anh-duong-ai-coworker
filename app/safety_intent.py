@@ -341,6 +341,7 @@ _SAFE_REPORT_TOKENS = frozenset(
         "the",
         "a",
         "lai",
+        "loi",
         "success",
         "check",
         "kiem",
@@ -351,10 +352,14 @@ _SAFE_REPORT_TOKENS = frozenset(
         "yeu",
         "cau",
         "sang",
+        "dung",
+        "ma",
+        "codex",
+        "test",
     }
 )
 _SAFE_SCAFFOLD_TOKENS = _SAFE_STATUS_OBSERVATION_TOKENS | frozenset(
-    {"mot", "workflow", "soan", "checklist", "draft", "buoc"}
+    {"mot", "workflow", "soan", "checklist", "draft", "buoc", "theo"}
 )
 _SAFE_REPORT_EXACT_PREFIXES = (
     "ket luan co the tiep tuc lam viec hay khong",
@@ -447,8 +452,36 @@ def has_unsafe_operational_guidance_followup(
     normalized_markers = tuple(normalize_semantic_text(marker) for marker in guidance_markers)
     if not _contains_any(normalize_semantic_text(text), normalized_markers):
         return False
+    guidance_tokens = {token for marker in normalized_markers for token in marker.split()}
+    safe_guidance_tokens = guidance_tokens | {
+        "anh",
+        "check",
+        "chrome",
+        "core",
+        "cua",
+        "dang",
+        "health",
+        "kiem",
+        "lenh",
+        "me",
+        "mo",
+        "openclaw",
+        "qua",
+        "ready",
+        "runtime",
+        "service",
+        "status",
+        "tell",
+        "thong",
+        "toi",
+        "tra",
+        "trong",
+        "wsl",
+    }
     for clause in _sequence_clauses(text):
         if _contains_any(clause, normalized_markers):
+            if any(token not in safe_guidance_tokens for token in clause.split()):
+                return True
             continue
         if not _is_harmless_readonly_clause(clause, strict_status=True):
             return True
@@ -734,23 +767,21 @@ def _starts_with_any(normalized_clause: str, markers: tuple[str, ...]) -> bool:
     )
 
 
+def _looks_like_identifier_token(token: str) -> bool:
+    prefixed_identifier = "|".join(re.escape(prefix) for prefix in _SAFE_IDENTIFIER_PREFIXES)
+    return bool(
+        re.fullmatch(rf"(?:{prefixed_identifier})\d+[a-z0-9]*", token)
+        or re.fullmatch(r"\d{6,}(?:t\d{4,6}z?)?", token)
+    )
+
+
 def _looks_like_identifier_clause(normalized_clause: str) -> bool:
     tokens = normalized_clause.split()
     if not tokens:
         return False
-
-    has_prefixed_identifier = False
-    for token in tokens:
-        if any(
-            token.startswith(prefix) and any(character.isdigit() for character in token)
-            for prefix in _SAFE_IDENTIFIER_PREFIXES
-        ):
-            has_prefixed_identifier = True
-            continue
-        if re.fullmatch(r"\d{6,}(?:t\d{4,6}z?)?", token):
-            continue
-        return False
-    return has_prefixed_identifier
+    return all(_looks_like_identifier_token(token) for token in tokens) and any(
+        any(token.startswith(prefix) for prefix in _SAFE_IDENTIFIER_PREFIXES) for token in tokens
+    )
 
 
 def _is_harmless_readonly_clause(
@@ -781,18 +812,17 @@ def _is_harmless_readonly_clause(
     if _starts_with_any(stripped, _OBSERVATION_MARKERS):
         return all(token in _SAFE_STATUS_OBSERVATION_TOKENS for token in stripped.split())
     if _starts_with_any(stripped, _SAFE_SCAFFOLD_PREFIXES):
-        if strict_status:
-            return all(
-                token in _SAFE_SCAFFOLD_TOKENS or any(character.isdigit() for character in token)
-                for token in stripped.split()
-            )
-        return True
+        return all(
+            token in _SAFE_SCAFFOLD_TOKENS or token.isdigit() or _looks_like_identifier_token(token)
+            for token in stripped.split()
+        )
     if _starts_with_any(stripped, _REPORT_PREFIX_MARKERS):
-        if strict_status:
-            if stripped in _SAFE_REPORT_EXACT_PREFIXES:
-                return True
-            return all(token in _SAFE_REPORT_TOKENS for token in stripped.split())
-        return True
+        if stripped in _SAFE_REPORT_EXACT_PREFIXES:
+            return True
+        return all(
+            token in _SAFE_REPORT_TOKENS or token.isdigit() or _looks_like_identifier_token(token)
+            for token in stripped.split()
+        )
     stripped_tokens = stripped.split()
     if stripped_tokens and stripped_tokens[0] in {"health", "ready"}:
         return all(token in _SAFE_STATUS_OBSERVATION_TOKENS for token in stripped_tokens)
@@ -806,11 +836,14 @@ def _is_harmless_readonly_clause(
                 )
                 if not _starts_with_any(tail, _REPORT_PREFIX_MARKERS):
                     return False
-                if strict_status:
-                    if tail in _SAFE_REPORT_EXACT_PREFIXES:
-                        return True
-                    return all(token in _SAFE_REPORT_TOKENS for token in tail.split())
-                return True
+                if tail in _SAFE_REPORT_EXACT_PREFIXES:
+                    return True
+                return all(
+                    token in _SAFE_REPORT_TOKENS
+                    or token.isdigit()
+                    or _looks_like_identifier_token(token)
+                    for token in tail.split()
+                )
     return False
 
 

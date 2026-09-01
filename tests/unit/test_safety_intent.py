@@ -801,3 +801,20 @@ def test_ambiguous_no_changes_or_side_effect_fails_closed(suffix: str) -> None:
     intent = analyze_safety_intent(text)
     assert intent.unnegated_mutation is True
     assert is_read_only_core_status_intent(intent) is False
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    [
+        "Draft checklist deploy2 prod3.",
+        "Report deploy2 prod3.",
+    ],
+)
+def test_readonly_scaffold_or_report_prefix_never_hides_unknown_numeric_action(
+    suffix: str,
+) -> None:
+    text = "Read only, no commands, no file changes, no config changes, no restart. " + suffix
+
+    intent = analyze_safety_intent(text)
+
+    assert intent.unnegated_mutation is True
