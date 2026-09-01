@@ -647,7 +647,7 @@ def test_safe_prefix_never_hides_status_side_effect(text: str) -> None:
 
 @pytest.mark.parametrize(
     "suffix",
-    ["deploy2 prod3.", "rotate2 credentials3.", "format1 disk2."],
+    ["deploy2 prod3.", "rotate2 credentials3.", "format1 disk2.", "AD1 deploy2 prod3."],
 )
 def test_numeric_looking_action_is_not_treated_as_safe_identifier(suffix: str) -> None:
     from app.safety_intent import is_read_only_core_status_intent
@@ -677,8 +677,6 @@ def test_ambiguous_report_action_fails_closed(suffix: str) -> None:
     intent = analyze_safety_intent(text)
     assert intent.unnegated_mutation is True
     assert is_read_only_core_status_intent(intent) is False
-
-
 
 
 def test_exact_report_prefix_does_not_hide_appended_unknown_action() -> None:
@@ -751,8 +749,7 @@ def test_read_only_boundary_alone_is_not_observation_language() -> None:
     from app.safety_intent import is_read_only_core_status_intent
 
     intent = analyze_safety_intent(
-        "Draft checklist status Anh Duong Core health ready. "
-        "Read only, no changes and no restart."
+        "Draft checklist status Anh Duong Core health ready. Read only, no changes and no restart."
     )
 
     assert intent.unnegated_mutation is False
@@ -791,6 +788,7 @@ def test_draft_checklist_never_becomes_live_status_execution(text: str) -> None:
 
     assert is_read_only_status_intent(intent) is False
     assert is_read_only_core_status_intent(intent) is False
+
 
 @pytest.mark.parametrize("suffix", ["deploy", "update", "publish"])
 def test_ambiguous_no_changes_or_side_effect_fails_closed(suffix: str) -> None:

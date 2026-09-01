@@ -440,6 +440,21 @@ def requests_database_quick_check(intent: SafetyIntent) -> bool:
     )
 
 
+def has_unsafe_operational_guidance_followup(
+    text: str,
+    guidance_markers: tuple[str, ...],
+) -> bool:
+    normalized_markers = tuple(normalize_semantic_text(marker) for marker in guidance_markers)
+    if not _contains_any(normalize_semantic_text(text), normalized_markers):
+        return False
+    for clause in _sequence_clauses(text):
+        if _contains_any(clause, normalized_markers):
+            continue
+        if not _is_harmless_readonly_clause(clause, strict_status=True):
+            return True
+    return False
+
+
 _CONTRAST_TOKENS = frozenset(
     {"nhung", "but", "however", "except", "excluding", "ngoai", "tru", "unless"}
 )
@@ -654,13 +669,13 @@ def _split_coordination_boundaries(clause: str) -> list[str]:
     return [piece for piece in pieces if piece]
 
 
-
 def _preserve_shared_negation_target_slashes(text: str) -> str:
     return re.sub(
         r"\b(file|config|tep|cau hinh)\s*/\s*(file|config|tep|cau hinh)\b",
         r"\1 \2",
         text,
     )
+
 
 def _semantic_clauses(text: str) -> list[str]:
     folded = _preserve_shared_negation_target_slashes(_fold_preserving_boundaries(text))
@@ -721,9 +736,21 @@ def _starts_with_any(normalized_clause: str, markers: tuple[str, ...]) -> bool:
 
 def _looks_like_identifier_clause(normalized_clause: str) -> bool:
     tokens = normalized_clause.split()
-    if not tokens or not all(any(character.isdigit() for character in token) for token in tokens):
+    if not tokens:
         return False
-    return any(tokens[0].startswith(prefix) for prefix in _SAFE_IDENTIFIER_PREFIXES)
+
+    has_prefixed_identifier = False
+    for token in tokens:
+        if any(
+            token.startswith(prefix) and any(character.isdigit() for character in token)
+            for prefix in _SAFE_IDENTIFIER_PREFIXES
+        ):
+            has_prefixed_identifier = True
+            continue
+        if re.fullmatch(r"\d{6,}(?:t\d{4,6}z?)?", token):
+            continue
+        return False
+    return has_prefixed_identifier
 
 
 def _is_harmless_readonly_clause(

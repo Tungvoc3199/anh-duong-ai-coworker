@@ -1244,9 +1244,7 @@ class AsyncTaskWorker:
         if require_database_quick_check and not database_ok:
             failed_checks.append("database quick_check")
         failure_explanation = (
-            "Read-only verification failed: "
-            + ", ".join(failed_checks)
-            + " did not pass."
+            "Read-only verification failed: " + ", ".join(failed_checks) + " did not pass."
         )
         outcome: Literal["completed", "blocked"] = "completed" if required_checks_ok else "blocked"
         service = statuses.get("service", {})
@@ -1339,16 +1337,36 @@ class AsyncTaskWorker:
 
     async def _probe_local_core_status(self) -> dict[str, Any]:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            health_response = await client.get("http://127.0.0.1:8790/health")
-            ready_response = await client.get("http://127.0.0.1:8790/ready")
+            health = await self._probe_http_endpoint(
+                client,
+                "http://127.0.0.1:8790/health",
+            )
+            ready = await self._probe_http_endpoint(
+                client,
+                "http://127.0.0.1:8790/ready",
+            )
+        if "http_status" in health:
+            service = {"status": "running", "evidence": "local_http:/health"}
+        elif "http_status" in ready:
+            service = {"status": "running", "evidence": "local_http:/ready"}
+        else:
+            service = {"status": "unavailable", "evidence": "local_http:no_response"}
         return {
-            "service": {
-                "status": "running",
-                "evidence": "local_http:/health",
-            },
-            "health": self._http_status_artifact(health_response),
-            "ready": self._http_status_artifact(ready_response),
+            "service": service,
+            "health": health,
+            "ready": ready,
         }
+
+    async def _probe_http_endpoint(
+        self,
+        client: Any,
+        url: str,
+    ) -> dict[str, Any]:
+        try:
+            response = await client.get(url)
+        except httpx.HTTPError:
+            return {"status": "unavailable"}
+        return self._http_status_artifact(response)
 
     @staticmethod
     def _http_status_artifact(response: Any) -> dict[str, Any]:

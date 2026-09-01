@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -1218,6 +1219,7 @@ async def test_http_response_proves_service_running_even_when_health_fails(
     assert result["service"]["status"] == "running"
     assert result["health"]["http_status"] == 503
 
+
 @pytest.mark.asyncio
 async def test_non_json_health_response_preserves_service_reachability(
     session_factory: sessionmaker[Session],
@@ -1260,3 +1262,138 @@ async def test_non_json_health_response_preserves_service_reachability(
     assert result["health"]["http_status"] == 503
     assert result["health"]["status"] == "unknown"
     assert result["ready"]["status"] == "ready"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("fail_health", "fail_ready", "expected_service", "expected_evidence"),
+    [
+        (True, False, "running", "local_http:/ready"),
+        (False, True, "running", "local_http:/health"),
+        (True, True, "unavailable", "local_http:no_response"),
+    ],
+)
+async def test_core_status_transport_failures_preserve_truthful_reachability(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fail_health: bool,
+    fail_ready: bool,
+    expected_service: str,
+    expected_evidence: str,
+) -> None:
+    class FakeResponse:
+        def __init__(self, status_code: int, status: str) -> None:
+            self.status_code = status_code
+            self._status = status
+
+        def json(self) -> dict[str, str]:
+            return {"status": self._status}
+
+    class FakeClient:
+        async def __aenter__(self) -> FakeClient:
+            return self
+
+        async def __aexit__(self, *args: object) -> None:
+            return None
+
+        async def get(self, url: str) -> FakeResponse:
+            if url.endswith("/health"):
+                if fail_health:
+                    raise httpx.ConnectError("sensitive health transport detail")
+                return FakeResponse(200, "ok")
+            if fail_ready:
+                raise httpx.ReadTimeout("sensitive ready transport detail")
+            return FakeResponse(200, "ready")
+
+    monkeypatch.setattr(
+        "app.async_tasks.worker.httpx.AsyncClient",
+        lambda **_: FakeClient(),
+    )
+    worker = _worker(
+        session_factory=session_factory,
+        tmp_path=tmp_path,
+        executor=SequenceExecutor([]),
+        clock=[NOW],
+    )
+
+    result = await worker._probe_local_core_status()
+
+    assert result["service"]["status"] == expected_service
+    assert result["service"]["evidence"] == expected_evidence
+    rendered = json.dumps(result)
+    assert "sensitive health transport detail" not in rendered
+    assert "sensitive ready transport detail" not in rendered
+    if fail_health:
+        assert result["health"]["status"] == "unavailable"
+        assert "http_status" not in result["health"]
+    else:
+        assert result["health"]["http_status"] == 200
+    if fail_ready:
+        assert result["ready"]["status"] == "unavailable"
+        assert "http_status" not in result["ready"]
+    else:
+        assert result["ready"]["http_status"] == 200
+
+
+@pytest.mark.asyncio
+async def test_transport_failure_blocks_core_readonly_run_without_openclaw(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    goal = (
+        "Dương, kiểm tra tình trạng hệ thống Ánh Dương hiện tại giúp anh. "
+        "Kiểm tra Core service, /health và /ready. "
+        "Chỉ đọc, không sửa hay restart gì."
+    )
+    task_id, run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="core-ready-transport-failure",
+        goal=goal,
+    )
+    executor = SequenceExecutor([])
+
+    class FakeResponse:
+        status_code = 200
+
+        def json(self) -> dict[str, str]:
+            return {"status": "ok"}
+
+    class FakeClient:
+        async def __aenter__(self) -> FakeClient:
+            return self
+
+        async def __aexit__(self, *args: object) -> None:
+            return None
+
+        async def get(self, url: str) -> FakeResponse:
+            if url.endswith("/ready"):
+                raise httpx.ReadTimeout("private ready failure")
+            return FakeResponse()
+
+    monkeypatch.setattr(
+        "app.async_tasks.worker.httpx.AsyncClient",
+        lambda **_: FakeClient(),
+    )
+    worker = _worker(
+        session_factory=session_factory,
+        tmp_path=tmp_path,
+        executor=executor,
+        clock=[NOW],
+    )
+
+    assert await worker.run_once() is True
+    with session_factory() as session:
+        run = AsyncTaskRepository(session).get(run_id)
+        task = TaskService(TaskRepository(session), _audit(tmp_path)).get(task_id)
+
+    assert executor.requests == []
+    assert run.status is AsyncRunStatus.BLOCKED
+    assert task.status is TaskStatus.BLOCKED
+    payload = json.loads(run.result_json or "{}")
+    assert payload["artifacts"]["service"]["status"] == "running"
+    assert payload["artifacts"]["health"]["status"] == "ok"
+    assert payload["artifacts"]["ready"]["status"] == "unavailable"
+    assert "private ready failure" not in json.dumps(payload)

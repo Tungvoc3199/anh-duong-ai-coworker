@@ -13,6 +13,7 @@ from app.projects import Project
 from app.safety_intent import (
     SafetyConstraint,
     analyze_safety_intent,
+    has_unsafe_operational_guidance_followup,
     is_read_only_core_status_intent,
     is_read_only_status_intent,
 )
@@ -111,6 +112,7 @@ class WorkflowResolver:
         has_operational_guidance = (
             capability is CapabilityKind.SYSTEM_OPERATION
             and any(marker in folded for marker in _OPERATIONAL_GUIDANCE_MARKERS)
+            and not has_unsafe_operational_guidance_followup(text, _OPERATIONAL_GUIDANCE_MARKERS)
             and not safety.unnegated_mutation
         )
         if capability is CapabilityKind.VISUAL_PROMPT_COMPOSE:
