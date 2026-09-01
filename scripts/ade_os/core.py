@@ -22,7 +22,9 @@ DEFAULT_ARTIFACT_ROOT = Path("/mnt/f/AIOS/anh-duong-checkpoints")
 SCHEMA_VERSION = 1
 PRODUCTION_CORE_ROOT = Path("/home/thadc/AIOS/anh-duong-core")
 CONTAINER_CORE_ROOT = Path("/workspaces/anh-duong-core")
-CORE_WORKTREE_ROOT = Path("/home/thadc/AIOS/anh-duong-core.worktrees")
+CORE_WORKTREE_ROOT = Path("/home/thadc/AIOS/worktrees")
+LEGACY_CORE_WORKTREE_ROOT = Path("/home/thadc/AIOS/anh-duong-core.worktrees")
+CORE_WORKTREE_ROOTS = (CORE_WORKTREE_ROOT, LEGACY_CORE_WORKTREE_ROOT)
 OPENCLAW_ROOT = Path("/home/thadc/AIOS/openclaw")
 RUNTIME_DB = Path("/home/thadc/.local/state/anh-duong-core/anh_duong.db")
 FAILURE_CLASSES = (
@@ -155,6 +157,11 @@ def is_relative_to(path: Path, base: Path) -> bool:
     return True
 
 
+def core_worktree_root_for(path: Path) -> Path | None:
+    resolved = path.resolve(strict=False)
+    return next((root for root in CORE_WORKTREE_ROOTS if is_relative_to(resolved, root)), None)
+
+
 def validate_workspace(root: Path, *, writable: bool) -> dict[str, Any]:
     resolved = root.resolve(strict=False)
     if writable and resolved in {PRODUCTION_CORE_ROOT, CONTAINER_CORE_ROOT}:
@@ -163,7 +170,7 @@ def validate_workspace(root: Path, *, writable: bool) -> dict[str, Any]:
         return decision(
             "ALLOW", "GOVERNANCE_OK", workspace=str(resolved), workspace_kind="read_only"
         )
-    if not is_relative_to(resolved, CORE_WORKTREE_ROOT):
+    if core_worktree_root_for(resolved) is None:
         return decision("DENY", "GOVERNANCE_FAILURE", workspace=str(resolved))
     git_file = resolved / ".git"
     try:

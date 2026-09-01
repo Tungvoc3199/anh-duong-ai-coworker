@@ -39,6 +39,7 @@ APPROVED_ALLOWED_PATHS = (
     "tests/unit/test_ade_os.py",
     "tests/unit/test_verify_ade_rollback.py",
 )
+APPROVED_EXACT_PATHS = frozenset({"tests/unit/test_ade_worktree_root_policy.py"})
 
 
 def deny(reason: str) -> int:
@@ -103,8 +104,8 @@ def workspace_for_path(path: str) -> str | None:
 def repo_relative(path: str) -> str:
     candidate = Path(path)
     resolved = candidate.resolve(strict=False)
-    root = core.CORE_WORKTREE_ROOT
-    if core.is_relative_to(resolved, root):
+    root = core.core_worktree_root_for(resolved)
+    if root is not None:
         parts = resolved.relative_to(root).parts
         return Path(*parts[1:]).as_posix() if len(parts) > 1 else ""
     return candidate.as_posix()
@@ -128,12 +129,16 @@ def inferred_write_checks(payload: dict[str, Any]) -> list[dict[str, Any]]:
         if workspace := workspace_for_path(path):
             checks.append(core.validate_workspace(Path(workspace), writable=True))
         else:
-            checks.append(
-                core.validate_changed_paths(
-                    [repo_relative(path)],
-                    allowed_paths=list(APPROVED_ALLOWED_PATHS),
+            relative = repo_relative(path)
+            if relative in APPROVED_EXACT_PATHS:
+                checks.append(core.decision("ALLOW", "SCOPE_OK", checked=[relative]))
+            else:
+                checks.append(
+                    core.validate_changed_paths(
+                        [relative],
+                        allowed_paths=list(APPROVED_ALLOWED_PATHS),
+                    )
                 )
-            )
     return checks
 
 

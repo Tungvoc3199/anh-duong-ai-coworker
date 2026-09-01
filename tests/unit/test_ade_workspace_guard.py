@@ -94,6 +94,35 @@ def test_pretool_plain_write_payload_without_allowed_paths_fails_closed() -> Non
     assert "SCOPE_VIOLATION" in output["permissionDecisionReason"]
 
 
+def test_pretool_allows_write_to_worktree_root_policy_test() -> None:
+    output = run_guard(
+        {
+            "tool_name": "Write",
+            "tool_input": {
+                "file_path": str(ROOT / "tests/unit/test_ade_worktree_root_policy.py"),
+                "content": "change",
+            },
+        }
+    )
+    assert output["permissionDecision"] == "allow"
+
+
+def test_pretool_denies_descendant_beneath_exact_policy_test_path() -> None:
+    output = run_guard(
+        {
+            "tool_name": "Write",
+            "tool_input": {
+                "file_path": str(
+                    ROOT / "tests/unit/test_ade_worktree_root_policy.py/unexpected.py"
+                ),
+                "content": "change",
+            },
+        }
+    )
+    assert output["permissionDecision"] == "deny"
+    assert "SCOPE_VIOLATION" in output["permissionDecisionReason"]
+
+
 def test_pretool_write_tool_without_path_fails_closed() -> None:
     output = run_guard(
         {
