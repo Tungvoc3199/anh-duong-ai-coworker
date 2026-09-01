@@ -17,6 +17,18 @@ SPEC = importlib.util.spec_from_file_location("ade_os_cli", SCRIPTS / "ade_os.py
 assert SPEC and SPEC.loader
 CLI = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CLI)
+EXPECTED_SHA = "a" * 40
+
+
+def _checkpoint_gate(
+    evidence: dict[str, object],
+    action: str,
+    *,
+    expected_candidate_sha: str = EXPECTED_SHA,
+) -> dict[str, object]:
+    return core.checkpoint_gate(
+        evidence, action, expected_candidate_sha=expected_candidate_sha
+    )
 
 
 def test_router_precedence_and_escalation() -> None:
@@ -74,21 +86,31 @@ def test_close_gate_requires_e2e_review_and_closure_protocol() -> None:
         "backup": True,
         "rollback": True,
     }
-    assert "runtime_e2e" in core.checkpoint_gate(
+    assert "runtime_e2e" in _checkpoint_gate(
         {**evidence, "review": "PASS", "closure_review": _closure_review()}, "close"
     )["missing"]
-    legacy = core.checkpoint_gate(
+    legacy = _checkpoint_gate(
         {**evidence, "runtime_e2e": True, "review": "PASS"}, "close"
     )
     assert legacy["status"] == "BLOCKED"
     assert legacy["code"] == "CLOSURE_REVIEW_PROTOCOL_REQUIRED"
-    assert core.checkpoint_gate(_close_gate_evidence(), "close")["status"] == "PASS"
+    assert _checkpoint_gate(_close_gate_evidence(), "close")["status"] == "PASS"
 
 
 def test_closure_review_rejects_stale_candidate_sha() -> None:
     evidence = _close_gate_evidence()
     evidence["closure_review"] = _closure_review(reviewed_sha="b" * 40)
-    result = core.checkpoint_gate(evidence, "close")
+    result = _checkpoint_gate(evidence, "close")
+    assert result["status"] == "BLOCKED"
+    assert result["code"] == "REVIEW_CANDIDATE_STALE"
+
+
+def test_closure_review_rejects_sha_not_bound_to_repository_revision() -> None:
+    result = _checkpoint_gate(
+        _close_gate_evidence(),
+        "close",
+        expected_candidate_sha="b" * 40,
+    )
     assert result["status"] == "BLOCKED"
     assert result["code"] == "REVIEW_CANDIDATE_STALE"
 
@@ -96,7 +118,7 @@ def test_closure_review_rejects_stale_candidate_sha() -> None:
 def test_closure_review_budget_allows_one_rereview_only() -> None:
     evidence = _close_gate_evidence()
     evidence["closure_review"] = _closure_review(semantic_review_rounds=3)
-    result = core.checkpoint_gate(evidence, "close")
+    result = _checkpoint_gate(evidence, "close")
     assert result["status"] == "BLOCKED"
     assert result["code"] == "REVIEW_BUDGET_EXCEEDED"
 
@@ -106,7 +128,7 @@ def test_closure_review_requires_findings_batched_before_rereview() -> None:
     evidence["closure_review"] = _closure_review(
         semantic_review_rounds=2, findings_batched=False
     )
-    result = core.checkpoint_gate(evidence, "close")
+    result = _checkpoint_gate(evidence, "close")
     assert result["status"] == "BLOCKED"
     assert result["code"] == "REVIEW_FINDINGS_NOT_BATCHED"
 
@@ -114,19 +136,19 @@ def test_closure_review_requires_findings_batched_before_rereview() -> None:
 def test_closure_review_tool_failures_do_not_consume_semantic_review_budget() -> None:
     evidence = _close_gate_evidence()
     evidence["closure_review"] = _closure_review(tool_failures=7)
-    assert core.checkpoint_gate(evidence, "close")["status"] == "PASS"
+    assert _checkpoint_gate(evidence, "close")["status"] == "PASS"
 
 
 def test_closure_review_allows_one_batched_rereview() -> None:
     evidence = _close_gate_evidence()
     evidence["closure_review"] = _closure_review(semantic_review_rounds=2)
-    assert core.checkpoint_gate(evidence, "close")["status"] == "PASS"
+    assert _checkpoint_gate(evidence, "close")["status"] == "PASS"
 
 
 def test_checkpoint_review_action_requires_closure_protocol() -> None:
     evidence = _close_gate_evidence()
     evidence.pop("closure_review")
-    result = core.checkpoint_gate(evidence, "review")
+    result = _checkpoint_gate(evidence, "review")
     assert result["status"] == "BLOCKED"
     assert result["code"] == "CLOSURE_REVIEW_PROTOCOL_REQUIRED"
 
@@ -134,7 +156,7 @@ def test_checkpoint_review_action_requires_closure_protocol() -> None:
 def test_closure_review_fails_if_behavior_changes_after_review() -> None:
     evidence = _close_gate_evidence()
     evidence["closure_review"] = _closure_review(behavior_changed_after_review=True)
-    result = core.checkpoint_gate(evidence, "close")
+    result = _checkpoint_gate(evidence, "close")
     assert result["status"] == "BLOCKED"
     assert result["code"] == "REVIEW_CANDIDATE_STALE"
 

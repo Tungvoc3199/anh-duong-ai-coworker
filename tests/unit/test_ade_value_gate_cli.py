@@ -102,7 +102,25 @@ def _project_root(tmp_path: Path) -> Path:
         json.dumps({"version": 1, "artifact_path": str(artifact_root)}),
         encoding="utf-8",
     )
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    subprocess.run(["git", "-C", str(root), "add", ".ade-os/project.yaml"], check=True)
+    subprocess.run(
+        [
+            "git", "-C", str(root),
+            "-c", "user.name=ADE Test",
+            "-c", "user.email=ade-test@invalid.local",
+            "commit", "-qm", "test root",
+        ],
+        check=True,
+    )
     return root
+
+
+def _git_head(root: Path) -> str:
+    return subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "HEAD"],
+        check=True, text=True, capture_output=True,
+    ).stdout.strip()
 
 
 def _write_start_artifacts(root: Path, payload: dict[str, object]) -> Path:
@@ -207,8 +225,7 @@ def test_checkpoint_start_blocks_second_active_checkpoint(tmp_path: Path) -> Non
     assert state["items"][-1]["checkpoint_id"] == "AD-FEATURE-X"
     assert state["items"][-1]["status"] == "ACTIVE"
 
-def _close_evidence(checkpoint_id: str) -> dict[str, object]:
-    candidate_sha = "a" * 40
+def _close_evidence(checkpoint_id: str, candidate_sha: str) -> dict[str, object]:
     return {
         "checkpoint_id": checkpoint_id,
         "conflict_gate": True,
@@ -244,7 +261,7 @@ def test_checkpoint_close_must_match_active_checkpoint(tmp_path: Path) -> None:
         == 0
     )
     close = tmp_path / "close.json"
-    close.write_text(json.dumps(_close_evidence("AD-OTHER")), encoding="utf-8")
+    close.write_text(json.dumps(_close_evidence("AD-OTHER", _git_head(root))), encoding="utf-8")
     result = _cli(
         ["checkpoint", "close", "--evidence", str(close)], home, root=root
     )
@@ -252,6 +269,20 @@ def test_checkpoint_close_must_match_active_checkpoint(tmp_path: Path) -> None:
     state = json.loads(_state_path(home, root=root).read_text(encoding="utf-8"))
     assert state["items"][-1]["checkpoint_id"] == "AD-FEATURE-X"
     assert state["items"][-1]["status"] == "ACTIVE"
+
+def test_checkpoint_close_rejects_self_consistent_forged_candidate_sha(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    root = _project_root(tmp_path)
+    start = _write_start_artifacts(root, _feature_start_evidence())
+    assert _cli(["checkpoint", "start", "--evidence", str(start)], home, root=root).returncode == 0
+    close = tmp_path / "close-forged.json"
+    close.write_text(json.dumps(_close_evidence("AD-FEATURE-X", "a" * 40)), encoding="utf-8")
+    result = _cli(["checkpoint", "close", "--evidence", str(close)], home, root=root)
+    assert result.returncode == 4
+    assert json.loads(result.stdout)["code"] == "REVIEW_CANDIDATE_STALE"
+    state = json.loads(_state_path(home, root=root).read_text(encoding="utf-8"))
+    assert state["items"][-1]["status"] == "ACTIVE"
+
 
 def test_checkpoint_start_same_active_checkpoint_is_idempotent(tmp_path: Path) -> None:
     home = tmp_path / "home"
@@ -272,7 +303,7 @@ def test_checkpoint_close_matching_active_checkpoint_records_close(tmp_path: Pat
         == 0
     )
     close = tmp_path / "close.json"
-    close.write_text(json.dumps(_close_evidence("AD-FEATURE-X")), encoding="utf-8")
+    close.write_text(json.dumps(_close_evidence("AD-FEATURE-X", _git_head(root))), encoding="utf-8")
     assert (
         _cli(["checkpoint", "close", "--evidence", str(close)], home, root=root).returncode
         == 0

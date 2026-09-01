@@ -17,6 +17,7 @@ from ade_os.core import (
     project_config,
     read_memory,
     route_request,
+    resolve_repository_head,
     validate_checkpoint_start_provenance,
     search_bugs,
     write_index,
@@ -108,7 +109,16 @@ def main(argv: list[str] | None = None) -> int:
                         "code": provenance.get("code", "CHECKPOINT_PROVENANCE_FAILURE"),
                         "provenance": provenance,
                     })
-            result = checkpoint_gate(evidence, args.action)
+            expected_candidate_sha = (
+                resolve_repository_head(args.root)
+                if args.action in {"review", "close"}
+                else None
+            )
+            result = checkpoint_gate(
+                evidence,
+                args.action,
+                expected_candidate_sha=expected_candidate_sha,
+            )
             if result["status"] == "PASS" and args.action == "start":
                 value_gate = result.get("value_gate")
                 value_status = (

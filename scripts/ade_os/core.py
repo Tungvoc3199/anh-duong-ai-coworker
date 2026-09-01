@@ -135,6 +135,24 @@ def decision(status: str, reason: str, code: str | None = None, **extra: Any) ->
     return result
 
 
+def resolve_repository_head(root: Path) -> str | None:
+    """Resolve the repository HEAD used to bind closure evidence."""
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--verify", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=3,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if completed.returncode != 0:
+        return None
+    head = completed.stdout.strip()
+    return head if re.fullmatch(r"[0-9a-f]{40}", head) is not None else None
+
+
 def redact(value: str) -> str:
     return SENSITIVE.sub(r"\1\2<redacted>", value)
 
@@ -851,13 +869,24 @@ def route_request(
     }
 
 
-def validate_closure_review_protocol(payload: Any) -> dict[str, Any]:
+def validate_closure_review_protocol(
+    payload: Any, *, expected_candidate_sha: str | None
+) -> dict[str, Any]:
     """Validate bounded, snapshot-bound independent closure review evidence."""
     if not isinstance(payload, Mapping):
         return decision(
             "DENY",
             "GOVERNANCE_FAILURE",
             "CLOSURE_REVIEW_PROTOCOL_REQUIRED",
+        )
+
+    if expected_candidate_sha is None or re.fullmatch(
+        r"[0-9a-f]{40}", expected_candidate_sha
+    ) is None:
+        return decision(
+            "DENY",
+            "GOVERNANCE_FAILURE",
+            "REVIEW_CANDIDATE_UNBOUND",
         )
 
     required_true = (
@@ -914,13 +943,18 @@ def validate_closure_review_protocol(payload: Any) -> dict[str, Any]:
             semantic_review_rounds=rounds,
             max_semantic_review_rounds=CLOSURE_REVIEW_MAX_SEMANTIC_ROUNDS,
         )
-    if candidate_sha != reviewed_sha or behavior_changed is True:
+    if (
+        candidate_sha != reviewed_sha
+        or candidate_sha != expected_candidate_sha
+        or behavior_changed is True
+    ):
         return decision(
             "DENY",
             "GOVERNANCE_FAILURE",
             "REVIEW_CANDIDATE_STALE",
             candidate_sha=candidate_sha,
             reviewed_sha=reviewed_sha,
+            expected_candidate_sha=expected_candidate_sha,
         )
     if rounds > 1 and findings_batched is not True:
         return decision(
@@ -937,7 +971,12 @@ def validate_closure_review_protocol(payload: Any) -> dict[str, Any]:
     )
 
 
-def checkpoint_gate(evidence: Mapping[str, Any], action: str) -> dict[str, Any]:
+def checkpoint_gate(
+    evidence: Mapping[str, Any],
+    action: str,
+    *,
+    expected_candidate_sha: str | None = None,
+) -> dict[str, Any]:
     if action == "start":
         missing: list[str] = []
         invalid: list[str] = []
@@ -970,7 +1009,10 @@ def checkpoint_gate(evidence: Mapping[str, Any], action: str) -> dict[str, Any]:
     if action in {"review", "close"} and evidence.get("review") != "PASS":
         missing.insert(0, "review")
     if action in {"review", "close"}:
-        protocol = validate_closure_review_protocol(evidence.get("closure_review"))
+        protocol = validate_closure_review_protocol(
+            evidence.get("closure_review"),
+            expected_candidate_sha=expected_candidate_sha,
+        )
         if protocol["status"] != "ALLOW":
             return {
                 "status": "BLOCKED",
