@@ -53,3 +53,13 @@ def test_casual_conversation_stays_direct() -> None:
 
     assert decision.route is FastRoute.DIRECT
     assert capability.capability is CapabilityKind.CONVERSATIONAL_RESPONSE
+
+
+def test_operational_guidance_with_positive_mutation_never_becomes_readonly_view_status() -> None:
+    action, risk, _ = WorkflowResolver._action(
+        "Hướng dẫn anh kiểm tra service; rồi deploy bản này.",
+        CapabilityKind.SYSTEM_OPERATION,
+    )
+
+    assert action == "workflow_system_operation"
+    assert risk is None

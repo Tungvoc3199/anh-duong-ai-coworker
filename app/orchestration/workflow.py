@@ -108,8 +108,10 @@ class WorkflowResolver:
         has_read_only_status_check = is_read_only_status_intent(
             safety
         ) or is_read_only_core_status_intent(safety)
-        has_operational_guidance = capability is CapabilityKind.SYSTEM_OPERATION and any(
-            marker in folded for marker in _OPERATIONAL_GUIDANCE_MARKERS
+        has_operational_guidance = (
+            capability is CapabilityKind.SYSTEM_OPERATION
+            and any(marker in folded for marker in _OPERATIONAL_GUIDANCE_MARKERS)
+            and not safety.unnegated_mutation
         )
         if capability is CapabilityKind.VISUAL_PROMPT_COMPOSE:
             return (
