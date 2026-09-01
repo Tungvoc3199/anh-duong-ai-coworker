@@ -1224,14 +1224,22 @@ class AsyncTaskWorker:
             and ready.get("status") == "ready"
         )
         database = statuses.get("database", {})
-        if require_database_quick_check and not (
-            isinstance(database, dict) and "quick_check" in database
-        ):
-            try:
-                quick_check = await asyncio.to_thread(self._probe_database_quick_check)
-            except Exception:
-                quick_check = "unavailable"
-            database = {"quick_check": quick_check}
+        if require_database_quick_check:
+            if isinstance(database, dict) and "quick_check" in database:
+                quick_check = database.get("quick_check")
+            else:
+                try:
+                    quick_check = await asyncio.to_thread(self._probe_database_quick_check)
+                except Exception:
+                    quick_check = "unavailable"
+            sanitized_quick_check = (
+                "ok"
+                if quick_check == "ok"
+                else "unavailable"
+                if quick_check in {None, "unavailable"}
+                else "failed"
+            )
+            database = {"quick_check": sanitized_quick_check}
         database_ok = isinstance(database, dict) and database.get("quick_check") == "ok"
         required_checks_ok = (
             health_ok and ready_ok and (database_ok if require_database_quick_check else True)

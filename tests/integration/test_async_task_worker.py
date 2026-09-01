@@ -1042,7 +1042,9 @@ async def test_database_quick_check_failure_cannot_report_success(
     assert run.status is AsyncRunStatus.BLOCKED
     assert run.last_error_code == "database_quick_check_failed"
     payload = json.loads(run.result_json or "{}")
-    assert payload["artifacts"]["database"]["quick_check"] == "corrupt"
+    assert payload["artifacts"]["database"]["quick_check"] == "failed"
+    assert "corrupt" not in (run.result_json or "")
+    assert "corrupt" not in payload.get("summary", "")
     assert payload["outcome"] == "blocked"
     criterion = payload["criterion_verification"][0]
     assert criterion["status"] == "unmet"
