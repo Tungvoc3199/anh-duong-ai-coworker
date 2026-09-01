@@ -8,11 +8,13 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    field_serializer,
     field_validator,
     model_validator,
 )
 
 from app.tasks.models import TaskPriority
+from app.timeutil import format_display
 
 
 class AsyncRunStatus(StrEnum):
@@ -249,3 +251,16 @@ class AsyncTaskRun(BaseModel):
         if value is not None and value.tzinfo is None:
             return value.replace(tzinfo=UTC)
         return value
+
+    @field_serializer(
+        "run_after",
+        "lease_expires_at",
+        "created_at",
+        "updated_at",
+        when_used="json",
+    )
+    def serialize_display_datetime(
+        self,
+        value: datetime | None,
+    ) -> str | None:
+        return format_display(value) if value is not None else None
