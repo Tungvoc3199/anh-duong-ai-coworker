@@ -30,3 +30,24 @@ def test_repo_relative_handles_current_and_legacy_roots() -> None:
     legacy = '/home/thadc/AIOS/anh-duong-core.worktrees/lane/scripts/ade_os.py'
     assert pretool_guard.repo_relative(current) == 'scripts/ade_os.py'
     assert pretool_guard.repo_relative(legacy) == 'scripts/ade_os.py'
+
+
+def test_workspace_registration_requires_git_admin_backref(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    production = tmp_path / "production"
+    parent = tmp_path / "worktrees"
+    lane = parent / "lane"
+    admin = production / ".git" / "worktrees" / "lane"
+    lane.mkdir(parents=True)
+    admin.mkdir(parents=True)
+    (lane / ".git").write_text(f"gitdir: {admin}\n", encoding="utf-8")
+
+    monkeypatch.setattr(core, "PRODUCTION_CORE_ROOT", production)
+    monkeypatch.setattr(core, "CORE_WORKTREE_ROOT", parent)
+    monkeypatch.setattr(core, "CORE_WORKTREE_ROOTS", (parent,))
+
+    assert core.validate_workspace(lane, writable=True)["status"] == "DENY"
+    (admin / "gitdir").write_text(str(lane / ".git") + "\n", encoding="utf-8")
+    # Reciprocal text alone is forgeable; authoritative Git must still reject it.
+    assert core.validate_workspace(lane, writable=True)["status"] == "DENY"

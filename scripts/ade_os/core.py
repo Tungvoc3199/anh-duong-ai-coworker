@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -34,6 +35,24 @@ FAILURE_CLASSES = (
     "SCOPE_FAILURE",
     "GOVERNANCE_FAILURE",
 )
+NATIVE_CAPABILITY_DECISIONS = (
+    "USE_NATIVE",
+    "WRAP_NATIVE",
+    "EXTEND_NATIVE",
+    "BUILD_CUSTOM",
+)
+CHECKPOINT_WORK_TYPES = (
+    "feature",
+    "automation",
+    "integration",
+    "custom_build",
+    "repair",
+    "diagnostic",
+    "security",
+    "compliance",
+    "maintenance",
+)
+VALUE_GATED_WORK_TYPES = frozenset({"feature", "automation", "integration", "custom_build"})
 REQUIRED_TASK_MANIFEST = {
     "checkpoint_id": str,
     "code_change": bool,
@@ -162,6 +181,17 @@ def core_worktree_root_for(path: Path) -> Path | None:
     return next((root for root in CORE_WORKTREE_ROOTS if is_relative_to(resolved, root)), None)
 
 
+def core_worktree_lane_root_for(path: Path) -> Path | None:
+    resolved = path.resolve(strict=False)
+    parent = core_worktree_root_for(resolved)
+    if parent is None:
+        return None
+    relative = resolved.relative_to(parent)
+    if not relative.parts:
+        return None
+    return parent / relative.parts[0]
+
+
 def validate_workspace(root: Path, *, writable: bool) -> dict[str, Any]:
     resolved = root.resolve(strict=False)
     if writable and resolved in {PRODUCTION_CORE_ROOT, CONTAINER_CORE_ROOT}:
@@ -170,17 +200,85 @@ def validate_workspace(root: Path, *, writable: bool) -> dict[str, Any]:
         return decision(
             "ALLOW", "GOVERNANCE_OK", workspace=str(resolved), workspace_kind="read_only"
         )
-    if core_worktree_root_for(resolved) is None:
+    lane_root = core_worktree_lane_root_for(resolved)
+    if lane_root is None or lane_root.resolve(strict=False) != resolved:
         return decision("DENY", "GOVERNANCE_FAILURE", workspace=str(resolved))
+
     git_file = resolved / ".git"
     try:
-        git_text = git_file.read_text(encoding="utf-8")
+        git_text = git_file.read_text(encoding="utf-8").strip()
     except OSError:
         return decision("DENY", "GOVERNANCE_FAILURE", workspace=str(resolved))
-    if f"{PRODUCTION_CORE_ROOT}/.git/worktrees/" not in git_text:
+    prefix = "gitdir: "
+    if not git_text.startswith(prefix):
         return decision("DENY", "GOVERNANCE_FAILURE", workspace=str(resolved))
+
+    admin = Path(git_text[len(prefix) :].strip())
+    if not admin.is_absolute():
+        admin = git_file.parent / admin
+    admin = admin.resolve(strict=False)
+    admin_root = (PRODUCTION_CORE_ROOT / ".git" / "worktrees").resolve(strict=False)
+    if not admin.is_dir() or not is_relative_to(admin, admin_root):
+        return decision("DENY", "GOVERNANCE_FAILURE", workspace=str(resolved))
+
+    try:
+        backref_text = (admin / "gitdir").read_text(encoding="utf-8").strip()
+    except OSError:
+        return decision("DENY", "GOVERNANCE_FAILURE", workspace=str(resolved))
+    backref = Path(backref_text)
+    if not backref.is_absolute():
+        backref = admin / backref
+    if backref.resolve(strict=False) != git_file.resolve(strict=False):
+        return decision("DENY", "GOVERNANCE_FAILURE", workspace=str(resolved))
+
+    def git_output(*args: str, cwd: Path = resolved) -> str | None:
+        try:
+            completed = subprocess.run(
+                ["git", "-C", str(cwd), *args],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=3,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        if completed.returncode != 0:
+            return None
+        return completed.stdout.strip()
+
+    top = git_output("rev-parse", "--show-toplevel")
+    actual_admin = git_output("rev-parse", "--absolute-git-dir")
+    common = git_output("rev-parse", "--git-common-dir")
+    if not top or not actual_admin or not common:
+        return decision("DENY", "GOVERNANCE_FAILURE", workspace=str(resolved))
+    common_path = Path(common)
+    if not common_path.is_absolute():
+        common_path = resolved / common_path
+    if (
+        Path(top).resolve(strict=False) != resolved
+        or Path(actual_admin).resolve(strict=False) != admin
+        or common_path.resolve(strict=False)
+        != (PRODUCTION_CORE_ROOT / ".git").resolve(strict=False)
+    ):
+        return decision("DENY", "GOVERNANCE_FAILURE", workspace=str(resolved))
+
+    worktree_list = git_output("worktree", "list", "--porcelain", cwd=PRODUCTION_CORE_ROOT)
+    if worktree_list is None:
+        return decision("DENY", "GOVERNANCE_FAILURE", workspace=str(resolved))
+    registered = {
+        Path(line.removeprefix("worktree ")).resolve(strict=False)
+        for line in worktree_list.splitlines()
+        if line.startswith("worktree ")
+    }
+    if resolved not in registered:
+        return decision("DENY", "GOVERNANCE_FAILURE", workspace=str(resolved))
+
     return decision(
-        "ALLOW", "GOVERNANCE_OK", workspace=str(resolved), workspace_kind="isolated_worktree"
+        "ALLOW",
+        "GOVERNANCE_OK",
+        workspace=str(resolved),
+        workspace_kind="isolated_worktree",
+        git_admin=str(admin),
     )
 
 
@@ -240,6 +338,158 @@ def validate_task_manifest(path: Path, *, checkpoint_id: str) -> dict[str, Any]:
             forbidden=forbidden,
         )
     return decision("ALLOW", "GOVERNANCE_OK", checkpoint_id=checkpoint_id)
+
+
+def validate_checkpoint_start_provenance(
+    evidence_path: Path,
+    payload: Any,
+    *,
+    artifact_root: Path,
+) -> dict[str, Any]:
+    """Bind checkpoint start to its durable artifact directory and manifest."""
+    if not isinstance(payload, Mapping):
+        return decision(
+            "DENY",
+            "GOVERNANCE_FAILURE",
+            "CHECKPOINT_PROVENANCE_FAILURE",
+            invalid=["manifest"],
+        )
+    checkpoint_id = payload.get("checkpoint_id")
+    if not isinstance(checkpoint_id, str) or not re.fullmatch(
+        r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", checkpoint_id
+    ):
+        return decision(
+            "DENY",
+            "GOVERNANCE_FAILURE",
+            "CHECKPOINT_PROVENANCE_FAILURE",
+            invalid=["checkpoint_id"],
+        )
+
+    root = artifact_root.resolve(strict=False)
+    directory = (root / checkpoint_id).resolve(strict=False)
+    expected_start = (directory / "start.json").resolve(strict=False)
+    resolved_evidence = evidence_path.resolve(strict=False)
+    if resolved_evidence != expected_start:
+        return decision(
+            "DENY",
+            "GOVERNANCE_FAILURE",
+            "CHECKPOINT_PROVENANCE_FAILURE",
+            expected=str(expected_start),
+            actual=str(resolved_evidence),
+        )
+    try:
+        stored_start = load_json(expected_start)
+    except AdeError as error:
+        return decision(
+            "DENY",
+            "GOVERNANCE_FAILURE",
+            "CHECKPOINT_PROVENANCE_FAILURE",
+            error=str(error),
+        )
+    if stored_start != dict(payload):
+        return decision(
+            "DENY",
+            "GOVERNANCE_FAILURE",
+            "CHECKPOINT_PROVENANCE_FAILURE",
+            detail="start evidence does not match durable artifact",
+        )
+
+    work_type = payload.get("work_type")
+    value_gate_sha256: str | None = None
+    if work_type in VALUE_GATED_WORK_TYPES:
+        value_gate_path = directory / "value-gate.json"
+        try:
+            durable_value_gate = load_json(value_gate_path)
+        except AdeError as error:
+            return decision(
+                "DENY",
+                "GOVERNANCE_FAILURE",
+                "CHECKPOINT_PROVENANCE_FAILURE",
+                error=str(error),
+            )
+        if payload.get("value_gate") != durable_value_gate:
+            return decision(
+                "DENY",
+                "GOVERNANCE_FAILURE",
+                "CHECKPOINT_PROVENANCE_FAILURE",
+                detail="value gate does not match durable artifact",
+            )
+        if evaluate_checkpoint_value_gate(durable_value_gate)["status"] != "ALLOW":
+            return decision(
+                "DENY",
+                "GOVERNANCE_FAILURE",
+                "CHECKPOINT_PROVENANCE_FAILURE",
+                detail="durable value gate is not allowed",
+            )
+        value_gate_sha256 = sha256(value_gate_path)
+
+    return decision(
+        "ALLOW",
+        "CHECKPOINT_PROVENANCE_OK",
+        checkpoint_id=checkpoint_id,
+        artifact_dir=str(directory),
+        start_sha256=sha256(expected_start),
+        value_gate_sha256=value_gate_sha256,
+    )
+
+
+def evaluate_checkpoint_value_gate(payload: Any) -> dict[str, Any]:
+    """Fail closed on unclear value or redundant custom implementation."""
+    if not isinstance(payload, Mapping):
+        return decision(
+            "DENY",
+            "GOVERNANCE_FAILURE",
+            "INVALID_MANIFEST",
+            invalid=["manifest"],
+        )
+    missing = [
+        key
+        for key in ("user_value", "measurement", "revenue_link", "content_proof")
+        if not isinstance(payload.get(key), str) or not payload.get(key, "").strip()
+    ]
+    native = payload.get("native_capability")
+    if not isinstance(native, Mapping):
+        missing.append("native_capability")
+        return decision("DENY", "GOVERNANCE_FAILURE", missing=missing)
+
+    native_decision = native.get("decision")
+    coverage = native.get("coverage_pct")
+    owned_contract = native.get("owned_contract")
+    rationale = native.get("rationale")
+    invalid: list[str] = []
+    if native_decision not in NATIVE_CAPABILITY_DECISIONS:
+        invalid.append("native_capability.decision")
+    if (
+        isinstance(coverage, bool)
+        or not isinstance(coverage, (int, float))
+        or not 0 <= coverage <= 100
+    ):
+        invalid.append("native_capability.coverage_pct")
+    if not isinstance(owned_contract, bool):
+        invalid.append("native_capability.owned_contract")
+    if not isinstance(rationale, str) or not rationale.strip():
+        invalid.append("native_capability.rationale")
+    if missing or invalid:
+        return decision(
+            "DENY",
+            "GOVERNANCE_FAILURE",
+            missing=missing,
+            invalid=invalid,
+        )
+    if native_decision == "BUILD_CUSTOM" and coverage >= 80 and not owned_contract:
+        return decision(
+            "DENY",
+            "GOVERNANCE_FAILURE",
+            "REDUNDANT_BUILD",
+            native_decision=native_decision,
+            native_coverage_pct=coverage,
+        )
+    return decision(
+        "ALLOW",
+        "VALUE_GATE_OK",
+        native_decision=native_decision,
+        native_coverage_pct=coverage,
+    )
 
 
 def validate_role_capability(role: str, capability: str) -> dict[str, Any]:
@@ -387,6 +637,43 @@ def read_memory(root: Path, name: str) -> dict[str, Any]:
     if loaded.get("version") != SCHEMA_VERSION:
         raise AdeError("unsupported runtime memory version")
     return loaded
+
+
+def active_checkpoint(root: Path) -> dict[str, Any] | None:
+    record = read_memory(root, "active-checkpoint")
+    items = record.get("items")
+    if not isinstance(items, list) or not items:
+        return None
+    latest = items[-1]
+    if not isinstance(latest, dict) or latest.get("status") != "ACTIVE":
+        return None
+    return latest
+
+
+def validate_active_checkpoint_for_mutation(root: Path) -> dict[str, Any]:
+    active = active_checkpoint(root)
+    if active is None:
+        return decision(
+            "DENY", "GOVERNANCE_FAILURE", "ACTIVE_CHECKPOINT_REQUIRED", workspace=str(root)
+        )
+    work_type = active.get("work_type")
+    if work_type not in CHECKPOINT_WORK_TYPES:
+        return decision(
+            "DENY", "GOVERNANCE_FAILURE", "INVALID_CHECKPOINT_STATE", work_type=work_type
+        )
+    if work_type in VALUE_GATED_WORK_TYPES and active.get("value_gate_status") != "ALLOW":
+        return decision(
+            "DENY",
+            "GOVERNANCE_FAILURE",
+            "VALUE_GATE_REQUIRED",
+            checkpoint_id=active.get("checkpoint_id"),
+        )
+    return decision(
+        "ALLOW",
+        "GOVERNANCE_OK",
+        checkpoint_id=active.get("checkpoint_id"),
+        work_type=work_type,
+    )
 
 
 def append_memory(
@@ -563,6 +850,33 @@ def route_request(
 
 
 def checkpoint_gate(evidence: Mapping[str, Any], action: str) -> dict[str, Any]:
+    if action == "start":
+        missing: list[str] = []
+        invalid: list[str] = []
+        checkpoint_id = evidence.get("checkpoint_id")
+        work_type = evidence.get("work_type")
+        if not isinstance(checkpoint_id, str) or not checkpoint_id.strip():
+            missing.append("checkpoint_id")
+        if not isinstance(work_type, str) or not work_type.strip():
+            missing.append("work_type")
+        elif work_type not in CHECKPOINT_WORK_TYPES:
+            invalid.append("work_type")
+
+        value_result: dict[str, Any] | None = None
+        if work_type in VALUE_GATED_WORK_TYPES:
+            value_result = evaluate_checkpoint_value_gate(evidence.get("value_gate"))
+            if value_result["status"] != "ALLOW":
+                missing.append("value_gate")
+
+        result: dict[str, Any] = {
+            "status": "PASS" if not missing and not invalid else "BLOCKED",
+            "missing": missing,
+            "invalid": invalid,
+        }
+        if value_result is not None:
+            result["value_gate"] = value_result
+        return result
+
     required = ("conflict_gate", "scoped_diff", "tests", "backup", "rollback", "runtime_e2e")
     missing = [key for key in required if evidence.get(key) is not True]
     if action in {"review", "close"} and evidence.get("review") != "PASS":

@@ -7,12 +7,35 @@ import json
 import sys
 from pathlib import Path
 
-from ade_os.core import AdeError, append_memory, bug_records, checkpoint_gate, project_config, read_memory, route_request, search_bugs, write_index
+from ade_os.core import (
+    AdeError,
+    active_checkpoint,
+    append_memory,
+    bug_records,
+    checkpoint_gate,
+    evaluate_checkpoint_value_gate,
+    project_config,
+    read_memory,
+    route_request,
+    validate_checkpoint_start_provenance,
+    search_bugs,
+    write_index,
+)
 
 
 def emit(value: object) -> int:
     print(json.dumps(value, ensure_ascii=False, indent=2))
     return 0
+
+
+def emit_gate(value: dict[str, object]) -> int:
+    print(json.dumps(value, ensure_ascii=False, indent=2))
+    return 0 if value.get("status") == "ALLOW" else 4
+
+
+def emit_checkpoint(value: dict[str, object]) -> int:
+    print(json.dumps(value, ensure_ascii=False, indent=2))
+    return 0 if value.get("status") == "PASS" else 4
 
 
 def parser() -> argparse.ArgumentParser:
@@ -24,6 +47,8 @@ def parser() -> argparse.ArgumentParser:
     bug = subs.add_parser("bug"); bug.add_argument("action", choices=("list", "search")); bug.add_argument("query", nargs="?")
     route = subs.add_parser("route"); route.add_argument("text"); route.add_argument("--failed-repairs", type=int, default=0); route.add_argument("--dirty-unknown", action="store_true"); route.add_argument("--destructive", action="store_true")
     checkpoint = subs.add_parser("checkpoint"); checkpoint.add_argument("action", choices=("start", "status", "record", "review", "close", "abort")); checkpoint.add_argument("--evidence", type=Path)
+    value_gate = subs.add_parser("value-gate")
+    value_gate.add_argument("--manifest", type=Path, required=True)
     subs.add_parser("validate"); subs.add_parser("doctor")
     return command
 
@@ -40,15 +65,94 @@ def main(argv: list[str] | None = None) -> int:
             return emit(bug_records(root) if args.action == "list" else search_bugs(root, args.query or ""))
         if args.command == "route": return emit(route_request(args.text, failed_repairs=args.failed_repairs, dirty_unknown=args.dirty_unknown, destructive=args.destructive))
         if args.command == "memory":
+            if args.action in {"set-checkpoint", "clear-checkpoint"}:
+                return emit_checkpoint({
+                    "status": "BLOCKED",
+                    "reason": "GOVERNANCE_FAILURE",
+                    "code": "DIRECT_CHECKPOINT_STATE_MUTATION_FORBIDDEN",
+                })
             names = {"errors": "last-errors", "tests": "last-passed-tests", "deployments": "deployment-history", "checkpoint": "active-checkpoint"}
             name = names.get(args.action, "runtime-memory")
-            if args.action.startswith("record-") or args.action == "set-checkpoint":
-                name = {"record-error": "last-errors", "record-test": "last-passed-tests", "record-deployment": "deployment-history", "set-checkpoint": "active-checkpoint"}[args.action]
+            if args.action.startswith("record-"):
+                records = {
+                    "record-error": "last-errors",
+                    "record-test": "last-passed-tests",
+                    "record-deployment": "deployment-history",
+                }
+                name = records[args.action]
                 return emit(append_memory(args.root, name, json.loads(args.data)))
             return emit(read_memory(args.root, name))
         if args.command == "checkpoint":
-            evidence = json.loads(args.evidence.read_text(encoding="utf-8")) if args.evidence else {}
-            return emit(checkpoint_gate(evidence, args.action))
+            evidence = (
+                json.loads(args.evidence.read_text(encoding="utf-8"))
+                if args.evidence
+                else {}
+            )
+            if args.action == "start":
+                if args.evidence is None:
+                    return emit_checkpoint({
+                        "status": "BLOCKED",
+                        "reason": "GOVERNANCE_FAILURE",
+                        "code": "CHECKPOINT_PROVENANCE_FAILURE",
+                    })
+                artifact_root = Path(
+                    str(config.get("artifact_path", "/mnt/f/AIOS/anh-duong-checkpoints"))
+                )
+                provenance = validate_checkpoint_start_provenance(
+                    args.evidence, evidence, artifact_root=artifact_root
+                )
+                if provenance["status"] != "ALLOW":
+                    return emit_checkpoint({
+                        "status": "BLOCKED",
+                        "reason": provenance["reason"],
+                        "code": provenance.get("code", "CHECKPOINT_PROVENANCE_FAILURE"),
+                        "provenance": provenance,
+                    })
+            result = checkpoint_gate(evidence, args.action)
+            if result["status"] == "PASS" and args.action == "start":
+                value_gate = result.get("value_gate")
+                value_status = (
+                    value_gate.get("status") if isinstance(value_gate, dict) else "NOT_REQUIRED"
+                )
+                current = active_checkpoint(args.root)
+                if current is not None:
+                    same = (
+                        current.get("checkpoint_id") == evidence.get("checkpoint_id")
+                        and current.get("work_type") == evidence.get("work_type")
+                        and current.get("value_gate_status") == value_status
+                    )
+                    if not same:
+                        return emit_checkpoint({
+                            "status": "BLOCKED",
+                            "reason": "GOVERNANCE_FAILURE",
+                            "code": "ACTIVE_CHECKPOINT_CONFLICT",
+                            "active_checkpoint_id": current.get("checkpoint_id"),
+                        })
+                else:
+                    append_memory(args.root, "active-checkpoint", {
+                        "checkpoint_id": evidence.get("checkpoint_id"),
+                        "work_type": evidence.get("work_type"),
+                        "status": "ACTIVE",
+                        "value_gate_status": value_status,
+                    }, limit=20)
+            elif result["status"] == "PASS" and args.action in {"close", "abort"}:
+                current = active_checkpoint(args.root)
+                if current is None or current.get("checkpoint_id") != evidence.get("checkpoint_id"):
+                    return emit_checkpoint({
+                        "status": "BLOCKED",
+                        "reason": "GOVERNANCE_FAILURE",
+                        "code": "CHECKPOINT_ID_MISMATCH",
+                    })
+                append_memory(args.root, "active-checkpoint", {
+                    "checkpoint_id": evidence.get("checkpoint_id"),
+                    "status": args.action.upper(),
+                }, limit=20)
+            if args.action == "start":
+                return emit_checkpoint(result)
+            return emit(result)
+        if args.command == "value-gate":
+            manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
+            return emit_gate(evaluate_checkpoint_value_gate(manifest))
         if args.command == "validate":
             write_index(args.root); return emit({"status": "PASS"})
         return emit({"status": "PASS", "artifact_path": config["artifact_path"]})
