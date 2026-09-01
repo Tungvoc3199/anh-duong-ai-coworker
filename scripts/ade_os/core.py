@@ -54,7 +54,7 @@ CHECKPOINT_WORK_TYPES = (
 )
 VALUE_GATED_WORK_TYPES = frozenset({"feature", "automation", "integration", "custom_build"})
 CLOSURE_REVIEW_PROTOCOL_VERSION = 1
-CLOSURE_REVIEW_MAX_SEMANTIC_ROUNDS = 2
+CLOSURE_REVIEW_MAX_FINAL_REVIEWS = 2
 REQUIRED_TASK_MANIFEST = {
     "checkpoint_id": str,
     "code_change": bool,
@@ -133,24 +133,6 @@ def decision(status: str, reason: str, code: str | None = None, **extra: Any) ->
         result["code"] = code
     result.update(extra)
     return result
-
-
-def resolve_repository_head(root: Path) -> str | None:
-    """Resolve the repository HEAD used to bind closure evidence."""
-    try:
-        completed = subprocess.run(
-            ["git", "-C", str(root), "rev-parse", "--verify", "HEAD"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=3,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    if completed.returncode != 0:
-        return None
-    head = completed.stdout.strip()
-    return head if re.fullmatch(r"[0-9a-f]{40}", head) is not None else None
 
 
 def redact(value: str) -> str:
@@ -869,113 +851,185 @@ def route_request(
     }
 
 
-def validate_closure_review_protocol(
-    payload: Any, *, expected_candidate_sha: str | None
-) -> dict[str, Any]:
-    """Validate bounded, snapshot-bound independent closure review evidence."""
+def _closure_block(code: str, **extra: Any) -> dict[str, Any]:
+    return {
+        "status": "BLOCKED",
+        "missing": [],
+        "reason": "GOVERNANCE_FAILURE",
+        "code": code,
+        **extra,
+    }
+
+
+def validate_closure_review_protocol(payload: Any, *, action: str) -> dict[str, Any]:
+    """Validate an immutable candidate and bounded independent final review."""
     if not isinstance(payload, Mapping):
-        return decision(
-            "DENY",
-            "GOVERNANCE_FAILURE",
-            "CLOSURE_REVIEW_PROTOCOL_REQUIRED",
-        )
-
-    if expected_candidate_sha is None or re.fullmatch(
-        r"[0-9a-f]{40}", expected_candidate_sha
-    ) is None:
-        return decision(
-            "DENY",
-            "GOVERNANCE_FAILURE",
-            "REVIEW_CANDIDATE_UNBOUND",
-        )
-
-    required_true = (
-        "candidate_frozen",
-        "adversarial_matrix_passed",
-        "focused_regression_passed",
-        "full_regression_passed",
-        "reviewer_independent",
-    )
-    invalid: list[str] = []
+        return _closure_block("CLOSURE_REVIEW_PROTOCOL_REQUIRED")
     if payload.get("protocol_version") != CLOSURE_REVIEW_PROTOCOL_VERSION:
-        invalid.append("protocol_version")
+        return _closure_block("CLOSURE_REVIEW_PROTOCOL_INVALID", field="protocol_version")
 
-    candidate_sha = payload.get("candidate_sha")
-    reviewed_sha = payload.get("reviewed_sha")
-    for name, value in (("candidate_sha", candidate_sha), ("reviewed_sha", reviewed_sha)):
+    sha_fields = ("base_sha", "candidate_sha", "reviewed_sha")
+    hash_fields = ("locked_diff_sha256", "reviewed_diff_sha256")
+
+    for field_name in sha_fields:
+        value = payload.get(field_name)
         if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{40}", value) is None:
-            invalid.append(name)
+            return _closure_block("CLOSURE_REVIEW_PROTOCOL_INVALID", field=field_name)
+    for field_name in hash_fields:
+        value = payload.get(field_name)
+        if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None:
+            return _closure_block("CLOSURE_REVIEW_PROTOCOL_INVALID", field=field_name)
 
-    for name in required_true:
-        if payload.get(name) is not True:
-            invalid.append(name)
+    if payload.get("candidate_locked") is not True:
+        return _closure_block("CANDIDATE_NOT_LOCKED")
+    if payload.get("candidate_clean") is not True:
+        return _closure_block("CANDIDATE_NOT_CLEAN")
+    if payload["candidate_sha"] != payload["reviewed_sha"]:
+        return _closure_block("REVIEW_CANDIDATE_STALE")
+    if payload["locked_diff_sha256"] != payload["reviewed_diff_sha256"]:
+        return _closure_block("LOCKED_DIFF_HASH_MISMATCH")
 
-    rounds = payload.get("semantic_review_rounds")
-    if isinstance(rounds, bool) or not isinstance(rounds, int) or rounds < 1:
-        invalid.append("semantic_review_rounds")
+    generation_fields = (
+        "source_generation",
+        "adversarial_generation",
+        "targeted_generation",
+        "static_generation",
+        "full_regression_generation",
+        "review_generation",
+    )
 
-    findings_batched = payload.get("findings_batched")
-    if not isinstance(findings_batched, bool):
-        invalid.append("findings_batched")
+    for field_name in generation_fields:
+        value = payload.get(field_name)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            return _closure_block("CLOSURE_REVIEW_PROTOCOL_INVALID", field=field_name)
+    source_generation = payload["source_generation"]
+    if payload["adversarial_generation"] != source_generation:
+        return _closure_block("ADVERSARIAL_SWEEP_STALE")
+    if payload["targeted_generation"] != source_generation:
+        return _closure_block("TARGETED_REGRESSION_STALE")
+    if payload["static_generation"] != source_generation:
+        return _closure_block("STATIC_VALIDATION_STALE")
 
-    behavior_changed = payload.get("behavior_changed_after_review")
-    if not isinstance(behavior_changed, bool):
-        invalid.append("behavior_changed_after_review")
+    review_count = payload.get("final_review_count")
+    if isinstance(review_count, bool) or not isinstance(review_count, int) or review_count < 1:
+        return _closure_block("CLOSURE_REVIEW_PROTOCOL_INVALID", field="final_review_count")
+    if review_count > CLOSURE_REVIEW_MAX_FINAL_REVIEWS:
+        return _closure_block("REVIEW_BUDGET_EXCEEDED")
+    if review_count == 2:
+        if payload.get("rereview_reason") != "finding_batch":
+            return _closure_block("DUPLICATE_REVIEW_UNJUSTIFIED")
+        finding_batch_id = payload.get("finding_batch_id")
+        if not isinstance(finding_batch_id, str) or not finding_batch_id.strip():
+            return _closure_block("CLOSURE_REVIEW_PROTOCOL_INVALID", field="finding_batch_id")
+        if payload.get("findings_batched") is not True:
+            return _closure_block("REVIEW_FINDINGS_NOT_BATCHED")
+        if payload.get("last_finding_batch_generation") != source_generation:
+            return _closure_block("REVIEW_FINDINGS_NOT_BATCHED")
+        if payload["full_regression_generation"] != source_generation:
+            return _closure_block("FINDING_BATCH_FULL_REGRESSION_REQUIRED")
+
+    if payload["full_regression_generation"] != source_generation:
+        return _closure_block("FULL_REGRESSION_STALE")
+    if payload["review_generation"] != source_generation:
+        return _closure_block("REVIEW_STALE_AFTER_SOURCE_MUTATION")
+
+    if payload.get("reviewer_independent") is not True:
+        return _closure_block("FINAL_REVIEW_NOT_INDEPENDENT")
+    if payload.get("reviewer_status") != "COMPLETED" or payload.get("review_verdict") is None:
+        return _closure_block("FINAL_REVIEW_INCOMPLETE")
+    severities: list[int] = []
+    for field_name in ("p0", "p1", "p2"):
+        value = payload.get(field_name)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            return _closure_block("CLOSURE_REVIEW_PROTOCOL_INVALID", field=field_name)
+        severities.append(value)
+    if payload.get("review_verdict") != "PASS" or any(severities):
+        return _closure_block("FINAL_REVIEW_FINDINGS_OPEN")
 
     tool_failures = payload.get("tool_failures")
     if isinstance(tool_failures, bool) or not isinstance(tool_failures, int) or tool_failures < 0:
-        invalid.append("tool_failures")
+        return _closure_block("CLOSURE_REVIEW_PROTOCOL_INVALID", field="tool_failures")
 
-    if invalid:
-        return decision(
-            "DENY",
-            "GOVERNANCE_FAILURE",
-            "CLOSURE_REVIEW_PROTOCOL_INVALID",
-            invalid=sorted(set(invalid)),
-        )
+    runtime_mode = payload.get("runtime_mode")
+    if runtime_mode not in {"SOURCE_ONLY", "RUNTIME_REQUIRED"}:
+        return _closure_block("CLOSURE_REVIEW_PROTOCOL_INVALID", field="runtime_mode")
 
-    assert isinstance(rounds, int)
-    if rounds > CLOSURE_REVIEW_MAX_SEMANTIC_ROUNDS:
-        return decision(
-            "DENY",
-            "GOVERNANCE_FAILURE",
-            "REVIEW_BUDGET_EXCEEDED",
-            semantic_review_rounds=rounds,
-            max_semantic_review_rounds=CLOSURE_REVIEW_MAX_SEMANTIC_ROUNDS,
-        )
-    if (
-        candidate_sha != reviewed_sha
-        or candidate_sha != expected_candidate_sha
-        or behavior_changed is True
+    deployed = payload.get("deployed")
+    runtime_e2e = payload.get("runtime_e2e")
+    for field_name, value in (("deployed", deployed), ("runtime_e2e", runtime_e2e)):
+        if not isinstance(value, bool):
+            return _closure_block("CLOSURE_REVIEW_PROTOCOL_INVALID", field=field_name)
+    if runtime_e2e and not deployed:
+        return _closure_block("RUNTIME_E2E_EVIDENCE_INCONSISTENT")
+
+    if action == "close":
+        merge_sha = payload.get("merge_sha")
+        merge_diff = payload.get("merge_diff_sha256")
+        if not isinstance(merge_sha, str) or re.fullmatch(r"[0-9a-f]{40}", merge_sha) is None:
+            return _closure_block("CLOSURE_REVIEW_PROTOCOL_INVALID", field="merge_sha")
+        if not isinstance(merge_diff, str) or re.fullmatch(r"[0-9a-f]{64}", merge_diff) is None:
+            return _closure_block("CLOSURE_REVIEW_PROTOCOL_INVALID", field="merge_diff_sha256")
+        if merge_sha != payload["reviewed_sha"] or merge_diff != payload["reviewed_diff_sha256"]:
+            return _closure_block("MERGE_CANDIDATE_MISMATCH")
+        if runtime_mode == "RUNTIME_REQUIRED":
+            if payload.get("deployed") is not True or payload.get("runtime_e2e") is not True:
+                return _closure_block("RUNTIME_E2E_REQUIRED")
+        elif payload.get("deployed") is True and payload.get("runtime_e2e") is not True:
+            return _closure_block("RUNTIME_E2E_REQUIRED")
+
+    return {"status": "PASS", "missing": [], "code": "REVIEW_CLOSURE_PROTOCOL_OK"}
+
+
+def validate_closure_repository(
+    root: Path, payload: Mapping[str, Any], *, action: str
+) -> dict[str, Any]:
+    """Bind review/close evidence to the actual clean Git candidate."""
+
+    def run_git(*args: str, text: bool = True) -> subprocess.CompletedProcess[Any] | None:
+        try:
+            return subprocess.run(
+                ["git", "-C", str(root), *args],
+                capture_output=True,
+                text=text,
+                check=False,
+                timeout=5,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+
+    inside = run_git("rev-parse", "--is-inside-work-tree")
+    if inside is None or inside.returncode != 0 or inside.stdout.strip() != "true":
+        return _closure_block("REPOSITORY_VALIDATION_UNAVAILABLE")
+    status = run_git("status", "--porcelain=v1")
+    if status is None or status.returncode != 0:
+        return _closure_block("REPOSITORY_VALIDATION_UNAVAILABLE")
+    if status.stdout.strip():
+        return _closure_block("CANDIDATE_WORKTREE_DIRTY")
+
+    head_result = run_git("rev-parse", "HEAD")
+    if head_result is None or head_result.returncode != 0:
+        return _closure_block("REPOSITORY_VALIDATION_UNAVAILABLE")
+    head = head_result.stdout.strip()
+    if head != payload.get("candidate_sha") or head != payload.get("reviewed_sha"):
+        return _closure_block("REVIEW_CANDIDATE_STALE", actual_head=head)
+
+    base_sha = payload.get("base_sha")
+    diff_result = run_git("diff", "--binary", "--full-index", f"{base_sha}..{head}", text=False)
+    if diff_result is None or diff_result.returncode != 0:
+        return _closure_block("REPOSITORY_VALIDATION_UNAVAILABLE")
+    actual_hash = hashlib.sha256(diff_result.stdout).hexdigest()
+    if actual_hash != payload.get("locked_diff_sha256") or actual_hash != payload.get(
+        "reviewed_diff_sha256"
     ):
-        return decision(
-            "DENY",
-            "GOVERNANCE_FAILURE",
-            "REVIEW_CANDIDATE_STALE",
-            candidate_sha=candidate_sha,
-            reviewed_sha=reviewed_sha,
-            expected_candidate_sha=expected_candidate_sha,
-        )
-    if rounds > 1 and findings_batched is not True:
-        return decision(
-            "DENY",
-            "GOVERNANCE_FAILURE",
-            "REVIEW_FINDINGS_NOT_BATCHED",
-        )
-    return decision(
-        "ALLOW",
-        "GOVERNANCE_OK",
-        protocol_version=CLOSURE_REVIEW_PROTOCOL_VERSION,
-        semantic_review_rounds=rounds,
-        tool_failures=tool_failures,
-    )
+        return _closure_block("LOCKED_DIFF_HASH_MISMATCH", actual_diff_sha256=actual_hash)
+    if action == "close":
+        if head != payload.get("merge_sha") or actual_hash != payload.get("merge_diff_sha256"):
+            return _closure_block("MERGE_CANDIDATE_MISMATCH")
+    return {"status": "PASS", "missing": [], "code": "REPOSITORY_LOCK_OK"}
 
 
 def checkpoint_gate(
-    evidence: Mapping[str, Any],
-    action: str,
-    *,
-    expected_candidate_sha: str | None = None,
+    evidence: Mapping[str, Any], action: str, *, root: Path | None = None
 ) -> dict[str, Any]:
     if action == "start":
         missing: list[str] = []
@@ -1004,21 +1058,23 @@ def checkpoint_gate(
             result["value_gate"] = value_result
         return result
 
-    required = ("conflict_gate", "scoped_diff", "tests", "backup", "rollback", "runtime_e2e")
+    required = ("conflict_gate", "scoped_diff", "tests", "backup", "rollback")
     missing = [key for key in required if evidence.get(key) is not True]
     if action in {"review", "close"} and evidence.get("review") != "PASS":
         missing.insert(0, "review")
+    if missing:
+        return {"status": "BLOCKED", "missing": missing}
     if action in {"review", "close"}:
-        protocol = validate_closure_review_protocol(
-            evidence.get("closure_review"),
-            expected_candidate_sha=expected_candidate_sha,
-        )
-        if protocol["status"] != "ALLOW":
-            return {
-                "status": "BLOCKED",
-                "missing": missing,
-                "reason": protocol["reason"],
-                "code": protocol.get("code", "CLOSURE_REVIEW_PROTOCOL_INVALID"),
-                "closure_review": protocol,
-            }
-    return {"status": "PASS" if not missing else "BLOCKED", "missing": missing}
+        payload = evidence.get("closure_review")
+        protocol = validate_closure_review_protocol(payload, action=action)
+        if protocol["status"] != "PASS":
+            return protocol
+        if root is None:
+            return _closure_block("REPOSITORY_VALIDATION_REQUIRED")
+        if not isinstance(payload, Mapping):
+            return _closure_block("CLOSURE_REVIEW_PROTOCOL_REQUIRED")
+        repository = validate_closure_repository(root, payload, action=action)
+        if repository["status"] != "PASS":
+            return repository
+        return protocol
+    return {"status": "PASS", "missing": []}
