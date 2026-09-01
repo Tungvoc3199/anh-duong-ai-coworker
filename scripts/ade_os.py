@@ -147,7 +147,7 @@ def main(argv: list[str] | None = None) -> int:
                     "checkpoint_id": evidence.get("checkpoint_id"),
                     "status": args.action.upper(),
                 }, limit=20)
-            if args.action == "start":
+            if args.action in {"start", "review", "close"}:
                 return emit_checkpoint(result)
             return emit(result)
         if args.command == "value-gate":

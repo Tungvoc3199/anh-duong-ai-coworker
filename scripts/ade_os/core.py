@@ -53,6 +53,8 @@ CHECKPOINT_WORK_TYPES = (
     "maintenance",
 )
 VALUE_GATED_WORK_TYPES = frozenset({"feature", "automation", "integration", "custom_build"})
+CLOSURE_REVIEW_PROTOCOL_VERSION = 1
+CLOSURE_REVIEW_MAX_SEMANTIC_ROUNDS = 2
 REQUIRED_TASK_MANIFEST = {
     "checkpoint_id": str,
     "code_change": bool,
@@ -849,6 +851,92 @@ def route_request(
     }
 
 
+def validate_closure_review_protocol(payload: Any) -> dict[str, Any]:
+    """Validate bounded, snapshot-bound independent closure review evidence."""
+    if not isinstance(payload, Mapping):
+        return decision(
+            "DENY",
+            "GOVERNANCE_FAILURE",
+            "CLOSURE_REVIEW_PROTOCOL_REQUIRED",
+        )
+
+    required_true = (
+        "candidate_frozen",
+        "adversarial_matrix_passed",
+        "focused_regression_passed",
+        "full_regression_passed",
+        "reviewer_independent",
+    )
+    invalid: list[str] = []
+    if payload.get("protocol_version") != CLOSURE_REVIEW_PROTOCOL_VERSION:
+        invalid.append("protocol_version")
+
+    candidate_sha = payload.get("candidate_sha")
+    reviewed_sha = payload.get("reviewed_sha")
+    for name, value in (("candidate_sha", candidate_sha), ("reviewed_sha", reviewed_sha)):
+        if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{40}", value) is None:
+            invalid.append(name)
+
+    for name in required_true:
+        if payload.get(name) is not True:
+            invalid.append(name)
+
+    rounds = payload.get("semantic_review_rounds")
+    if isinstance(rounds, bool) or not isinstance(rounds, int) or rounds < 1:
+        invalid.append("semantic_review_rounds")
+
+    findings_batched = payload.get("findings_batched")
+    if not isinstance(findings_batched, bool):
+        invalid.append("findings_batched")
+
+    behavior_changed = payload.get("behavior_changed_after_review")
+    if not isinstance(behavior_changed, bool):
+        invalid.append("behavior_changed_after_review")
+
+    tool_failures = payload.get("tool_failures")
+    if isinstance(tool_failures, bool) or not isinstance(tool_failures, int) or tool_failures < 0:
+        invalid.append("tool_failures")
+
+    if invalid:
+        return decision(
+            "DENY",
+            "GOVERNANCE_FAILURE",
+            "CLOSURE_REVIEW_PROTOCOL_INVALID",
+            invalid=sorted(set(invalid)),
+        )
+
+    assert isinstance(rounds, int)
+    if rounds > CLOSURE_REVIEW_MAX_SEMANTIC_ROUNDS:
+        return decision(
+            "DENY",
+            "GOVERNANCE_FAILURE",
+            "REVIEW_BUDGET_EXCEEDED",
+            semantic_review_rounds=rounds,
+            max_semantic_review_rounds=CLOSURE_REVIEW_MAX_SEMANTIC_ROUNDS,
+        )
+    if candidate_sha != reviewed_sha or behavior_changed is True:
+        return decision(
+            "DENY",
+            "GOVERNANCE_FAILURE",
+            "REVIEW_CANDIDATE_STALE",
+            candidate_sha=candidate_sha,
+            reviewed_sha=reviewed_sha,
+        )
+    if rounds > 1 and findings_batched is not True:
+        return decision(
+            "DENY",
+            "GOVERNANCE_FAILURE",
+            "REVIEW_FINDINGS_NOT_BATCHED",
+        )
+    return decision(
+        "ALLOW",
+        "GOVERNANCE_OK",
+        protocol_version=CLOSURE_REVIEW_PROTOCOL_VERSION,
+        semantic_review_rounds=rounds,
+        tool_failures=tool_failures,
+    )
+
+
 def checkpoint_gate(evidence: Mapping[str, Any], action: str) -> dict[str, Any]:
     if action == "start":
         missing: list[str] = []
@@ -881,4 +969,14 @@ def checkpoint_gate(evidence: Mapping[str, Any], action: str) -> dict[str, Any]:
     missing = [key for key in required if evidence.get(key) is not True]
     if action in {"review", "close"} and evidence.get("review") != "PASS":
         missing.insert(0, "review")
+    if action in {"review", "close"}:
+        protocol = validate_closure_review_protocol(evidence.get("closure_review"))
+        if protocol["status"] != "ALLOW":
+            return {
+                "status": "BLOCKED",
+                "missing": missing,
+                "reason": protocol["reason"],
+                "code": protocol.get("code", "CLOSURE_REVIEW_PROTOCOL_INVALID"),
+                "closure_review": protocol,
+            }
     return {"status": "PASS" if not missing else "BLOCKED", "missing": missing}

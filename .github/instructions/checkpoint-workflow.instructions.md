@@ -13,3 +13,5 @@ For every checkpoint, `checkpoint start` requires `checkpoint_id` and `work_type
 For a repair: capture evidence, back up every existing target, make the smallest scoped change, run targeted tests, then relevant regression and runtime/E2E verification. Record artifact paths, exact commands/results, diff scope, and rollback.
 
 A closure requires proven gates, no secret disclosure, and review evidence. Do not invent a formal checkpoint ID; use the active roadmap/checkpoint identity.
+
+For closure review, follow `docs/ade-os/REVIEW_CLOSURE_PROTOCOL.md`. Unit tests/self-review may run continuously, but independent semantic review is a closure gate, not a fuzzer loop. Freeze the candidate after adversarial/fuzz coverage and focused/full regression, then run one independent review. If it finds issues, batch every actionable finding, repair once, rerun affected/focused/full gates, and allow at most one semantic re-review. Tool timeout/quota/auth/harness failures are tracked separately and do not consume semantic review rounds. Any behavior-changing edit after PASS makes the review stale. `checkpoint review` and `checkpoint close` enforce this evidence fail-closed.

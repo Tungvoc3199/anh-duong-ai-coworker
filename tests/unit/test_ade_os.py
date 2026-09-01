@@ -28,10 +28,115 @@ def test_router_precedence_and_escalation() -> None:
     assert core.route_request("fix", dirty_unknown=True)["conflict"] is True
 
 
-def test_close_gate_requires_e2e_and_review() -> None:
-    evidence = {"conflict_gate": True, "scoped_diff": True, "tests": True, "backup": True, "rollback": True}
-    assert "runtime_e2e" in core.checkpoint_gate({**evidence, "review": "PASS"}, "close")["missing"]
-    assert core.checkpoint_gate({**evidence, "runtime_e2e": True, "review": "PASS"}, "close")["status"] == "PASS"
+def _closure_review(
+    *,
+    candidate_sha: str = "a" * 40,
+    reviewed_sha: str | None = None,
+    semantic_review_rounds: int = 1,
+    findings_batched: bool = True,
+    behavior_changed_after_review: bool = False,
+    tool_failures: int = 0,
+) -> dict[str, object]:
+    return {
+        "protocol_version": 1,
+        "candidate_sha": candidate_sha,
+        "reviewed_sha": reviewed_sha or candidate_sha,
+        "candidate_frozen": True,
+        "adversarial_matrix_passed": True,
+        "focused_regression_passed": True,
+        "full_regression_passed": True,
+        "reviewer_independent": True,
+        "semantic_review_rounds": semantic_review_rounds,
+        "findings_batched": findings_batched,
+        "behavior_changed_after_review": behavior_changed_after_review,
+        "tool_failures": tool_failures,
+    }
+
+
+def _close_gate_evidence() -> dict[str, object]:
+    return {
+        "conflict_gate": True,
+        "scoped_diff": True,
+        "tests": True,
+        "backup": True,
+        "rollback": True,
+        "runtime_e2e": True,
+        "review": "PASS",
+        "closure_review": _closure_review(),
+    }
+
+
+def test_close_gate_requires_e2e_review_and_closure_protocol() -> None:
+    evidence = {
+        "conflict_gate": True,
+        "scoped_diff": True,
+        "tests": True,
+        "backup": True,
+        "rollback": True,
+    }
+    assert "runtime_e2e" in core.checkpoint_gate(
+        {**evidence, "review": "PASS", "closure_review": _closure_review()}, "close"
+    )["missing"]
+    legacy = core.checkpoint_gate(
+        {**evidence, "runtime_e2e": True, "review": "PASS"}, "close"
+    )
+    assert legacy["status"] == "BLOCKED"
+    assert legacy["code"] == "CLOSURE_REVIEW_PROTOCOL_REQUIRED"
+    assert core.checkpoint_gate(_close_gate_evidence(), "close")["status"] == "PASS"
+
+
+def test_closure_review_rejects_stale_candidate_sha() -> None:
+    evidence = _close_gate_evidence()
+    evidence["closure_review"] = _closure_review(reviewed_sha="b" * 40)
+    result = core.checkpoint_gate(evidence, "close")
+    assert result["status"] == "BLOCKED"
+    assert result["code"] == "REVIEW_CANDIDATE_STALE"
+
+
+def test_closure_review_budget_allows_one_rereview_only() -> None:
+    evidence = _close_gate_evidence()
+    evidence["closure_review"] = _closure_review(semantic_review_rounds=3)
+    result = core.checkpoint_gate(evidence, "close")
+    assert result["status"] == "BLOCKED"
+    assert result["code"] == "REVIEW_BUDGET_EXCEEDED"
+
+
+def test_closure_review_requires_findings_batched_before_rereview() -> None:
+    evidence = _close_gate_evidence()
+    evidence["closure_review"] = _closure_review(
+        semantic_review_rounds=2, findings_batched=False
+    )
+    result = core.checkpoint_gate(evidence, "close")
+    assert result["status"] == "BLOCKED"
+    assert result["code"] == "REVIEW_FINDINGS_NOT_BATCHED"
+
+
+def test_closure_review_tool_failures_do_not_consume_semantic_review_budget() -> None:
+    evidence = _close_gate_evidence()
+    evidence["closure_review"] = _closure_review(tool_failures=7)
+    assert core.checkpoint_gate(evidence, "close")["status"] == "PASS"
+
+
+def test_closure_review_allows_one_batched_rereview() -> None:
+    evidence = _close_gate_evidence()
+    evidence["closure_review"] = _closure_review(semantic_review_rounds=2)
+    assert core.checkpoint_gate(evidence, "close")["status"] == "PASS"
+
+
+def test_checkpoint_review_action_requires_closure_protocol() -> None:
+    evidence = _close_gate_evidence()
+    evidence.pop("closure_review")
+    result = core.checkpoint_gate(evidence, "review")
+    assert result["status"] == "BLOCKED"
+    assert result["code"] == "CLOSURE_REVIEW_PROTOCOL_REQUIRED"
+
+
+def test_closure_review_fails_if_behavior_changes_after_review() -> None:
+    evidence = _close_gate_evidence()
+    evidence["closure_review"] = _closure_review(behavior_changed_after_review=True)
+    result = core.checkpoint_gate(evidence, "close")
+    assert result["status"] == "BLOCKED"
+    assert result["code"] == "REVIEW_CANDIDATE_STALE"
 
 
 def test_memory_redaction_bounded_and_isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -61,7 +166,19 @@ def test_project_index_check_and_bug_ranking(tmp_path: Path) -> None:
 
 def test_cli_close_gate_blocks(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     evidence = tmp_path / "evidence.json"; evidence.write_text(json.dumps({"review": "PASS"}))
-    assert CLI.main(["--root", str(ROOT), "checkpoint", "close", "--evidence", str(evidence)]) == 0
+    assert CLI.main(["--root", str(ROOT), "checkpoint", "close", "--evidence", str(evidence)]) == 4
+    assert json.loads(capsys.readouterr().out)["status"] == "BLOCKED"
+
+
+def test_cli_review_gate_blocks_with_nonzero_exit(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    evidence = tmp_path / "review.json"
+    evidence.write_text(json.dumps(_close_gate_evidence()))
+    payload = json.loads(evidence.read_text())
+    payload.pop("closure_review")
+    evidence.write_text(json.dumps(payload))
+    assert CLI.main(["--root", str(ROOT), "checkpoint", "review", "--evidence", str(evidence)]) == 4
     assert json.loads(capsys.readouterr().out)["status"] == "BLOCKED"
 
 def test_ade_route_invocation_without_python_alias(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

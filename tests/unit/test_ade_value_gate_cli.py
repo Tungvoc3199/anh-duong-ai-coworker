@@ -208,6 +208,7 @@ def test_checkpoint_start_blocks_second_active_checkpoint(tmp_path: Path) -> Non
     assert state["items"][-1]["status"] == "ACTIVE"
 
 def _close_evidence(checkpoint_id: str) -> dict[str, object]:
+    candidate_sha = "a" * 40
     return {
         "checkpoint_id": checkpoint_id,
         "conflict_gate": True,
@@ -217,6 +218,20 @@ def _close_evidence(checkpoint_id: str) -> dict[str, object]:
         "rollback": True,
         "runtime_e2e": True,
         "review": "PASS",
+        "closure_review": {
+            "protocol_version": 1,
+            "candidate_sha": candidate_sha,
+            "reviewed_sha": candidate_sha,
+            "candidate_frozen": True,
+            "adversarial_matrix_passed": True,
+            "focused_regression_passed": True,
+            "full_regression_passed": True,
+            "reviewer_independent": True,
+            "semantic_review_rounds": 1,
+            "findings_batched": True,
+            "behavior_changed_after_review": False,
+            "tool_failures": 0,
+        },
     }
 
 
