@@ -861,6 +861,103 @@ def _closure_block(code: str, **extra: Any) -> dict[str, Any]:
     }
 
 
+def _validate_runtime_closure_evidence(
+    payload: Any, *, expected_release_sha: str
+) -> dict[str, Any]:
+    if not isinstance(payload, Mapping):
+        return _closure_block("RUNTIME_CLOSURE_EVIDENCE_REQUIRED")
+
+    release_sha = payload.get("release_sha")
+    if (
+        not isinstance(release_sha, str)
+        or re.fullmatch(r"[0-9a-f]{40}", release_sha) is None
+        or release_sha != expected_release_sha
+    ):
+        return _closure_block("RUNTIME_RELEASE_MISMATCH")
+
+    local_core = payload.get("local_core")
+    if (
+        not isinstance(local_core, Mapping)
+        or local_core.get("health_http_status") != 200
+        or local_core.get("ready_http_status") != 200
+        or local_core.get("db_quick_check") != "ok"
+    ):
+        return _closure_block("LOCAL_CORE_RUNTIME_REQUIRED")
+
+    consumer = payload.get("consumer_path")
+    if not isinstance(consumer, Mapping):
+        return _closure_block("RUNTIME_CONSUMER_PATH_REQUIRED")
+    configured_url = consumer.get("configured_base_url")
+    tested_url = consumer.get("tested_base_url")
+    if (
+        not isinstance(configured_url, str)
+        or not configured_url.strip()
+        or not isinstance(tested_url, str)
+        or not tested_url.strip()
+        or configured_url != tested_url
+    ):
+        return _closure_block("RUNTIME_CONSUMER_PATH_MISMATCH")
+    if (
+        consumer.get("openclaw_healthy") is not True
+        or consumer.get("reachability_http_status") != 200
+        or consumer.get("authenticated") is not True
+        or consumer.get("authenticated_prepare_http_status") != 200
+    ):
+        return _closure_block("RUNTIME_CONSUMER_PATH_FAILED")
+
+    telegram = payload.get("telegram_e2e")
+    inbound_id = telegram.get("inbound_message_id") if isinstance(telegram, Mapping) else None
+    outbound_id = telegram.get("outbound_message_id") if isinstance(telegram, Mapping) else None
+    observed_at = telegram.get("observed_at") if isinstance(telegram, Mapping) else None
+    observed_time: datetime | None = None
+    if isinstance(observed_at, str):
+        try:
+            observed_time = datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
+        except ValueError:
+            observed_time = None
+    if (
+        not isinstance(telegram, Mapping)
+        or telegram.get("channel_connected") is not True
+        or telegram.get("fresh") is not True
+        or telegram.get("release_sha") != expected_release_sha
+        or observed_time is None
+        or observed_time.tzinfo is None
+        or telegram.get("inbound_source") != "TELEGRAM_USER"
+        or isinstance(inbound_id, bool)
+        or not isinstance(inbound_id, int)
+        or inbound_id < 1
+        or telegram.get("core_prepare_success") is not True
+        or telegram.get("model_response") is not True
+        or telegram.get("outbound_success") is not True
+        or isinstance(outbound_id, bool)
+        or not isinstance(outbound_id, int)
+        or outbound_id < 1
+    ):
+        return _closure_block("TELEGRAM_E2E_REQUIRED")
+
+    logs = payload.get("post_test_logs")
+    if not isinstance(logs, Mapping):
+        return _closure_block("RUNTIME_LOGS_NOT_CLEAN")
+    for field_name in ("prepare_timeout_count", "prepare_failure_count"):
+        value = logs.get(field_name)
+        if isinstance(value, bool) or not isinstance(value, int) or value != 0:
+            return _closure_block("RUNTIME_LOGS_NOT_CLEAN")
+
+    rollback = payload.get("rollback")
+    rollback_sha = rollback.get("release_sha") if isinstance(rollback, Mapping) else None
+    rollback_path = rollback.get("path") if isinstance(rollback, Mapping) else None
+    if (
+        not isinstance(rollback, Mapping)
+        or not isinstance(rollback_sha, str)
+        or re.fullmatch(r"[0-9a-f]{40}", rollback_sha) is None
+        or not isinstance(rollback_path, str)
+        or not rollback_path.strip()
+    ):
+        return _closure_block("ROLLBACK_PATH_REQUIRED")
+
+    return {"status": "PASS", "missing": [], "code": "RUNTIME_CLOSURE_EVIDENCE_OK"}
+
+
 def validate_closure_review_protocol(payload: Any, *, action: str) -> dict[str, Any]:
     """Validate an immutable candidate and bounded independent final review."""
     if not isinstance(payload, Mapping):
@@ -985,11 +1082,18 @@ def validate_closure_review_protocol(payload: Any, *, action: str) -> dict[str, 
             return _closure_block("CLOSURE_REVIEW_PROTOCOL_INVALID", field="merge_diff_sha256")
         if merge_sha != payload["reviewed_sha"] or merge_diff != payload["reviewed_diff_sha256"]:
             return _closure_block("MERGE_CANDIDATE_MISMATCH")
-        if runtime_mode == "RUNTIME_REQUIRED":
-            if payload.get("deployed") is not True or payload.get("runtime_e2e") is not True:
-                return _closure_block("RUNTIME_E2E_REQUIRED")
-        elif payload.get("deployed") is True and payload.get("runtime_e2e") is not True:
+        if runtime_mode == "RUNTIME_REQUIRED" and (
+            payload.get("deployed") is not True or payload.get("runtime_e2e") is not True
+        ):
             return _closure_block("RUNTIME_E2E_REQUIRED")
+        if payload.get("deployed") is True:
+            if payload.get("runtime_e2e") is not True:
+                return _closure_block("RUNTIME_E2E_REQUIRED")
+            runtime_result = _validate_runtime_closure_evidence(
+                payload.get("runtime_evidence"), expected_release_sha=merge_sha
+            )
+            if runtime_result["status"] != "PASS":
+                return runtime_result
 
     return {"status": "PASS", "missing": [], "code": "REVIEW_CLOSURE_PROTOCOL_OK"}
 

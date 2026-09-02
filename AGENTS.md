@@ -14,6 +14,12 @@
 - Do not use destructive commands. Do not change providers, tokens, model routing, DB schema/migrations, or dependencies outside approved scope. Never expose secrets.
 - Prefer the smallest verified repair, targeted tests before regression, and real E2E for runtime integrations.
 
+## Runtime closure gate
+- After any bot-impacting deploy, restart, or cutover, run `python3 scripts/verify_openclaw_core_path.py` and require PASS against the exact `ANH_DUONG_CORE_BASE_URL` configured inside the OpenClaw container.
+- Closure evidence must keep local Core health/ready/DB, OpenClaw→Core authenticated prepare, and Telegram E2E as separate facts. A localhost or synthetic request is never Telegram E2E.
+- A Telegram-impacting deployed release requires a fresh real Telegram inbound, Core prepare success, model response, Telegram outbound message ID, and clean post-test prepare logs before CLOSED.
+- If post-cutover runtime verification fails, fail the closure gate and restore the recorded last-known-good release/config before any CLOSED claim.
+
 ## Workflow
 1. Diagnose read-only.
 2. Make one minimal, evidenced repair.

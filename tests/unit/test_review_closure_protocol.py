@@ -192,11 +192,12 @@ def test_runtime_required_checkpoint_requires_real_deploy_and_e2e() -> None:
     )
 
 
-def test_runtime_required_checkpoint_passes_with_deploy_and_e2e() -> None:
+def test_runtime_required_checkpoint_passes_with_structured_runtime_evidence() -> None:
     result = _close(
         runtime_mode="RUNTIME_REQUIRED",
         deployed=True,
         runtime_e2e=True,
+        runtime_evidence=_runtime_evidence(),
     )
     assert result["status"] == "PASS"
 
@@ -414,4 +415,192 @@ def test_last_finding_batch_generation_boolean_is_rejected() -> None:
         rereview_reason="finding_batch",
         finding_batch_id="RECOVERY-FINDING-BATCH-1",
         last_finding_batch_generation=True,
+    )
+
+
+def test_runtime_required_boolean_only_claim_cannot_close() -> None:
+    result = _close(
+        runtime_mode="RUNTIME_REQUIRED",
+        deployed=True,
+        runtime_e2e=True,
+    )
+    assert result["status"] == "BLOCKED"
+    assert result["code"] == "RUNTIME_CLOSURE_EVIDENCE_REQUIRED"
+
+
+def _runtime_evidence(**overrides: object) -> dict[str, object]:
+    evidence: dict[str, object] = {
+        "release_sha": SHA_A,
+        "local_core": {"health_http_status": 200, "ready_http_status": 200, "db_quick_check": "ok"},
+        "consumer_path": {
+            "openclaw_healthy": True,
+            "configured_base_url": "http://host.docker.internal:8791",
+            "tested_base_url": "http://host.docker.internal:8791",
+            "reachability_http_status": 200,
+            "authenticated_prepare_http_status": 200,
+            "authenticated": True,
+        },
+        "telegram_e2e": {
+            "channel_connected": True,
+            "fresh": True,
+            "observed_at": "2026-09-03T00:45:00+07:00",
+            "release_sha": SHA_A,
+            "inbound_source": "TELEGRAM_USER",
+            "inbound_message_id": 5108,
+            "core_prepare_success": True,
+            "model_response": True,
+            "outbound_success": True,
+            "outbound_message_id": 5109,
+        },
+        "post_test_logs": {"prepare_timeout_count": 0, "prepare_failure_count": 0},
+        "rollback": {"release_sha": "b" * 40, "path": "/releases/last-known-good"},
+    }
+    evidence.update(overrides)
+    return evidence
+
+
+def test_runtime_required_rejects_local_only_runtime_evidence() -> None:
+    result = _close(
+        runtime_mode="RUNTIME_REQUIRED",
+        deployed=True,
+        runtime_e2e=True,
+        runtime_evidence={
+            "release_sha": SHA_A,
+            "local_core": {
+                "health_http_status": 200,
+                "ready_http_status": 200,
+                "db_quick_check": "ok",
+            },
+        },
+    )
+    assert result["status"] == "BLOCKED"
+    assert result["code"] == "RUNTIME_CONSUMER_PATH_REQUIRED"
+
+
+def test_runtime_consumer_path_must_use_configured_base_url() -> None:
+    evidence = _runtime_evidence()
+    consumer = evidence["consumer_path"]
+    assert isinstance(consumer, dict)
+    consumer["tested_base_url"] = "http://host.docker.internal:8790"
+    _assert_blocked(
+        "RUNTIME_CONSUMER_PATH_MISMATCH",
+        runtime_mode="RUNTIME_REQUIRED", deployed=True, runtime_e2e=True, runtime_evidence=evidence,
+    )
+
+
+def test_runtime_consumer_path_requires_authenticated_prepare_200() -> None:
+    evidence = _runtime_evidence()
+    consumer = evidence["consumer_path"]
+    assert isinstance(consumer, dict)
+    consumer["authenticated_prepare_http_status"] = 401
+    _assert_blocked(
+        "RUNTIME_CONSUMER_PATH_FAILED",
+        runtime_mode="RUNTIME_REQUIRED", deployed=True, runtime_e2e=True, runtime_evidence=evidence,
+    )
+
+
+def test_synthetic_request_cannot_substitute_real_telegram_e2e() -> None:
+    evidence = _runtime_evidence()
+    telegram = evidence["telegram_e2e"]
+    assert isinstance(telegram, dict)
+    telegram["inbound_source"] = "SYNTHETIC"
+    _assert_blocked(
+        "TELEGRAM_E2E_REQUIRED",
+        runtime_mode="RUNTIME_REQUIRED", deployed=True, runtime_e2e=True, runtime_evidence=evidence,
+    )
+
+
+def test_runtime_e2e_requires_model_and_outbound_success() -> None:
+    evidence = _runtime_evidence()
+    telegram = evidence["telegram_e2e"]
+    assert isinstance(telegram, dict)
+    telegram["model_response"] = False
+    _assert_blocked(
+        "TELEGRAM_E2E_REQUIRED",
+        runtime_mode="RUNTIME_REQUIRED", deployed=True, runtime_e2e=True, runtime_evidence=evidence,
+    )
+
+
+def test_runtime_post_test_logs_must_be_clean() -> None:
+    evidence = _runtime_evidence(
+        post_test_logs={"prepare_timeout_count": 0, "prepare_failure_count": 1}
+    )
+    _assert_blocked(
+        "RUNTIME_LOGS_NOT_CLEAN",
+        runtime_mode="RUNTIME_REQUIRED", deployed=True, runtime_e2e=True, runtime_evidence=evidence,
+    )
+
+
+def test_runtime_evidence_must_match_merged_release() -> None:
+    evidence = _runtime_evidence(release_sha=SHA_B)
+    _assert_blocked(
+        "RUNTIME_RELEASE_MISMATCH",
+        runtime_mode="RUNTIME_REQUIRED", deployed=True, runtime_e2e=True, runtime_evidence=evidence,
+    )
+
+
+def test_complete_structured_runtime_evidence_passes() -> None:
+    result = _close(
+        runtime_mode="RUNTIME_REQUIRED",
+        deployed=True,
+        runtime_e2e=True,
+        runtime_evidence=_runtime_evidence(),
+    )
+    assert result["status"] == "PASS"
+
+
+def test_runtime_local_core_must_have_health_ready_and_db() -> None:
+    evidence = _runtime_evidence(
+        local_core={
+            "health_http_status": 200,
+            "ready_http_status": 503,
+            "db_quick_check": "ok",
+        }
+    )
+    _assert_blocked(
+        "LOCAL_CORE_RUNTIME_REQUIRED",
+        runtime_mode="RUNTIME_REQUIRED", deployed=True, runtime_e2e=True, runtime_evidence=evidence,
+    )
+
+
+def test_runtime_consumer_prepare_must_be_explicitly_authenticated() -> None:
+    evidence = _runtime_evidence()
+    consumer = evidence["consumer_path"]
+    assert isinstance(consumer, dict)
+    consumer["authenticated"] = False
+    _assert_blocked(
+        "RUNTIME_CONSUMER_PATH_FAILED",
+        runtime_mode="RUNTIME_REQUIRED", deployed=True, runtime_e2e=True, runtime_evidence=evidence,
+    )
+
+
+def test_runtime_rollback_path_is_required() -> None:
+    evidence = _runtime_evidence(rollback={"release_sha": "b" * 40, "path": ""})
+    _assert_blocked(
+        "ROLLBACK_PATH_REQUIRED",
+        runtime_mode="RUNTIME_REQUIRED", deployed=True, runtime_e2e=True, runtime_evidence=evidence,
+    )
+
+
+def test_deployed_source_only_checkpoint_still_requires_structured_runtime_evidence() -> None:
+    _assert_blocked(
+        "RUNTIME_CLOSURE_EVIDENCE_REQUIRED",
+        runtime_mode="SOURCE_ONLY", deployed=True, runtime_e2e=True,
+    )
+
+
+def test_telegram_e2e_must_be_bound_to_release_and_real_inbound_message() -> None:
+    evidence = _runtime_evidence()
+    telegram = evidence["telegram_e2e"]
+    assert isinstance(telegram, dict)
+    telegram["release_sha"] = SHA_B
+    _assert_blocked(
+        "TELEGRAM_E2E_REQUIRED",
+        runtime_mode="RUNTIME_REQUIRED", deployed=True, runtime_e2e=True, runtime_evidence=evidence,
+    )
+    telegram["release_sha"] = SHA_A
+    telegram["inbound_message_id"] = None
+    _assert_blocked(
+        "TELEGRAM_E2E_REQUIRED",
+        runtime_mode="RUNTIME_REQUIRED", deployed=True, runtime_e2e=True, runtime_evidence=evidence,
     )
