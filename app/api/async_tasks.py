@@ -16,6 +16,7 @@ from fastapi import (
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.async_tasks import (
+    ApprovalContinuationRequest,
     ApprovalResolveRequest,
     AsyncRunNotFound,
     AsyncRunStatus,
@@ -166,6 +167,37 @@ def resolve_async_approval(
             return service.repository.get(approval.workflow_id)
         except ValueError as error:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+
+@router.post(
+    "/approvals/resolve-latest",
+    response_model=AsyncTaskRun,
+    dependencies=[Depends(require_internal_bearer)],
+)
+def resolve_latest_async_approval(
+    payload: ApprovalContinuationRequest,
+    request: Request,
+) -> AsyncTaskRun:
+    with _session(request) as session:
+        repository = AsyncTaskRepository(session, audit_writer=_audit(request))
+        repository.acquire_sqlite_write_lock()
+        service = AsyncTaskService(
+            task_service=TaskService(TaskRepository(session), _audit(request)),
+            repository=repository,
+            policy_gate=_policy(request),
+        )
+        try:
+            run = service.resolve_latest_approval(
+                source_chat_id=payload.source_chat_id,
+                source_session_id=payload.source_session_id,
+                resolved_by=payload.resolved_by,
+                approved=payload.approved,
+            )
+            session.commit()
+            return run
+        except ValueError as error:
+            session.rollback()
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+
 
 @router.get(
     "/{run_id}",

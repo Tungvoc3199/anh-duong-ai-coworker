@@ -5,8 +5,10 @@ import {
   buildAsyncTaskCreate,
   buildCoreRequest,
   getAsyncTaskRun,
+  parseApprovalContinuation,
   parseApprovalIntent,
   prepareCoreRequest,
+  resolveLatestApproval,
   submitAsyncTask,
   validateAsyncTaskAccepted,
   validatePreparedRequest,
@@ -430,4 +432,38 @@ test("parseApprovalIntent returns undefined for non-approve or malformed text", 
   assert.equal(parseApprovalIntent(""), undefined);
   assert.equal(parseApprovalIntent(undefined), undefined);
   assert.equal(parseApprovalIntent(42), undefined);
+});
+
+test("parseApprovalContinuation accepts bounded natural Telegram approvals", () => {
+  for (const phrase of ["Duyệt nhé", "duyệt đi", "Đồng ý", "OK duyệt"]) {
+    assert.equal(parseApprovalContinuation(phrase), true, phrase);
+  }
+  for (const phrase of ["Tạo ảnh", "ok", "Duyệt việc tạo ảnh để đăng Facebook"]) {
+    assert.equal(parseApprovalContinuation(phrase), false, phrase);
+  }
+});
+
+test("resolveLatestApproval uses the Telegram-scoped continuation endpoint", async () => {
+  const calls = [];
+  const payload = {
+    source_chat_id: "private-chat",
+    source_session_id: "private-session",
+    resolved_by: "private-sender",
+    approved: true,
+  };
+  const run = await resolveLatestApproval({
+    config: CONFIG,
+    payload,
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      return new Response(JSON.stringify({ id: "run_same", status: "pending" }), { status: 200 });
+    },
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "http://core.local:8790/api/async-tasks/approvals/resolve-latest");
+  assert.equal(calls[0].init.method, "POST");
+  assert.equal(calls[0].init.headers.Authorization, `Bearer ${TOKEN}`);
+  assert.deepEqual(JSON.parse(calls[0].init.body), payload);
+  assert.equal(run.id, "run_same");
+  assert.equal(run.status, "pending");
 });

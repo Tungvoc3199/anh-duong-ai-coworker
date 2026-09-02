@@ -9,6 +9,7 @@ from app.async_tasks.models import (
     AsyncRunStatus,
     AsyncTaskAccepted,
     AsyncTaskCreate,
+    AsyncTaskRun,
 )
 from app.async_tasks.policy import AsyncTaskPolicyGate
 from app.async_tasks.repository import AsyncTaskRepository
@@ -55,6 +56,12 @@ class AsyncTaskService:
         approval = session.get(ApprovalRow, approval_id)
         if approval is None:
             raise ValueError("Approval not found.")
+        current_run = self.repository.get(approval.workflow_id)
+        if approved and current_run.status not in {
+            AsyncRunStatus.PENDING,
+            AsyncRunStatus.BLOCKED,
+        }:
+            raise ValueError("Approval can only resume a pending or blocked run.")
         resolved = ApprovalService(session).resolve(
             approval_id,
             workflow_id=approval.workflow_id,
@@ -64,15 +71,45 @@ class AsyncTaskService:
             approved=approved,
         )
         if approved:
-            self.repository.transition(
-                approval.workflow_id,
-                AsyncRunStatus.PENDING,
-                now=datetime.now(UTC),
-            )
+            if current_run.status is AsyncRunStatus.BLOCKED:
+                self.repository.transition(
+                    approval.workflow_id,
+                    AsyncRunStatus.PENDING,
+                    now=datetime.now(UTC),
+                )
             task = self.task_service.get(approval.task_id)
             if task.status is not TaskStatus.QUEUED:
                 self.task_service.transition(approval.task_id, TaskStatus.QUEUED)
         return resolved
+
+    def resolve_latest_approval(
+        self,
+        *,
+        source_chat_id: str,
+        source_session_id: str,
+        resolved_by: str,
+        approved: bool = True,
+    ) -> AsyncTaskRun:
+        matches = self.repository.list_pending_telegram_approvals(
+            source_chat_id=source_chat_id,
+            source_session_id=source_session_id,
+            limit=2,
+        )
+        if not matches:
+            raise ValueError("No pending approval matches this Telegram session.")
+        if len(matches) != 1:
+            raise ValueError(
+                "Multiple pending approvals match this Telegram session; "
+                "explicit approval ID required."
+            )
+        approval = matches[0]
+        self.resolve_approval(
+            approval.id,
+            resolved_by=resolved_by,
+            approved=approved,
+            action=approval.action,
+        )
+        return self.repository.get(approval.workflow_id)
 
     def create(
         self,
@@ -103,19 +140,14 @@ class AsyncTaskService:
                 if not (provided_key.startswith("telegram:") and is_pseudonymous):
                     legacy_key = provided_key
                     idempotency_key = (
-                        "telegram:"
-                        + hashlib.sha256(provided_key.encode("utf-8")).hexdigest()
+                        "telegram:" + hashlib.sha256(provided_key.encode("utf-8")).hexdigest()
                     )
         if request.idempotency_key is not None:
             self.repository.acquire_sqlite_write_lock()
         existing = self.repository.get_by_idempotency_key(idempotency_key)
         if existing is None and legacy_key and legacy_key != idempotency_key:
             existing = self.repository.get_by_idempotency_key(legacy_key)
-        if (
-            existing is None
-            and provided_key != idempotency_key
-            and provided_key != legacy_key
-        ):
+        if existing is None and provided_key != idempotency_key and provided_key != legacy_key:
             existing = self.repository.get_by_idempotency_key(provided_key)
         if existing is not None:
             return AsyncTaskAccepted(
@@ -148,9 +180,7 @@ class AsyncTaskService:
             task = self.task_service.transition(
                 task.id,
                 TaskStatus.BLOCKED,
-                result_summary=(
-                    f"{decision.reason_code}: {decision.message}"
-                ),
+                result_summary=(f"{decision.reason_code}: {decision.message}"),
             )
             run_status = AsyncRunStatus.BLOCKED
             error_code = decision.reason_code
@@ -222,19 +252,14 @@ class AsyncTaskService:
         session = self.repository.session
         route = FastRouter().route(request.goal)
         capability = CapabilityRouter().route(route, request.goal).capability
-        planner = GoalPlanner(
-            PlanningTruthInspector(ProjectRepository(session))
-        )
+        planner = GoalPlanner(PlanningTruthInspector(ProjectRepository(session)))
         planner_request_id = f"planreq_{hashlib.sha256(request_id.encode('utf-8')).hexdigest()}"
         return planner.plan(
             PlanningRequest(
                 request_id=planner_request_id,
                 project_id=request.project_id,
                 outcome=request.goal,
-                constraints=tuple(
-                    Constraint(description=value)
-                    for value in request.constraints
-                ),
+                constraints=tuple(Constraint(description=value) for value in request.constraints),
                 risk_level=request.risk_level,
                 approval_required=request.approval_required,
                 workspace=request.workspace,

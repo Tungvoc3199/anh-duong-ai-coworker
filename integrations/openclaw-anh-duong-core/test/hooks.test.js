@@ -14,7 +14,7 @@ const ENV = {
 const WORKFLOW_ACKNOWLEDGMENT =
   "Em đã nhận việc và đang xử lý. Em sẽ báo lại ngay khi hoàn tất.";
 
-function responseFixture(requestId, { route = "direct", workflowOverrides = {} } = {}) {
+function responseFixture(requestId, { route = "direct", capability, workflowOverrides = {} } = {}) {
   const workflow =
     route === "workflow"
       ? {
@@ -47,13 +47,14 @@ function responseFixture(requestId, { route = "direct", workflowOverrides = {} }
     route_decision: { route, rule_id: `route-${route}`, reason: "fixture" },
     capability_decision: {
       capability:
-        route === "workflow"
+        capability ??
+        (route === "workflow"
           ? "planning"
           : route === "core_read"
             ? "core_status_read"
             : route === "memory"
               ? "memory_search"
-              : "conversational_response",
+              : "conversational_response"),
       source_route: route,
       reason_code: route,
       matched_signals: [],
@@ -990,4 +991,87 @@ test("core_read Telegram turns remain zero-tool and answer from prepared Core co
     block: true,
     blockReason: "anh_duong_core_read_turn_no_tools",
   });
+});
+
+test("natural Telegram approval resolves the latest scoped approval exactly once", async () => {
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push({ url, init });
+    assert.equal(url, "http://core.local:8790/api/async-tasks/approvals/resolve-latest");
+    const body = JSON.parse(init.body);
+    assert.deepEqual(body, {
+      source_chat_id: "private-chat",
+      source_session_id: "private-session",
+      resolved_by: "private-sender",
+      approved: true,
+    });
+    return new Response(JSON.stringify({ id: "run-blocked", status: "pending" }), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const ctx = telegramContext("approval-followup");
+  const result = await hooks.beforeAgentReply({ cleanedBody: "Duyệt nhé" }, ctx);
+  assert.deepEqual(result, {
+    handled: true,
+    reply: { text: "Em đã nhận duyệt và tiếp tục đúng tác vụ đang chờ." },
+    reason: "anh_duong_approval_resumed",
+  });
+  assert.equal(calls.length, 1);
+  const duplicate = await hooks.beforeAgentReply({ cleanedBody: "Duyệt nhé" }, ctx);
+  assert.deepEqual(duplicate, result);
+  assert.equal(calls.length, 1);
+});
+
+test("image Telegram follow-up reuses one prepared intent and submits it once", async () => {
+  const calls = [];
+  let submitted;
+  const fetchImpl = async (url, init) => {
+    calls.push(url);
+    const body = init?.body ? JSON.parse(init.body) : undefined;
+    if (url.endsWith("/prepare")) {
+      return new Response(JSON.stringify(responseFixture(body.request_id, {
+        route: "workflow",
+        capability: "visual_image_generate",
+        workflowOverrides: { goal: "Tạo đúng một ảnh serum tỷ lệ 9:16." },
+      })), { status: 200 });
+    }
+    if (url.endsWith("/api/async-tasks")) {
+      submitted = body;
+      return new Response(JSON.stringify({
+        task_id: "task-image",
+        run_id: "run-image",
+        status: "pending",
+        message: "ACCEPTED",
+        replayed: false,
+      }), { status: 202 });
+    }
+    return new Response(JSON.stringify({ status: "running" }), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl, workflowProgressDelayMs: 0 });
+  const firstCtx = telegramContext("run-image-request");
+  await hooks.beforePromptBuild({ prompt: "Tạo cho a một ảnh serum tỷ lệ 9:16", messages: [] }, firstCtx);
+  await hooks.agentEnd({}, firstCtx);
+  const followupCtx = telegramContext("run-image-followup");
+  const injection = await hooks.beforePromptBuild({ prompt: "Đây", messages: [] }, followupCtx);
+
+  assert.match(injection.prependContext, /capability: visual_image_generate/);
+  assert.equal(calls.filter((url) => url.endsWith("/prepare")).length, 1);
+  const reply = await hooks.beforeAgentReply({ cleanedBody: "Đây" }, followupCtx);
+  assert.equal(reply.handled, true);
+  assert.equal(reply.reason, "anh_duong_workflow_progress_after_threshold");
+  assert.equal(submitted.goal, "Tạo đúng một ảnh serum tỷ lệ 9:16.");
+  assert.equal(calls.filter((url) => url.endsWith("/api/async-tasks")).length, 1);
+  assert.equal(calls.filter((url) => url.endsWith("/api/async-tasks/run-image")).length, 1);
+
+  const duplicateCtx = telegramContext("run-image-duplicate");
+  const duplicateInjection = await hooks.beforePromptBuild(
+    { prompt: "Ok làm đi", messages: [] },
+    duplicateCtx,
+  );
+  assert.match(duplicateInjection.prependContext, /capability: visual_image_generate/);
+  const duplicate = await hooks.beforeAgentReply({ cleanedBody: "Ok làm đi" }, duplicateCtx);
+  assert.deepEqual(duplicate, {
+    handled: true,
+    reason: "anh_duong_workflow_duplicate_hook",
+  });
+  assert.equal(calls.filter((url) => url.endsWith("/api/async-tasks")).length, 1);
 });

@@ -29,7 +29,7 @@ from app.audit import AuditWriter
 from app.config import Settings, get_settings
 from app.context_builder import create_context_builder
 from app.db.session import create_db_engine
-from app.openclaw import OpenClawExecutor, OpenClawNotifier
+from app.openclaw import OpenClawExecutor, OpenClawImageGenerator, OpenClawNotifier
 from app.orchestration import create_core_request_pipeline
 from app.visualforge import VisualForgeClient, VisualForgeRoutingExecutor
 
@@ -125,6 +125,15 @@ def create_app(
                                 python_executable=runtime_settings.visualforge_python_executable,
                                 timeout_seconds=runtime_settings.visualforge_timeout_seconds,
                             ),
+                            image_generator=OpenClawImageGenerator(
+                                base_url=runtime_settings.openclaw_base_url,
+                                invoke_path=runtime_settings.openclaw_notification_path,
+                                host_output_root=runtime_settings.openclaw_image_output_root,
+                                container_output_root=runtime_settings.openclaw_image_container_output_root,
+                                auth_token=runtime_settings.openclaw_auth_token,
+                                model=runtime_settings.openclaw_image_model,
+                                timeout_seconds=runtime_settings.openclaw_image_timeout_seconds,
+                            ),
                         )
                     )
                     runtime_notifier = notifier or OpenClawNotifier(
@@ -134,6 +143,9 @@ def create_app(
                         ),
                         auth_token=(
                             runtime_settings.openclaw_auth_token
+                        ),
+                        image_media_root=(
+                            runtime_settings.openclaw_image_container_output_root
                         ),
                         timeout_seconds=(
                             runtime_settings

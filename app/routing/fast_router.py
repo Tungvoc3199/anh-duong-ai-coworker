@@ -132,6 +132,17 @@ _VISUAL_PROMPT_ACTION_PHRASES = (
 _VISUAL_PROMPT_TARGET_PHRASES = (
     "prompt anh", "prompt hinh anh", "visual prompt", "image prompt",
 )
+_VISUAL_IMAGE_ACTION_PHRASES = (
+    "dung", "su dung", "lam", "tao", "create", "generate", "make", "build",
+)
+_VISUAL_IMAGE_TARGET_PHRASES = (
+    "hinh", "hinh anh", "image", "photo", "picture", "artwork", "poster",
+    "banner", "thumbnail",
+)
+_VISUAL_IMAGE_TARGET_PATTERN = re.compile(
+    r"(?<!\w)(?:ảnh|hình(?:\s+ảnh)?|image|photo|picture|artwork|poster|banner|thumbnail)(?!\w)",
+    re.IGNORECASE,
+)
 
 _FOLLOW_UP_UTTERANCES = frozenset(
     {
@@ -259,6 +270,13 @@ class FastRouter:
             )
 
         advisory_request = self._is_advisory_request(normalized)
+        if self._is_visual_image_workflow(request, normalized) and not advisory_request:
+            return RouteDecision(
+                route=FastRoute.WORKFLOW,
+                rule_id="routing.workflow.visual_image",
+                reason="An explicit image generation request requires workflow handling.",
+            )
+
         if self._is_visual_prompt_workflow(normalized) and not advisory_request:
             return RouteDecision(
                 route=FastRoute.WORKFLOW,
@@ -328,6 +346,20 @@ class FastRouter:
             reason="No explicit execution intent was detected; use direct conversation.",
         )
 
+
+    @classmethod
+    def _is_visual_image_workflow(cls, request: str, normalized: str) -> bool:
+        if cls._is_visual_prompt_workflow(normalized):
+            return False
+        if not cls._contains_any(normalized, _VISUAL_IMAGE_ACTION_PHRASES):
+            return False
+        target_text = re.sub(r"\b(?:cấu|cau)\s+hình\b", " ", request, flags=re.IGNORECASE)
+        if _VISUAL_IMAGE_TARGET_PATTERN.search(target_text) is not None:
+            return True
+        return re.search(
+            r"\b(?:tao|lam|create|generate|make|build)\s+anh\b",
+            normalized,
+        ) is not None
 
     @classmethod
     def _is_visual_prompt_workflow(cls, normalized: str) -> bool:

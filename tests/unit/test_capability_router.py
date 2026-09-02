@@ -23,6 +23,7 @@ def test_capability_kind_contains_exact_v1_contract() -> None:
         "core_status_read",
         "planning",
         "visual_prompt_compose",
+        "visual_image_generate",
         "file_operation",
         "code_operation",
         "external_communication",
@@ -223,3 +224,36 @@ def test_capability_package_exports_public_contract() -> None:
     assert ExportedKind is CapabilityKind
     assert ExportedRouter is CapabilityRouter
 
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Tạo ảnh TikTok bán serum dưỡng sáng, tỷ lệ 9:16.",
+        "Làm hình quảng cáo serum cho anh.",
+        "Generate an image for a product post.",
+    ],
+)
+def test_explicit_image_requests_route_visual_image_generation(text: str) -> None:
+    decision = _route(text)
+
+    assert decision.capability.value == "visual_image_generate"
+    assert decision.source_route is FastRoute.WORKFLOW
+    assert decision.reason_code == "capability.workflow.visual_image_generate"
+
+
+def test_prompt_request_does_not_upgrade_to_image_generation() -> None:
+    decision = _route("Tạo prompt ảnh poster khai trương.")
+
+    assert decision.capability is CapabilityKind.VISUAL_PROMPT_COMPOSE
+
+
+def test_quoted_restart_text_does_not_upgrade_image_to_system_operation() -> None:
+    decision = _route('Tạo ảnh poster, text chính xác "RESTART SERVICE NOW".')
+
+    assert decision.capability.value == "visual_image_generate"
+
+
+def test_publish_after_image_stays_external_communication() -> None:
+    decision = _route("Tạo ảnh rồi đăng Facebook cho anh.")
+
+    assert decision.capability is CapabilityKind.EXTERNAL_COMMUNICATION

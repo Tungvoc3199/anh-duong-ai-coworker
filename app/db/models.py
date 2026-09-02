@@ -308,6 +308,12 @@ class AsyncTaskRunRow(TimestampVersionMixin, Base):
             "ix_async_task_runs_notification_status",
             "notification_status",
         ),
+        Index(
+            "ix_async_task_runs_source_telegram",
+            "source_chat_id",
+            "source_session_id",
+            "status",
+        ),
         UniqueConstraint(
             "task_id",
             name="uq_async_task_runs_task_id",
@@ -386,6 +392,9 @@ class AsyncTaskRunRow(TimestampVersionMixin, Base):
         Text,
     )
     source_chat_id: Mapped[str | None] = mapped_column(
+        String(128),
+    )
+    source_session_id: Mapped[str | None] = mapped_column(
         String(128),
     )
     notification_status: Mapped[str] = mapped_column(

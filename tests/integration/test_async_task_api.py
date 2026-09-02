@@ -249,3 +249,50 @@ def test_cancel_completed_returns_conflict(
         )
 
     assert response.status_code == 409
+
+
+def test_resolve_latest_approval_is_scoped_and_resumes_same_run(
+    engine: Engine,
+    tmp_path: Path,
+) -> None:
+    app = create_app(settings=_settings(tmp_path), engine=engine)
+    payload = _payload(tmp_path)
+    payload.update({
+        "goal": "Publish the image to Facebook",
+        "risk_level": 2,
+        "approval_required": True,
+        "workspace": str(tmp_path),
+        "source_channel": "telegram",
+        "source_chat_id": "chat-api",
+        "source_session_id": "session-api",
+        "source_message_id": "message-api",
+        "idempotency_key": "telegram:message-api",
+    })
+    with TestClient(app) as client:
+        created = client.post("/api/async-tasks", headers=_headers(), json=payload)
+        resolved = client.post(
+            "/api/async-tasks/approvals/resolve-latest",
+            headers=_headers(),
+            json={
+                "source_chat_id": "chat-api",
+                "source_session_id": "session-api",
+                "resolved_by": "telegram:owner",
+                "approved": True,
+            },
+        )
+        replay = client.post(
+            "/api/async-tasks/approvals/resolve-latest",
+            headers=_headers(),
+            json={
+                "source_chat_id": "chat-api",
+                "source_session_id": "session-api",
+                "resolved_by": "telegram:owner",
+                "approved": True,
+            },
+        )
+
+    assert created.status_code == 202
+    assert resolved.status_code == 200
+    assert resolved.json()["id"] == created.json()["run_id"]
+    assert resolved.json()["status"] == "pending"
+    assert replay.status_code == 409

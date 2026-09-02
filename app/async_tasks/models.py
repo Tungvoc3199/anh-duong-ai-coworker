@@ -166,6 +166,16 @@ class ApprovalResolveRequest(BaseModel):
     resolved_by: str = Field(min_length=1, max_length=128)
     approved: bool = True
 
+
+class ApprovalContinuationRequest(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    source_chat_id: str = Field(min_length=1, max_length=128)
+    source_session_id: str = Field(min_length=1, max_length=128)
+    resolved_by: str = Field(min_length=1, max_length=128)
+    approved: bool = True
+
+
 class AsyncTaskAccepted(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -235,6 +245,7 @@ class AsyncTaskRun(BaseModel):
     created_at: datetime
     updated_at: datetime
     version: int
+    source_session_id: str | None = None
 
     @field_validator(
         "run_after",

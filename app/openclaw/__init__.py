@@ -1,4 +1,5 @@
 from app.openclaw.executor import OpenClawExecutor
+from app.openclaw.image_generator import OpenClawImageArtifact, OpenClawImageGenerator
 from app.openclaw.models import (
     CriterionVerification,
     GovernanceResult,
@@ -14,6 +15,8 @@ __all__ = [
     "OpenClawExecutionRequest",
     "OpenClawExecutionResult",
     "OpenClawExecutor",
+    "OpenClawImageArtifact",
+    "OpenClawImageGenerator",
     "OpenClawNotifier",
     "OpenClawTransportError",
 ]

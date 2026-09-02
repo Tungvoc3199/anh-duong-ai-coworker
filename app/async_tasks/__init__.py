@@ -1,5 +1,6 @@
 from app.async_tasks.models import (
     ASYNC_RUN_TRANSITIONS,
+    ApprovalContinuationRequest,
     ApprovalResolveRequest,
     AsyncExecutionCheckpoint,
     AsyncExecutionResult,
@@ -41,6 +42,7 @@ __all__ = [
     "MAX_NOTIFICATION_ATTEMPTS",
     "RETRY_DELAYS_SECONDS",
     "AsyncExecutionCheckpoint",
+    "ApprovalContinuationRequest",
     "AsyncExecutionResult",
     "AsyncPolicyDecision",
     "AsyncRunError",

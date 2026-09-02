@@ -4,9 +4,11 @@ import {
   buildAsyncTaskCreate,
   getAsyncTaskRun,
   buildCoreRequest,
+  parseApprovalContinuation,
   parseApprovalIntent,
   prepareCoreRequest,
   resolveApproval,
+  resolveLatestApproval,
   submitAsyncTask,
 } from "./core-client.js";
 import { buildPreparedContext } from "./prompt.js";
@@ -16,6 +18,9 @@ export const SAFE_MESSAGE =
 
 export const WORKFLOW_ACKNOWLEDGMENT =
   "Em đã nhận việc và đang xử lý. Em sẽ báo lại ngay khi hoàn tất.";
+
+export const APPROVAL_ACKNOWLEDGMENT =
+  "Em đã nhận duyệt và tiếp tục đúng tác vụ đang chờ.";
 
 function appendCapabilityPolicy(prepared, preparedContext) {
   const route = prepared?.route_decision?.route;
@@ -260,24 +265,119 @@ export function createAnhDuongCoreHooks({
     return candidate;
   }
 
+  const VISUAL_IMAGE_FOLLOW_UPS = new Set([
+    "day",
+    "ok lam di",
+    "tao di",
+    "lam di",
+    "nhu cai nay",
+    "lam lai",
+  ]);
+
+  function normalizeFollowUp(text) {
+    return text
+      .normalize("NFD")
+      .replace(/[đĐ]/g, "d")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, " ");
+  }
+
+  function isVisualImageFollowUp(text) {
+    return typeof text === "string" && VISUAL_IMAGE_FOLLOW_UPS.has(normalizeFollowUp(text));
+  }
+
+  function isVisualImageWorkflowState(state) {
+    return (
+      state?.prepared?.route_decision?.route === "workflow" &&
+      state?.prepared?.capability_decision?.capability === "visual_image_generate"
+    );
+  }
+
+  function stateBelongsToTelegramContext(state, ctx) {
+    const sessionKey = ctx?.sessionKey ?? ctx?.sessionId;
+    const sameSession =
+      typeof sessionKey === "string" &&
+      sessionKey.length > 0 &&
+      state.sessionKey === sessionKey;
+    const sameTelegramActor =
+      typeof ctx?.chatId === "string" &&
+      typeof ctx?.senderId === "string" &&
+      state.chatId === ctx.chatId &&
+      state.senderId === ctx.senderId;
+    return sameSession || sameTelegramActor;
+  }
+
+  function findReusableVisualImageState(ctx) {
+    const candidates = [];
+    for (const [runId, state] of states) {
+      if (!["prepared", "submitted"].includes(state.status)) continue;
+      if (!isVisualImageWorkflowState(state)) continue;
+      if (stateBelongsToTelegramContext(state, ctx)) {
+        candidates.push({ runId, state });
+      }
+    }
+    return candidates.length === 1 ? candidates[0] : undefined;
+  }
+
   async function beforePromptBuild(event, ctx) {
     sweep();
     if (isTelegram(ctx)) {
-      const approval = parseApprovalIntent(event?.prompt ?? event?.cleanedBody);
-      if (approval) {
+      const approvalText = event?.prompt ?? event?.cleanedBody;
+      const approval = parseApprovalIntent(approvalText);
+      const continuation = !approval && parseApprovalContinuation(approvalText);
+      if (approval || continuation) {
+        const approvalRunId = resolveTurnRunId(ctx, approvalText, now());
+        const existingApproval = approvalRunId ? states.get(approvalRunId) : undefined;
+        if (existingApproval?.status === "approval_resumed") {
+          return {
+            prependContext: existingApproval.preparedContext,
+            _anhDuongApprovalResumed: true,
+          };
+        }
+        if (configFailure || !config?.enabled) {
+          return { prependContext: SAFE_MESSAGE };
+        }
         try {
-          const run = await resolveApproval({
-            config,
-            approvalId: approval.approvalId,
-            payload: {
-              action: approval.action,
-              resolved_by: ctx?.senderId ?? "telegram",
-              approved: true,
-            },
-          });
-          return { prependContext: `Approval ${approval.approvalId} accepted; resumed run ${run.id}.` };
+          const run = approval
+            ? await resolveApproval({
+                config,
+                approvalId: approval.approvalId,
+                payload: {
+                  action: approval.action,
+                  resolved_by: ctx?.senderId ?? "telegram",
+                  approved: true,
+                },
+                fetchImpl,
+              })
+            : await resolveLatestApproval({
+                config,
+                payload: {
+                  source_chat_id: String(ctx?.chatId ?? ""),
+                  source_session_id: String(ctx?.sessionKey ?? ctx?.sessionId ?? ""),
+                  resolved_by: String(ctx?.senderId ?? "telegram"),
+                  approved: true,
+                },
+                fetchImpl,
+              });
+          const preparedContext = approval
+            ? `Approval ${approval.approvalId} accepted; resumed run ${run.id}.`
+            : "Approval accepted; resumed the latest Telegram task.";
+          if (approvalRunId) {
+            states.set(approvalRunId, {
+              status: "approval_resumed",
+              preparedContext,
+              expiresAt: now() + STATE_TTL_MS,
+            });
+          }
+          return { prependContext: preparedContext, _anhDuongApprovalResumed: true };
         } catch (error) {
-          safeLog(logger, "warn", { event: "anh_duong_core_approval", outcome: "failure", failure_class: failureClassOf(error) });
+          safeLog(logger, "warn", {
+            event: "anh_duong_core_approval",
+            outcome: "failure",
+            failure_class: failureClassOf(error),
+          });
           return { prependContext: SAFE_MESSAGE };
         }
       }
@@ -320,12 +420,37 @@ export function createAnhDuongCoreHooks({
 
     const existing = states.get(runId);
     if (existing?.status === "prepared") {
-      return existing.prepared.route_decision.route === "workflow"
-        ? undefined
-        : { prependContext: existing.preparedContext };
+      return isVisualImageWorkflowState(existing) || existing.prepared.route_decision.route !== "workflow"
+        ? { prependContext: existing.preparedContext }
+        : undefined;
     }
     if (existing) {
       return undefined;
+    }
+
+    if (isVisualImageFollowUp(corePrompt)) {
+      const reusable = findReusableVisualImageState(ctx);
+      if (reusable) {
+        const reusedState = {
+          ...reusable.state,
+          prompt: corePrompt,
+          expiresAt: now() + STATE_TTL_MS,
+        };
+        if (reusable.runId !== runId) {
+          states.delete(reusable.runId);
+        }
+        states.set(runId, reusedState);
+        safeLog(logger, "info", {
+          event: "anh_duong_core_prepare",
+          outcome: "reused",
+          reason: "visual_image_follow_up",
+          request_id: reusable.state.requestId,
+          route: reusable.state.prepared.route_decision.route,
+          capability: reusable.state.prepared.capability_decision.capability,
+          source_run_id: reusable.runId,
+        });
+        return { prependContext: reusedState.preparedContext };
+      }
     }
 
     // AD-TXT-1: a synthetic retry continuation is never a new user intent. If the
@@ -411,6 +536,29 @@ export function createAnhDuongCoreHooks({
 
   async function beforeAgentReply(event, ctx) {
     sweep();
+    const replyPrompt = event?.cleanedBody ?? event?.prompt;
+    const isApprovalReply =
+      isTelegram(ctx) &&
+      !explicitlyDisabled &&
+      (Boolean(parseApprovalIntent(replyPrompt)) || parseApprovalContinuation(replyPrompt));
+    if (isApprovalReply) {
+      const approvalResult = await beforePromptBuild(
+        { prompt: replyPrompt, messages: [] },
+        ctx,
+      );
+      if (approvalResult?._anhDuongApprovalResumed) {
+        return {
+          handled: true,
+          reply: { text: APPROVAL_ACKNOWLEDGMENT },
+          reason: "anh_duong_approval_resumed",
+        };
+      }
+      return {
+        handled: true,
+        reply: { text: SAFE_MESSAGE },
+        reason: "anh_duong_approval_failed",
+      };
+    }
     if (explicitlyDisabled || !isTelegram(ctx)) {
       return undefined;
     }
@@ -442,6 +590,12 @@ export function createAnhDuongCoreHooks({
       ctx?.runId === runId ? ctx : { ...ctx, runId },
     );
     const state = states.get(runId);
+    if (state?.status === "submitted") {
+      return {
+        handled: true,
+        reason: "anh_duong_workflow_duplicate_hook",
+      };
+    }
     if (state?.status !== "prepared") {
       return {
         handled: true,
@@ -657,7 +811,12 @@ export function createAnhDuongCoreHooks({
 
   async function agentEnd(_event, ctx) {
     if (typeof ctx?.runId === "string") {
-      states.delete(ctx.runId);
+      const state = states.get(ctx.runId);
+      if (!isVisualImageWorkflowState(state)) {
+        states.delete(ctx.runId);
+      } else {
+        states.set(ctx.runId, { ...state, expiresAt: now() + STATE_TTL_MS });
+      }
     }
     sweep();
   }

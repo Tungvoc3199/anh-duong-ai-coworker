@@ -1233,3 +1233,15 @@ def test_legacy_readonly_unknown_action_never_gets_allow() -> None:
     assert prepared.workflow is not None
     assert prepared.workflow.approval_required is True
     assert prepared.workflow.policy_decision is not DecisionKind.ALLOW
+
+
+def test_configuration_word_does_not_trigger_image_generation() -> None:
+    text = (
+        "Soạn checklist kiểm tra trạng thái Ánh Dương Core theo chế độ chỉ đọc. "
+        "Không sửa cấu hình và không restart dịch vụ."
+    )
+    prepared = _pipeline(project_reader=ProjectReader((_project(),))).prepare(
+        CoreRequest(text=text)
+    )
+
+    assert prepared.capability_decision.capability is CapabilityKind.SYSTEM_OPERATION

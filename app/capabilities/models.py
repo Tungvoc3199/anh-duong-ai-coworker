@@ -13,6 +13,7 @@ class CapabilityKind(StrEnum):
     CORE_STATUS_READ = "core_status_read"
     PLANNING = "planning"
     VISUAL_PROMPT_COMPOSE = "visual_prompt_compose"
+    VISUAL_IMAGE_GENERATE = "visual_image_generate"
     FILE_OPERATION = "file_operation"
     CODE_OPERATION = "code_operation"
     EXTERNAL_COMMUNICATION = "external_communication"

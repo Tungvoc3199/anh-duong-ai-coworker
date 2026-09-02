@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import httpx
 
@@ -26,6 +27,7 @@ class OpenClawNotifier:
         base_url: str,
         notification_path: str = "/tools/invoke",
         auth_token: str | None = None,
+        image_media_root: str = "/home/node/.openclaw/media/anh-duong",
         timeout_seconds: float = 30.0,
         transport: httpx.AsyncBaseTransport | None = None,
         redactor: SecretRedactor | None = None,
@@ -39,6 +41,10 @@ class OpenClawNotifier:
         self.notification_path = (
             "/" + notification_path.lstrip("/")
         )
+        normalized_image_root = "/" + image_media_root.strip().strip("/")
+        if not normalized_image_root.startswith("/home/node/.openclaw/media/"):
+            raise ValueError("image_media_root must be within OpenClaw managed media")
+        self.image_media_root = normalized_image_root
         self.auth_token = auth_token
 
     async def send_final(
@@ -63,15 +69,19 @@ class OpenClawNotifier:
             )
 
         idempotency_key = f"notify:{run.id}:{run.status.value}"
+        media = self._image_media(run)
+        args = {
+            "action": "send",
+            "channel": "telegram",
+            "target": run.source_chat_id,
+            "message": self._message(run),
+            "idempotencyKey": idempotency_key,
+        }
+        if media is not None:
+            args.update({"media": media[0], "mimeType": media[1]})
         payload = {
             "tool": "message",
-            "args": {
-                "action": "send",
-                "channel": "telegram",
-                "target": run.source_chat_id,
-                "message": self._message(run),
-                "idempotencyKey": idempotency_key,
-            },
+            "args": args,
             "idempotencyKey": idempotency_key,
         }
 
@@ -121,6 +131,50 @@ class OpenClawNotifier:
 
     async def aclose(self) -> None:
         await self._client.aclose()
+
+    def _image_media(self, run: AsyncTaskRun) -> tuple[str, str] | None:
+        if not run.result_json:
+            return None
+        try:
+            result = json.loads(run.result_json)
+        except json.JSONDecodeError as error:
+            raise OpenClawTransportError(
+                "notification_artifact_invalid",
+                "Image result JSON is invalid.",
+                retryable=False,
+            ) from error
+        artifacts = result.get("artifacts") if isinstance(result, dict) else None
+        image = artifacts.get("image") if isinstance(artifacts, dict) else None
+        if image is None:
+            return None
+        verification = result.get("verification") if isinstance(result, dict) else None
+        if not isinstance(image, dict) or not isinstance(verification, dict):
+            raise OpenClawTransportError(
+                "notification_artifact_invalid",
+                "Image artifact verification is missing.",
+                retryable=False,
+            )
+        if verification.get("image_artifact_verified") is not True:
+            raise OpenClawTransportError(
+                "notification_artifact_invalid",
+                "Image artifact was not verified.",
+                retryable=False,
+            )
+        media_path = image.get("media_path")
+        prefix = f"{self.image_media_root}/"
+        if (
+            not isinstance(media_path, str)
+            or not media_path.startswith(prefix)
+            or ".." in media_path
+            or media_path != prefix + Path(media_path).name
+            or image.get("mime_type") != "image/png"
+        ):
+            raise OpenClawTransportError(
+                "notification_artifact_invalid",
+                "Image media path or MIME is invalid.",
+                retryable=False,
+            )
+        return media_path, "image/png"
 
     def _message(self, run: AsyncTaskRun) -> str:
         summary = ""

@@ -16,7 +16,7 @@ from app.async_tasks.models import (
     NotificationStatus,
 )
 from app.audit import AuditWriter, SecretRedactor
-from app.db.models import AsyncTaskRunRow, TaskRow
+from app.db.models import ApprovalRow, AsyncTaskRunRow, TaskRow
 from app.privacy import (
     canonicalize_telegram_idempotency_key,
     legacy_telegram_idempotency_key,
@@ -127,6 +127,7 @@ class AsyncTaskRepository:
                 else None
             ),
             source_chat_id=request.source_chat_id,
+            source_session_id=request.source_session_id,
             notification_status=(
                 NotificationStatus.PENDING.value
                 if (
@@ -224,6 +225,35 @@ class AsyncTaskRepository:
                 statement
             ).scalars()
         ]
+
+    def list_pending_telegram_approvals(
+        self,
+        *,
+        source_chat_id: str,
+        source_session_id: str,
+        limit: int = 2,
+    ) -> list[ApprovalRow]:
+        if not source_chat_id or not source_session_id:
+            raise ValueError("Telegram approval scope requires chat and session.")
+        if not 1 <= limit <= 2:
+            raise ValueError("approval lookup limit must be between 1 and 2")
+        now = self._sqlite_time(datetime.now(UTC))
+        statement = (
+            select(ApprovalRow)
+            .join(AsyncTaskRunRow, ApprovalRow.workflow_id == AsyncTaskRunRow.id)
+            .where(
+                ApprovalRow.status == "pending",
+                ApprovalRow.expires_at > now,
+                AsyncTaskRunRow.source_chat_id == source_chat_id,
+                AsyncTaskRunRow.source_session_id == source_session_id,
+                AsyncTaskRunRow.status.in_(
+                    (AsyncRunStatus.PENDING.value, AsyncRunStatus.BLOCKED.value)
+                ),
+            )
+            .order_by(ApprovalRow.requested_at.desc(), ApprovalRow.id.desc())
+            .limit(limit)
+        )
+        return list(self.session.execute(statement).scalars())
 
     def claim_next(
         self,

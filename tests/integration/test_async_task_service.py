@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -505,3 +506,38 @@ def test_new_telegram_run_persists_only_canonical_pseudonymous_idempotency_key(
     assert raw_key not in run.request_json
     assert "7535966424" not in run.request_json
     assert "message-2" not in run.request_json
+
+
+def test_scoped_approval_continuation_resumes_same_telegram_run(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    with session_factory() as session:
+        project_id = _seed_project(session)
+        service = _service(session, tmp_path)
+        request = _request(project_id, tmp_path, risk_level=2, approval_required=True).model_copy(
+            update={
+                "goal": "Publish the image to Facebook",
+                "source_session_id": "telegram-session-1",
+                "source_message_id": "approval-message-1",
+                "idempotency_key": "telegram:approval-message-1",
+            }
+        )
+        accepted = service.create(request)
+        claimed = service.repository.claim_next(
+            worker_id="approval-worker", now=datetime.now(UTC), lease_seconds=60
+        )
+        assert claimed is not None
+        service.repository.transition(claimed.id, AsyncRunStatus.BLOCKED, now=datetime.now(UTC))
+        resumed_run = service.resolve_latest_approval(
+            source_chat_id="7535966424",
+            source_session_id="telegram-session-1",
+            resolved_by="telegram:owner",
+            approved=True,
+        )
+        approval = session.scalars(select(ApprovalRow)).one()
+        session.commit()
+
+    assert resumed_run.id == accepted.run_id
+    assert resumed_run.status is AsyncRunStatus.PENDING
+    assert approval.status == "approved"

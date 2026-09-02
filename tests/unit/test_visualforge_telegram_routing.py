@@ -111,3 +111,22 @@ def test_exact_telegram_workflow_needs_no_approval() -> None:
     assert envelope.approval_required is False
     assert envelope.policy_decision is DecisionKind.ALLOW
     assert envelope.mode == "quick"
+
+def test_visual_image_generation_is_owner_allowed_and_bounded() -> None:
+    action, risk, constraints = WorkflowResolver._action(
+        "Tạo ảnh quảng cáo serum 9:16",
+        CapabilityKind.VISUAL_IMAGE_GENERATE,
+    )
+
+    assert action == "generate_visual_image"
+    assert risk is RiskLevel.READ_ONLY
+    assert "one_image_max" in constraints
+    assert "subscription_quota_only" in constraints
+    assert "no_paid_fallback" in constraints
+    assert "retry_delivery_without_regeneration" in constraints
+
+    decision = PolicyEngine.with_default_roots().evaluate(
+        PolicyAction(name=action, declared_risk_level=risk),
+    )
+    assert decision.kind is DecisionKind.ALLOW
+    assert decision.effective_risk_level is RiskLevel.READ_ONLY

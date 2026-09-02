@@ -10,6 +10,7 @@ const CAPABILITIES = new Set([
   "task_read",
   "core_status_read",
   "visual_prompt_compose",
+  "visual_image_generate",
   "planning",
   "file_operation",
   "code_operation",
@@ -317,6 +318,33 @@ export function parseApprovalIntent(text) {
   return { approvalId: match[1], action: match[2].trim() };
 }
 
+const APPROVAL_CONTINUATION_PHRASES = new Set([
+  "duyet nhe",
+  "duyet di",
+  "dong y",
+  "ok duyet",
+  "okay duyet",
+  "approved",
+  "approve",
+  "yes approve",
+  "go ahead",
+]);
+
+function normalizeApprovalContinuation(text) {
+  return text
+    .normalize("NFD")
+    .replace(/[đĐ]/g, "d")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+export function parseApprovalContinuation(text) {
+  if (typeof text !== "string") return false;
+  return APPROVAL_CONTINUATION_PHRASES.has(normalizeApprovalContinuation(text));
+}
+
 export async function resolveApproval({ config, approvalId, payload, fetchImpl = fetch }) {
   const requestId = payload?.correlation_id;
   const controller = new AbortController();
@@ -339,6 +367,51 @@ export async function resolveApproval({ config, approvalId, payload, fetchImpl =
   } catch (error) {
     if (error instanceof CoreIntegrationError) throw error;
     throw new CoreIntegrationError(controller.signal.aborted ? "timeout" : "connection", { requestId });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function resolveLatestApproval({ config, payload, fetchImpl = fetch }) {
+  const requestId = payload?.correlation_id;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+  try {
+    let response;
+    try {
+      response = await fetchImpl(
+        `${config.baseUrl}/api/async-tasks/approvals/resolve-latest`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${config.token}`,
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        },
+      );
+    } catch {
+      if (controller.signal.aborted) {
+        throw new CoreIntegrationError("timeout", { requestId });
+      }
+      throw new CoreIntegrationError("connection", { requestId });
+    }
+    if (!response || typeof response.status !== "number" || typeof response.json !== "function") {
+      throw validationError(requestId);
+    }
+    if (!response.ok) {
+      const failureClass =
+        response.status === 401 || response.status === 403 ? "authentication" : "http";
+      throw new CoreIntegrationError(failureClass, { status: response.status, requestId });
+    }
+    let value;
+    try {
+      value = await response.json();
+    } catch {
+      throw validationError(requestId);
+    }
+    return validateAsyncTaskRun(value, requestId);
   } finally {
     clearTimeout(timer);
   }

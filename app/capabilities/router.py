@@ -79,7 +79,6 @@ _EXTERNAL_INHERENT_SIGNALS = (
     "external communication",
     "publish",
     "upload",
-    "post",
 )
 _EXTERNAL_ACTION_SIGNALS = (
     "gui",
@@ -102,6 +101,10 @@ _EXTERNAL_TARGET_SIGNALS = (
     "teams",
     "outlook",
     "webhook",
+    "facebook",
+    "instagram",
+    "tiktok",
+    "social media",
     "tin nhan",
     "message",
 )
@@ -214,10 +217,36 @@ _FILE_TARGET_SIGNALS = (
 )
 
 _VISUAL_PROMPT_ACTION_SIGNALS = (
-    "dung", "su dung", "lam", "tao", "soan", "viet", "generate", "compose", "make", "build",
+    "dung",
+    "su dung",
+    "lam",
+    "tao",
+    "soan",
+    "viet",
+    "generate",
+    "compose",
+    "make",
+    "build",
 )
 _VISUAL_PROMPT_TARGET_SIGNALS = (
-    "prompt anh", "prompt hinh anh", "visual prompt", "image prompt",
+    "prompt anh",
+    "prompt hinh anh",
+    "visual prompt",
+    "image prompt",
+)
+_VISUAL_IMAGE_ACTION_SIGNALS = (
+    "dung",
+    "su dung",
+    "lam",
+    "tao",
+    "create",
+    "generate",
+    "make",
+    "build",
+)
+_VISUAL_IMAGE_TARGET_PATTERN = re.compile(
+    r"(?<!\w)(?:ảnh|hình(?:\s+ảnh)?|image|photo|picture|artwork|poster|banner|thumbnail)(?!\w)",
+    re.IGNORECASE,
 )
 
 _PLANNING_SIGNALS = (
@@ -322,15 +351,17 @@ class CapabilityRouter:
         normalized: str,
         request: str,
     ) -> CapabilityDecision:
-        visual_actions = self._signals(
-            normalized, "visual:action", _VISUAL_PROMPT_ACTION_SIGNALS
+        visual_actions = self._signals(normalized, "visual:action", _VISUAL_PROMPT_ACTION_SIGNALS)
+        visual_targets = self._signals(normalized, "visual:target", _VISUAL_PROMPT_TARGET_SIGNALS)
+        image_action_signals = self._signals(
+            normalized, "visual:image_action", _VISUAL_IMAGE_ACTION_SIGNALS
         )
-        visual_targets = self._signals(
-            normalized, "visual:target", _VISUAL_PROMPT_TARGET_SIGNALS
+        visual_image_requested = bool(image_action_signals) and self._visual_image_requested(
+            request
         )
         side_effect_text = (
             self._visual_side_effect_text(request)
-            if visual_actions and visual_targets
+            if visual_actions and (visual_targets or visual_image_requested)
             else normalized
         )
         system_signals = self._compound_signals(
@@ -398,6 +429,14 @@ class CapabilityRouter:
                 file_signals,
             )
 
+        if visual_image_requested:
+            return self._decision(
+                CapabilityKind.VISUAL_IMAGE_GENERATE,
+                source_route,
+                "capability.workflow.visual_image_generate",
+                image_action_signals + ("visual:target:image",),
+            )
+
         if visual_actions and visual_targets:
             return self._decision(
                 CapabilityKind.VISUAL_PROMPT_COMPOSE,
@@ -426,8 +465,31 @@ class CapabilityRouter:
         )
 
     @classmethod
+    def _visual_image_requested(cls, request: str) -> bool:
+        normalized = cls._normalize(request)
+        if any(
+            cls._contains_phrase(normalized, phrase) for phrase in _VISUAL_PROMPT_TARGET_SIGNALS
+        ):
+            return False
+        target_text = re.sub(
+            r"\b(?:cấu|cau)\s+hình\b",
+            " ",
+            request,
+            flags=re.IGNORECASE,
+        )
+        if _VISUAL_IMAGE_TARGET_PATTERN.search(target_text) is not None:
+            return True
+        return (
+            re.search(
+                r"\b(?:tao|lam|create|generate|make|build)\s+anh\b",
+                normalized,
+            )
+            is not None
+        )
+
+    @classmethod
     def _visual_side_effect_text(cls, request: str) -> str:
-        without_copy = re.sub(r'["“][^"”]*["”]', ' ', request)
+        without_copy = re.sub(r'["“][^"”]*["”]', " ", request)
         folded = unicodedata.normalize("NFKD", without_copy.casefold())
         folded = "".join(c for c in folded if not unicodedata.combining(c)).replace("đ", "d")
         pieces = re.split(r"[.!?;\n]+|\s+-\s+|,|\bnhung\b|\bbut\b|\bhowever\b", folded)
@@ -495,9 +557,7 @@ class CapabilityRouter:
     def _normalize(request: str) -> str:
         decomposed = unicodedata.normalize("NFKD", request.casefold())
         without_marks = "".join(
-            character
-            for character in decomposed
-            if not unicodedata.combining(character)
+            character for character in decomposed if not unicodedata.combining(character)
         ).replace("đ", "d")
         return " ".join(re.sub(r"[^a-z0-9]+", " ", without_marks).split())
 

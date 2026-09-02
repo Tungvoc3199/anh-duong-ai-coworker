@@ -115,6 +115,17 @@ class WorkflowResolver:
             and not has_unsafe_operational_guidance_followup(text, _OPERATIONAL_GUIDANCE_MARKERS)
             and not safety.unnegated_mutation
         )
+        if capability is CapabilityKind.VISUAL_IMAGE_GENERATE:
+            return (
+                "generate_visual_image",
+                RiskLevel.READ_ONLY,
+                (
+                    "one_image_max",
+                    "subscription_quota_only",
+                    "no_paid_fallback",
+                    "retry_delivery_without_regeneration",
+                ),
+            )
         if capability is CapabilityKind.VISUAL_PROMPT_COMPOSE:
             return (
                 "compose_visual_prompt",

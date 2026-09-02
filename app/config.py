@@ -26,6 +26,15 @@ class Settings(BaseSettings):
     openclaw_timeout_seconds: float = 600.0
     openclaw_notification_timeout_seconds: float = 30.0
     openclaw_auth_token: str | None = None
+    openclaw_container_name: str = "openclaw-openclaw-gateway-1"
+    openclaw_image_model: str = "openai/gpt-image-2"
+    openclaw_image_timeout_seconds: float = 600.0
+    openclaw_image_output_root: Path = Path(
+        "/home/thadc/.openclaw/media/tool-image-generation"
+    )
+    openclaw_image_container_output_root: str = (
+        "/home/node/.openclaw/media/tool-image-generation"
+    )
     visualforge_root: Path = Path("/home/thadc/AIOS/visualforge")
     visualforge_expected_commit: str = "aac8cbf6bf21f03d2338d81da8764e990055c4d2"
     visualforge_python_executable: str = "/usr/bin/python3"
