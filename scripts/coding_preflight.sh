@@ -165,7 +165,7 @@ invalid_invocation() {
 
 usage() {
     cat <<'EOF'
-Usage: coding_preflight.sh --expected-workspace PATH [policy flags]
+Usage: coding_preflight.sh --expected-workspace PATH [policy flags] [-- git [git arguments]]
 
 Coding policy flags:
   --require-isolation
@@ -184,6 +184,7 @@ Cleanup safety flags:
   --destructive-cleanup
 EOF
 }
+GIT_EXEC_ARGS=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --expected-workspace|--expected-upstream|--expected-push-remote|--expected-push-target|--expected-push-url|--expected-git-name|--expected-git-email|--cleanup-target|--archive-ref|--bundle|--tracked-patch|--untracked-archive|--checksum-evidence|--coverage-evidence)
@@ -213,6 +214,12 @@ while [[ $# -gt 0 ]]; do
         --require-upstream) REQUIRE_UPSTREAM=1; shift ;;
         --allow-detached) ALLOW_DETACHED=1; shift ;;
         --destructive-cleanup) DESTRUCTIVE_CLEANUP=1; shift ;;
+        --)
+            shift
+            [[ $# -ge 2 && "$1" == "git" ]] || invalid_invocation "git_operation_required"
+            GIT_EXEC_ARGS=("$@")
+            break
+            ;;
         --help|-h) usage; exit 0 ;;
         *) invalid_invocation "unknown_argument_$1" ;;
     esac
@@ -1514,6 +1521,10 @@ fi
 if [[ "${#reasons[@]}" -eq 0 ]]; then
     PREFLIGHT="PASS"
     emit_result
+    if [[ "${#GIT_EXEC_ARGS[@]}" -gt 0 ]]; then
+        exec /usr/bin/git "${GIT_EXEC_ARGS[@]:1}"
+        exit 127
+    fi
     exit 0
 fi
 

@@ -13,11 +13,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/wait.h>
 #include <unistd.h>
 
 extern char **environ;
+
+#ifndef TRUSTED_GUARD_PATH
+#define TRUSTED_GUARD_PATH "/usr/local/libexec/anh-duong/coding_preflight.sh"
+#endif
+#ifndef TRUSTED_GUARD_REQUIRE_ROOT
+#define TRUSTED_GUARD_REQUIRE_ROOT 1
+#endif
 
 static const char *const safe_environment[] = {
     "PATH=/usr/bin:/bin",
@@ -43,7 +50,8 @@ static int unsafe_environment(void) {
 
     for (entry = environ; *entry != NULL; ++entry) {
         const char *value = *entry;
-        if (strncmp(value, "LD_", 3) == 0 || strncmp(value, "GIT_", 4) == 0 ||
+        if (strncmp(value, "LD_", 3) == 0 ||
+            (strncmp(value, "GIT_", 4) == 0 && strncmp(value, "GIT_PAGER=", 10) != 0) ||
             strncmp(value, "BASH_ENV=", 9) == 0 || strncmp(value, "ENV=", 4) == 0) {
             return 1;
         }
@@ -79,90 +87,18 @@ static int retarget_option(const char *argument) {
     return 0;
 }
 
-static int wait_for_success(pid_t pid) {
-    int status;
-
-    if (waitpid(pid, &status, 0) < 0) {
-        return 0;
-    }
-    return WIFEXITED(status) && WEXITSTATUS(status) == 0;
-}
-
-static int run_guard(const char *guard, const char *workspace, char *const *policy, size_t policy_count) {
-    char **guard_argv;
-    pid_t pid;
-    size_t index;
-
-    guard_argv = calloc(policy_count + 6, sizeof(*guard_argv));
-    if (guard_argv == NULL) {
-        return 0;
-    }
-    guard_argv[0] = "/bin/bash";
-    guard_argv[1] = "-p";
-    guard_argv[2] = (char *)guard;
-    guard_argv[3] = "--expected-workspace";
-    guard_argv[4] = (char *)workspace;
-    for (index = 0; index < policy_count; ++index) {
-        guard_argv[index + 5] = policy[index];
-    }
-
-    pid = fork();
-    if (pid == 0) {
-        execve("/bin/bash", guard_argv, (char *const *)safe_environment);
-        _exit(127);
-    }
-    free(guard_argv);
-    return pid > 0 && wait_for_success(pid);
-}
-
-static int revalidate_workspace(const char *workspace) {
-    char output[PATH_MAX + 2];
-    char *const git_argv[] = {"git", "rev-parse", "--show-toplevel", NULL};
-    ssize_t bytes;
-    size_t used = 0;
-    int pipe_fds[2];
-    pid_t pid;
-
-    if (pipe(pipe_fds) != 0) {
-        return 0;
-    }
-    pid = fork();
-    if (pid == 0) {
-        if (dup2(pipe_fds[1], STDOUT_FILENO) < 0) {
-            _exit(127);
-        }
-        close(pipe_fds[0]);
-        close(pipe_fds[1]);
-        execve("/usr/bin/git", git_argv, (char *const *)safe_environment);
-        _exit(127);
-    }
-    close(pipe_fds[1]);
-    while (used < sizeof(output) - 1 &&
-           (bytes = read(pipe_fds[0], output + used, sizeof(output) - 1 - used)) > 0) {
-        used += (size_t)bytes;
-    }
-    close(pipe_fds[0]);
-    if (bytes != 0 || pid < 0 || !wait_for_success(pid)) {
-        return 0;
-    }
-    if (used == 0 || output[used - 1] != '\n') {
-        return 0;
-    }
-    output[used - 1] = '\0';
-    return strlen(workspace) + 1 == used && strcmp(output, workspace) == 0;
-}
-
 int main(int argc, char **argv) {
     char expected_workspace[PATH_MAX];
-    char guard_candidate[PATH_MAX];
     char guard_path[PATH_MAX];
-    char **policy;
-    char **git_argv;
+    char **guard_argv;
     const char *expected = NULL;
+    struct stat guard_stat;
     int separator = -1;
     int index;
     int policy_start;
     size_t policy_count;
+    size_t git_argc;
+    size_t out;
 
     if (unsafe_environment()) {
         blocked("UNSAFE_ENVIRONMENT");
@@ -202,27 +138,46 @@ int main(int argc, char **argv) {
         blocked("PATH_BINDING_FAILED");
         return 64;
     }
-    int guard_len = snprintf(guard_candidate, sizeof(guard_candidate),
-                             "%s/scripts/coding_preflight.sh", expected_workspace);
-    if (guard_len < 0 || (size_t)guard_len >= sizeof(guard_candidate) ||
-        realpath(guard_candidate, guard_path) == NULL || chdir(expected_workspace) != 0) {
+    if (realpath(TRUSTED_GUARD_PATH, guard_path) == NULL || strcmp(guard_path, TRUSTED_GUARD_PATH) != 0 ||
+        stat(guard_path, &guard_stat) != 0 || !S_ISREG(guard_stat.st_mode)) {
+        blocked("TRUSTED_GUARD_INVALID");
+        return 64;
+    }
+    if (TRUSTED_GUARD_REQUIRE_ROOT &&
+        (guard_stat.st_uid != 0 || guard_stat.st_gid != 0 ||
+         (guard_stat.st_mode & (S_IWGRP | S_IWOTH)) != 0)) {
+        blocked("TRUSTED_GUARD_INVALID");
+        return 64;
+    }
+    if (chdir(expected_workspace) != 0) {
         blocked("PATH_BINDING_FAILED");
         return 64;
     }
 
-    policy = &argv[policy_start];
     policy_count = (size_t)(separator - policy_start);
-    if (!run_guard(guard_path, expected_workspace, policy, policy_count)) {
-        blocked("GUARD_FAILED");
-        return 2;
+    git_argc = (size_t)(argc - separator - 1);
+    guard_argv = calloc(policy_count + git_argc + 7, sizeof(*guard_argv));
+    if (guard_argv == NULL) {
+        blocked("CONTROLLER_ALLOCATION_FAILED");
+        return 70;
     }
-    if (chdir(expected_workspace) != 0 || !revalidate_workspace(expected_workspace)) {
-        blocked("WORKSPACE_REVALIDATION_FAILED");
-        return 2;
+    guard_argv[0] = "/bin/bash";
+    guard_argv[1] = "-p";
+    guard_argv[2] = guard_path;
+    guard_argv[3] = "--expected-workspace";
+    guard_argv[4] = expected_workspace;
+    out = 5;
+    for (index = policy_start; index < separator; ++index) {
+        guard_argv[out++] = argv[index];
     }
+    guard_argv[out++] = "--";
+    for (index = separator + 1; index < argc; ++index) {
+        guard_argv[out++] = argv[index];
+    }
+    guard_argv[out] = NULL;
 
-    git_argv = &argv[separator + 1];
-    execve("/usr/bin/git", git_argv, (char *const *)safe_environment);
-    blocked("GIT_EXEC_FAILED");
+    execve("/bin/bash", guard_argv, (char *const *)safe_environment);
+    free(guard_argv);
+    blocked("GUARD_EXEC_FAILED");
     return 127;
 }

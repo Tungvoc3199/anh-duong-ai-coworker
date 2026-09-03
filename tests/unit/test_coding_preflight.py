@@ -67,26 +67,16 @@ def run_guard(
         return invoke(fault_guard)
 
 
-def build_controller(tmp_path: Path) -> Path:
+def build_controller(tmp_path: Path, trusted_guard: Path | None = GUARD) -> Path:
     """Build the loader-safe controller from the repository source under test."""
     controller = tmp_path / "coding-preflight-controller"
-    subprocess.run(
-        [
-            "gcc",
-            "-static",
-            "-std=c11",
-            "-O2",
-            "-Wall",
-            "-Wextra",
-            "-Werror",
-            "-o",
-            str(controller),
-            str(CONTROLLER_SOURCE),
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    command = ["gcc", "-static", "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror"]
+    if trusted_guard is not None:
+        command.extend(
+            [f'-DTRUSTED_GUARD_PATH="{trusted_guard}"', '-DTRUSTED_GUARD_REQUIRE_ROOT=0']
+        )
+    command.extend(["-o", str(controller), str(CONTROLLER_SOURCE)])
+    subprocess.run(command, check=True, capture_output=True, text=True)
     return controller
 
 
@@ -2694,6 +2684,27 @@ def test_controller_rejects_inherited_git_target_override(
     assert "UNSAFE_ENVIRONMENT" in result.stdout
 
 
+def test_controller_discards_harmless_git_pager_environment(
+    repo: tuple[Path, Path], tmp_path: Path
+) -> None:
+    _, worktree = repo
+    guard = worktree / "scripts" / "coding_preflight.sh"
+    guard.parent.mkdir(parents=True, exist_ok=True)
+    guard.write_bytes(GUARD.read_bytes())
+    guard.chmod(0o755)
+    controller = build_controller(tmp_path)
+    result = run_controller(
+        controller,
+        worktree,
+        worktree,
+        "rev-parse",
+        "--show-toplevel",
+        env={"GIT_PAGER": "cat"},
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.splitlines()[-1] == str(worktree.resolve())
+
+
 def test_controller_rebinds_and_executes_git_in_expected_workspace(
     repo: tuple[Path, Path], tmp_path: Path
 ) -> None:
@@ -2714,7 +2725,12 @@ def test_agents_requires_authoritative_controller_workflow() -> None:
     agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
     assert "`/usr/local/libexec/anh-duong/coding-preflight-controller` directly" in agents
     assert "exact `--expected-workspace`, policy flags, and `-- git ...` operation" in agents
-    assert "derives and binds the canonical `scripts/coding_preflight.sh` guard" in agents
+    expected_guard_text = (
+        "hard-binds the root-owned system guard installed from canonical "
+        "`scripts/coding_preflight.sh`"
+    )
+    assert expected_guard_text in agents
+    assert "immediately `exec`s the requested Git operation" in agents
     assert "never invoke the guard, `bash`, or `env` directly" in agents
 
 
@@ -2821,3 +2837,48 @@ def test_controller_allows_subcommand_c_option(
     controller = build_controller(tmp_path)
     result = run_controller(controller, worktree, worktree, "show", "-c", "HEAD")
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_controller_does_not_execute_git_after_guard_returns_success(
+    repo: tuple[Path, Path], tmp_path: Path
+) -> None:
+    _, worktree = repo
+    workspace_guard = worktree / "scripts" / "coding_preflight.sh"
+    workspace_guard.parent.mkdir(parents=True, exist_ok=True)
+    workspace_guard.write_bytes(GUARD.read_bytes())
+    workspace_guard.chmod(0o755)
+    fake_guard = tmp_path / "trusted-guard.sh"
+    fake_guard.write_text("#!/bin/bash -p\nexit 0\n", encoding="utf-8")
+    fake_guard.chmod(0o755)
+    controller = build_controller(tmp_path, fake_guard)
+    result = run_controller(controller, worktree, worktree, "rev-parse", "--show-toplevel")
+    assert result.returncode == 0
+    assert (
+        not result.stdout.splitlines()
+        or result.stdout.splitlines()[-1] != str(worktree.resolve())
+    )
+
+
+def test_guard_executes_git_after_successful_final_validation(
+    repo: tuple[Path, Path]
+) -> None:
+    _, worktree = repo
+    result = subprocess.run(
+        ["/bin/bash", "-p", str(GUARD), "--expected-workspace", str(worktree),
+         "--", "git", "rev-parse", "--show-toplevel"],
+        cwd=worktree, capture_output=True, text=True, env=controller_env(), check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "PREFLIGHT=PASS" in result.stdout
+    assert result.stdout.splitlines()[-1] == str(worktree.resolve())
+
+
+def test_controller_defaults_to_system_managed_guard_and_installer_contract() -> None:
+    source = CONTROLLER_SOURCE.read_text(encoding="utf-8")
+    installer = ROOT / "scripts" / "agent" / "install_coding_preflight_controller.sh"
+    assert 'TRUSTED_GUARD_PATH "/usr/local/libexec/anh-duong/coding_preflight.sh"' in source
+    assert installer.exists()
+    text = installer.read_text(encoding="utf-8")
+    assert "gcc -static" in text
+    assert "install -o root -g root -m 0755" in text
+    assert "coding_preflight.sh" in text
