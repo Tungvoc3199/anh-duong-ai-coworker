@@ -96,6 +96,7 @@ int main(int argc, char **argv) {
     int separator = -1;
     int index;
     int policy_start;
+    int git_subcommand = -1;
     size_t policy_count;
     size_t git_argc;
     size_t out;
@@ -126,12 +127,38 @@ int main(int argc, char **argv) {
         return 64;
     }
     for (index = separator + 2; index < argc; ++index) {
-        if (strcmp(argv[index], "--") == 0 || argv[index][0] != '-' || strcmp(argv[index], "-") == 0) {
+        if (strcmp(argv[index], "--") == 0) {
+            if (index + 1 < argc) {
+                git_subcommand = index + 1;
+            }
+            break;
+        }
+        if (argv[index][0] != '-' || strcmp(argv[index], "-") == 0) {
+            git_subcommand = index;
             break;
         }
         if (retarget_option(argv[index])) {
             blocked("GIT_RETARGET_OPTION");
             return 64;
+        }
+    }
+    if (git_subcommand >= 0 && strcmp(argv[git_subcommand], "push") == 0) {
+        for (index = git_subcommand + 1; index < argc; ++index) {
+            if (strncmp(argv[index], "--rep", 5) == 0) {
+                blocked("GIT_PUSH_REPOSITORY_OVERRIDE");
+                return 64;
+            }
+            if (strcmp(argv[index], "--") == 0) {
+                if (index + 1 < argc) {
+                    blocked("GIT_PUSH_REPOSITORY_OVERRIDE");
+                    return 64;
+                }
+                break;
+            }
+            if (argv[index][0] != '-' || strcmp(argv[index], "-") == 0) {
+                blocked("GIT_PUSH_REPOSITORY_OVERRIDE");
+                return 64;
+            }
         }
     }
     if (realpath(expected, expected_workspace) == NULL) {
