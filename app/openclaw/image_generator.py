@@ -88,6 +88,90 @@ class OpenClawImageGenerator:
         self.timeout_seconds = timeout_seconds
         self.transport = transport
 
+    async def _require_subscription_route_ready(self, run_id: str) -> None:
+        catalog = await self._read_subscription_route_catalog(run_id)
+        self._validate_subscription_route_catalog(catalog)
+
+    async def _read_subscription_route_catalog(self, run_id: str) -> dict[str, Any]:
+        payload = {
+            "name": "image_generate",
+            "args": {"action": "list"},
+            "sessionKey": self._sync_session_key(run_id),
+        }
+        headers = {"Content-Type": "application/json"}
+        if self.auth_token:
+            headers["Authorization"] = f"Bearer {self.auth_token}"
+        try:
+            async with httpx.AsyncClient(
+                base_url=self.base_url,
+                timeout=min(self.timeout_seconds, 5.0),
+                transport=self.transport,
+            ) as client:
+                response = await client.post(self.invoke_path, headers=headers, json=payload)
+        except (
+            httpx.TimeoutException,
+            httpx.ConnectError,
+            httpx.RemoteProtocolError,
+            httpx.HTTPError,
+        ) as error:
+            raise self._error(
+                "image_subscription_route_probe_unavailable",
+                "Could not verify the managed OpenClaw image route.",
+                retryable=True,
+            ) from error
+        if response.status_code >= 400:
+            raise self._error(
+                "image_subscription_route_probe_unavailable",
+                "Managed OpenClaw image route catalog was unavailable.",
+                retryable=True,
+            )
+        try:
+            body = response.json()
+        except ValueError as error:
+            raise self._error(
+                "image_subscription_route_probe_invalid",
+                "Managed OpenClaw image route catalog returned invalid JSON.",
+            ) from error
+        if not isinstance(body, dict) or body.get("ok") is not True:
+            raise self._subscription_route_error()
+        result = body.get("result")
+        details = result.get("details") if isinstance(result, dict) else None
+        if not isinstance(details, dict):
+            raise self._subscription_route_error()
+        return details
+
+    @staticmethod
+    def _validate_subscription_route_catalog(catalog: Any) -> None:
+        if not isinstance(catalog, dict):
+            raise OpenClawImageGenerator._subscription_route_error()
+        providers = catalog.get("providers")
+        if not isinstance(providers, list):
+            raise OpenClawImageGenerator._subscription_route_error()
+        openai_rows = [
+            row
+            for row in providers
+            if isinstance(row, dict) and row.get("id") == _IMAGE_PROVIDER
+        ]
+        if len(openai_rows) != 1:
+            raise OpenClawImageGenerator._subscription_route_error()
+        provider = openai_rows[0]
+        models = provider.get("models")
+        if provider.get("configured") is not True or provider.get("selected") is not True:
+            raise OpenClawImageGenerator._subscription_route_error()
+        if provider.get("defaultModel") != _IMAGE_MODEL_ID:
+            raise OpenClawImageGenerator._subscription_route_error()
+        if not isinstance(models, list) or _IMAGE_MODEL_ID not in models:
+            raise OpenClawImageGenerator._subscription_route_error()
+
+    @staticmethod
+    def _subscription_route_error() -> OpenClawTransportError:
+        return OpenClawTransportError(
+            "image_subscription_route_unverified",
+            "Managed OpenClaw subscription image route is not ready.",
+            retryable=False,
+            uncertain_side_effect=False,
+        )
+
     async def generate(
         self,
         *,
@@ -98,7 +182,6 @@ class OpenClawImageGenerator:
         if not prompt.strip():
             raise self._error("image_prompt_empty", "Image prompt cannot be blank.")
         self._validate_run_id(run_id)
-        self.host_output_root.mkdir(parents=True, exist_ok=True)
 
         existing = self._existing_artifact(run_id)
         if existing is not None:
@@ -111,6 +194,9 @@ class OpenClawImageGenerator:
                 provider=_IMAGE_PROVIDER,
                 model=_IMAGE_MODEL_ID,
             )
+
+        await self._require_subscription_route_ready(run_id)
+        self.host_output_root.mkdir(parents=True, exist_ok=True)
 
         size = self._render_size(aspect_ratio)
         idempotency_key = f"visual-image:{run_id}"
@@ -175,6 +261,24 @@ class OpenClawImageGenerator:
                 "image_generation_unavailable",
                 "Native OpenClaw image tool is unavailable.",
                 retryable=True,
+            ) from error
+        except httpx.RemoteProtocolError as error:
+            existing = self._existing_artifact(run_id)
+            if existing is not None:
+                host_path, media_path = self._paths_from_host(existing, run_id)
+                return self._verify(
+                    host_path,
+                    media_path,
+                    aspect_ratio,
+                    recovered=True,
+                    provider=_IMAGE_PROVIDER,
+                    model=_IMAGE_MODEL_ID,
+                )
+            raise self._error(
+                "image_transport_error",
+                "Native OpenClaw image request failed after dispatch; outcome is uncertain.",
+                retryable=True,
+                uncertain=True,
             ) from error
         except httpx.HTTPError as error:
             raise self._error(
@@ -378,6 +482,13 @@ class OpenClawImageGenerator:
                 "image_provider_mismatch",
                 "Native provider or model was not pinned.",
             )
+        if "attempts" in details:
+            attempts = details.get("attempts")
+            if not isinstance(attempts, list) or attempts:
+                raise self._error(
+                    "image_fallback_forbidden",
+                    "Native image generation attempted a fallback route.",
+                )
         if details.get("async") is True or status in {"started", "pending", "running"}:
             return {
                 "async": True,

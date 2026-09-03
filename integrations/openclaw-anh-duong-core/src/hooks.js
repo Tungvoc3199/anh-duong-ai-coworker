@@ -285,7 +285,32 @@ export function createAnhDuongCoreHooks({
   }
 
   function isVisualImageFollowUp(text) {
-    return typeof text === "string" && VISUAL_IMAGE_FOLLOW_UPS.has(normalizeFollowUp(text));
+    if (typeof text !== "string") return false;
+    const normalized = normalizeFollowUp(text);
+    return (
+      VISUAL_IMAGE_FOLLOW_UPS.has(normalized) ||
+      /\b(?:lam|tao|trien khai)\b.*\b(?:phuong an|mau|cai nay|dang bai|fb|facebook)\b/.test(normalized)
+    );
+  }
+
+  function recentAssistantVisualContext(messages) {
+    if (!Array.isArray(messages)) return undefined;
+    for (const message of [...messages].reverse()) {
+      if (message?.role !== "assistant" || typeof message?.content !== "string") continue;
+      const text = message.content.trim();
+      const normalized = normalizeFollowUp(text);
+      if (/\b(?:anh|hinh anh|poster|banner|visual|facebook 4:5|tao anh)\b/.test(normalized)) {
+        return text.slice(0, 4000);
+      }
+    }
+    return undefined;
+  }
+
+  function contextualVisualImagePrompt(text, messages) {
+    if (!isVisualImageFollowUp(text)) return text;
+    const context = recentAssistantVisualContext(messages);
+    if (!context) return text;
+    return `Tạo ảnh theo phương án đã chốt. Ngữ cảnh trước đó: ${context}\nYêu cầu hiện tại: ${text}`;
   }
 
   function isVisualImageWorkflowState(state) {
@@ -395,7 +420,8 @@ export function createAnhDuongCoreHooks({
       isRetryContinuation && retrySplit.basePrompt !== undefined
         ? retrySplit.basePrompt
         : rawPrompt;
-    const corePrompt = corePromptForTelegramReply(promptForCore);
+    const parsedPrompt = corePromptForTelegramReply(promptForCore);
+    const corePrompt = contextualVisualImagePrompt(parsedPrompt, event?.messages);
     safeLog(logger, "info", {
       event: "anh_duong_core_prompt_shape",
       hook: "before_prompt_build",

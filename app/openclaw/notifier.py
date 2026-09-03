@@ -18,6 +18,7 @@ TERMINAL_RUN_STATUSES = {
     AsyncRunStatus.BLOCKED,
     AsyncRunStatus.CANCELLED,
 }
+_IMAGE_PROFILE = "visualforge-v0.2+openclaw-image"
 
 
 class OpenClawNotifier:
@@ -143,9 +144,16 @@ class OpenClawNotifier:
                 "Image result JSON is invalid.",
                 retryable=False,
             ) from error
+        profile = result.get("profile") if isinstance(result, dict) else None
         artifacts = result.get("artifacts") if isinstance(result, dict) else None
         image = artifacts.get("image") if isinstance(artifacts, dict) else None
         if image is None:
+            if profile == _IMAGE_PROFILE:
+                raise OpenClawTransportError(
+                    "notification_artifact_invalid",
+                    "Image profile requires exactly one verified managed image.",
+                    retryable=False,
+                )
             return None
         verification = result.get("verification") if isinstance(result, dict) else None
         if not isinstance(image, dict) or not isinstance(verification, dict):
@@ -164,6 +172,7 @@ class OpenClawNotifier:
         prefix = f"{self.image_media_root}/"
         if (
             not isinstance(media_path, str)
+            or any(ord(char) < 32 or ord(char) == 127 for char in media_path)
             or not media_path.startswith(prefix)
             or ".." in media_path
             or media_path != prefix + Path(media_path).name

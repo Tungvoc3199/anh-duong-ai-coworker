@@ -23,6 +23,19 @@ PNG_BYTES = base64.b64decode(
 )
 
 
+@pytest.fixture(autouse=True)
+def _allow_subscription_preflight_for_existing_unit_tests(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def allowed(_self: OpenClawImageGenerator, _run_id: str) -> None:
+        return None
+
+    monkeypatch.setattr(
+        OpenClawImageGenerator,
+        "_require_subscription_route_ready",
+        allowed,
+        raising=False,
+    )
+
+
 def _request(goal: str) -> OpenClawExecutionRequest:
     return OpenClawExecutionRequest(
         task_id="task_img",
@@ -202,6 +215,163 @@ async def test_native_generator_rejects_invalid_png_without_regeneration(tmp_pat
     assert calls == 1
 
 
+def _ready_subscription_route_catalog() -> dict[str, Any]:
+    return {
+        "providers": [
+            {
+                "id": "openai",
+                "configured": True,
+                "selected": True,
+                "defaultModel": "gpt-image-2",
+                "models": ["gpt-image-2", "gpt-image-1.5"],
+            }
+        ]
+    }
+
+
+def test_subscription_route_catalog_accepts_selected_openai_gpt_image_2() -> None:
+    OpenClawImageGenerator._validate_subscription_route_catalog(
+        _ready_subscription_route_catalog()
+    )
+
+
+@pytest.mark.parametrize(
+    "provider",
+    [
+        {
+            "id": "openai", "configured": False, "selected": True,
+            "defaultModel": "gpt-image-2", "models": ["gpt-image-2"],
+        },
+        {
+            "id": "openai", "configured": True, "selected": False,
+            "defaultModel": "gpt-image-2", "models": ["gpt-image-2"],
+        },
+        {
+            "id": "openai", "configured": True, "selected": True,
+            "defaultModel": "gpt-image-1.5", "models": ["gpt-image-2"],
+        },
+        {
+            "id": "openai", "configured": True, "selected": True,
+            "defaultModel": "gpt-image-2", "models": ["gpt-image-1.5"],
+        },
+    ],
+)
+def test_subscription_route_catalog_rejects_unready_route(provider: dict[str, Any]) -> None:
+    with pytest.raises(OpenClawTransportError) as caught:
+        OpenClawImageGenerator._validate_subscription_route_catalog({"providers": [provider]})
+    assert caught.value.code == "image_subscription_route_unverified"
+    assert caught.value.retryable is False
+    assert caught.value.uncertain_side_effect is False
+
+
+@pytest.mark.asyncio
+async def test_subscription_route_catalog_probe_uses_http_gateway_and_same_session(
+    tmp_path: Path,
+) -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            json={"ok": True, "result": {"details": _ready_subscription_route_catalog()}},
+        )
+
+    generator = OpenClawImageGenerator(
+        base_url="http://openclaw",
+        host_output_root=tmp_path,
+        container_output_root="/media",
+        auth_token="gateway-test-token",
+        transport=httpx.MockTransport(handler),
+    )
+    catalog = await generator._read_subscription_route_catalog("run_route_probe")
+    assert catalog["providers"][0]["id"] == "openai"
+    assert len(requests) == 1
+    payload = json.loads(requests[0].content)
+    assert payload == {
+        "name": "image_generate",
+        "args": {"action": "list"},
+        "sessionKey": "agent:main:cron:anh-duong-image:run:run_route_probe",
+    }
+    assert requests[0].headers["Authorization"] == "Bearer gateway-test-token"
+
+
+@pytest.mark.asyncio
+async def test_native_generator_blocks_unready_subscription_route_before_dispatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    async def blocked(_self: OpenClawImageGenerator, _run_id: str) -> None:
+        raise OpenClawTransportError(
+            "image_subscription_route_unverified",
+            "Managed subscription image route is not ready.",
+            retryable=False,
+        )
+
+    monkeypatch.setattr(OpenClawImageGenerator, "_require_subscription_route_ready", blocked)
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(500)
+
+    generator = OpenClawImageGenerator(
+        base_url="http://openclaw",
+        host_output_root=tmp_path,
+        container_output_root="/media",
+        auth_token="test-token",
+        transport=httpx.MockTransport(handler),
+    )
+    with pytest.raises(OpenClawTransportError) as caught:
+        await generator.generate(prompt="one image", run_id="run_route_block")
+    assert caught.value.code == "image_subscription_route_unverified"
+    assert calls == 0
+
+
+@pytest.mark.asyncio
+async def test_native_generator_rejects_any_native_fallback_attempt(tmp_path: Path) -> None:
+    media_path = "/media/run_fallback.png"
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        (tmp_path / "run_fallback.png").write_bytes(PNG_BYTES)
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "result": {
+                    "details": {
+                        "provider": "openai",
+                        "model": "gpt-image-2",
+                        "count": 1,
+                        "paths": [media_path],
+                        "attempts": [
+                            {
+                                "provider": "openrouter",
+                                "model": "paid-image",
+                                "error": "fallback attempted",
+                            }
+                        ],
+                    }
+                },
+            },
+        )
+
+    generator = OpenClawImageGenerator(
+        base_url="http://openclaw",
+        host_output_root=tmp_path,
+        container_output_root="/media",
+        auth_token="test-token",
+        transport=httpx.MockTransport(handler),
+    )
+
+    with pytest.raises(OpenClawTransportError) as caught:
+        await generator.generate(prompt="one image", run_id="run_fallback")
+
+    assert caught.value.code == "image_fallback_forbidden"
+
+
 class FakeImageGenerator:
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -349,3 +519,74 @@ async def test_notifier_reuses_verified_media_and_idempotency_key() -> None:
     assert second["media"] == first["media"]
     assert second["idempotencyKey"] == first["idempotencyKey"]
     assert "GPT-Image-2" in first["message"]
+
+@pytest.mark.asyncio
+async def test_native_generator_remote_protocol_failure_is_uncertain(tmp_path: Path) -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        raise httpx.RemoteProtocolError("peer closed after dispatch")
+
+    generator = OpenClawImageGenerator(
+        base_url="http://openclaw",
+        host_output_root=tmp_path,
+        container_output_root="/media",
+        transport=httpx.MockTransport(handler),
+    )
+
+    with pytest.raises(OpenClawTransportError) as caught:
+        await generator.generate(prompt="one image", run_id="run_uncertain")
+
+    assert caught.value.code == "image_transport_error"
+    assert caught.value.retryable is True
+    assert caught.value.uncertain_side_effect is True
+
+
+@pytest.mark.asyncio
+async def test_notifier_rejects_control_character_in_image_media_path() -> None:
+    run = _notification_run().model_copy(update={
+        "result_json": _notification_run().result_json.replace(
+            "run_img_exec.png", "run_img_exec\\n.png"
+        )
+    })
+    notifier = OpenClawNotifier(base_url="http://127.0.0.1:18789")
+
+    with pytest.raises(OpenClawTransportError) as caught:
+        await notifier.send_final(run)
+
+    assert caught.value.code == "notification_artifact_invalid"
+
+@pytest.mark.asyncio
+async def test_notifier_rejects_decoded_control_character_in_image_media_path() -> None:
+    payload = json.loads(_notification_run().result_json)
+    payload["artifacts"]["image"]["media_path"] = (
+        "/home/node/.openclaw/media/anh-duong/run_img_exec\n.png"
+    )
+    run = _notification_run().model_copy(update={"result_json": json.dumps(payload)})
+    notifier = OpenClawNotifier(
+        base_url="http://127.0.0.1:18789",
+        transport=httpx.MockTransport(
+            lambda _request: httpx.Response(200, json={"ok": True, "result": {}})
+        ),
+    )
+
+    with pytest.raises(OpenClawTransportError) as caught:
+        await notifier.send_final(run)
+
+    assert caught.value.code == "notification_artifact_invalid"
+
+@pytest.mark.asyncio
+async def test_notifier_fails_closed_when_image_profile_has_no_verified_media() -> None:
+    payload = json.loads(_notification_run().result_json)
+    payload["profile"] = "visualforge-v0.2+openclaw-image"
+    payload["artifacts"].pop("image")
+    run = _notification_run().model_copy(update={"result_json": json.dumps(payload)})
+    notifier = OpenClawNotifier(
+        base_url="http://127.0.0.1:18789",
+        transport=httpx.MockTransport(
+            lambda _request: httpx.Response(200, json={"ok": True, "result": {}})
+        ),
+    )
+
+    with pytest.raises(OpenClawTransportError) as caught:
+        await notifier.send_final(run)
+
+    assert caught.value.code == "notification_artifact_invalid"

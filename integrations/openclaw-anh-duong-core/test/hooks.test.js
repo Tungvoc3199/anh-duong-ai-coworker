@@ -1075,3 +1075,33 @@ test("image Telegram follow-up reuses one prepared intent and submits it once", 
   });
   assert.equal(calls.filter((url) => url.endsWith("/api/async-tasks")).length, 1);
 });
+
+test("natural follow-up uses recent assistant visual context for one-turn image generation", async () => {
+  const prompts = [];
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    prompts.push(body.text);
+    const isImage = body.text.startsWith("Tạo ảnh theo phương án đã chốt");
+    return new Response(JSON.stringify(responseFixture(body.request_id, {
+      route: isImage ? "workflow" : "direct",
+      capability: isImage ? "visual_image_generate" : undefined,
+      workflowOverrides: isImage ? { goal: body.text } : {},
+    })), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const ctx = telegramContext("run-natural-image-followup");
+  const messages = [{
+    role: "assistant",
+    content: "Được anh, chốt ảnh dọc Facebook 4:5, nền xanh navy, tiêu đề AIOS — Đang xây dựng một AI Coworker thực sự.",
+  }];
+  const prepared = await hooks.beforePromptBuild({
+    prompt: "E làm theo phương án này đi để đăng bài fb",
+    messages,
+  }, ctx);
+
+  assert.match(prepared.prependContext, /capability: visual_image_generate/);
+  assert.equal(prompts.length, 1);
+  assert.match(prompts[0], /^Tạo ảnh theo phương án đã chốt/);
+  assert.match(prompts[0], /Facebook 4:5/);
+  assert.match(prompts[0], /E làm theo phương án này đi để đăng bài fb/);
+});
