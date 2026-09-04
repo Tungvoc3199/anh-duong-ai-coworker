@@ -156,7 +156,9 @@ class OpenClawImageGenerator:
             raise OpenClawImageGenerator._subscription_route_error()
         provider = openai_rows[0]
         models = provider.get("models")
-        if provider.get("configured") is not True or provider.get("selected") is not True:
+        if provider.get("configured") is not True:
+            raise OpenClawImageGenerator._subscription_route_error()
+        if "selected" in provider and provider.get("selected") is not True:
             raise OpenClawImageGenerator._subscription_route_error()
         if provider.get("defaultModel") != _IMAGE_MODEL_ID:
             raise OpenClawImageGenerator._subscription_route_error()

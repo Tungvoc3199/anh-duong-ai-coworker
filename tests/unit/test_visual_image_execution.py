@@ -221,7 +221,6 @@ def _ready_subscription_route_catalog() -> dict[str, Any]:
             {
                 "id": "openai",
                 "configured": True,
-                "selected": True,
                 "defaultModel": "gpt-image-2",
                 "models": ["gpt-image-2", "gpt-image-1.5"],
             }
@@ -229,7 +228,7 @@ def _ready_subscription_route_catalog() -> dict[str, Any]:
     }
 
 
-def test_subscription_route_catalog_accepts_selected_openai_gpt_image_2() -> None:
+def test_subscription_route_catalog_accepts_openclaw_2026_7_1_openai_catalog() -> None:
     OpenClawImageGenerator._validate_subscription_route_catalog(
         _ready_subscription_route_catalog()
     )
@@ -244,6 +243,18 @@ def test_subscription_route_catalog_accepts_selected_openai_gpt_image_2() -> Non
         },
         {
             "id": "openai", "configured": True, "selected": False,
+            "defaultModel": "gpt-image-2", "models": ["gpt-image-2"],
+        },
+        {
+            "id": "openai", "configured": True, "selected": None,
+            "defaultModel": "gpt-image-2", "models": ["gpt-image-2"],
+        },
+        {
+            "id": "openai", "configured": True, "selected": 0,
+            "defaultModel": "gpt-image-2", "models": ["gpt-image-2"],
+        },
+        {
+            "id": "openai", "configured": True, "selected": "false",
             "defaultModel": "gpt-image-2", "models": ["gpt-image-2"],
         },
         {
