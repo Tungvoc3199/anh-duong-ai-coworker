@@ -601,3 +601,22 @@ async def test_notifier_fails_closed_when_image_profile_has_no_verified_media() 
         await notifier.send_final(run)
 
     assert caught.value.code == "notification_artifact_invalid"
+
+
+@pytest.mark.asyncio
+async def test_native_generator_permission_error_is_contract_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    generator = OpenClawImageGenerator(
+        base_url="http://openclaw",
+        host_output_root=tmp_path,
+        container_output_root="/media",
+    )
+    def denied(_self: Path, _pattern: str):
+        raise PermissionError(13, "permission denied", str(tmp_path))
+    monkeypatch.setattr(Path, "glob", denied)
+    with pytest.raises(OpenClawTransportError) as caught:
+        await generator.generate(prompt="one image", run_id="run_permission")
+    assert caught.value.code == "image_artifact_root_unavailable"
+    assert caught.value.retryable is False
+    assert caught.value.uncertain_side_effect is False

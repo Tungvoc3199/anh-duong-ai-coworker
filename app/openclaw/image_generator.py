@@ -395,12 +395,21 @@ class OpenClawImageGenerator:
         return f"agent:main:cron:anh-duong-image:run:{run_id}"
 
     def _existing_artifact(self, run_id: str) -> Path | None:
-        root = self.host_output_root.resolve(strict=False)
-        candidates = sorted(
-            path
-            for path in (list(root.glob(f"{run_id}.png")) + list(root.glob(f"{run_id}---*.png")))
-            if path.exists()
-        )
+        try:
+            root = self.host_output_root.resolve(strict=False)
+            candidates = sorted(
+                path
+                for path in (
+                    list(root.glob(f"{run_id}.png"))
+                    + list(root.glob(f"{run_id}---*.png"))
+                )
+                if path.exists()
+            )
+        except OSError as error:
+            raise self._error(
+                "image_artifact_root_unavailable",
+                "Managed image output root is not accessible.",
+            ) from error
         if len(candidates) > 1:
             raise self._error(
                 "image_artifact_ambiguous",
