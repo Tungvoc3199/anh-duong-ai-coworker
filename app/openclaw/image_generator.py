@@ -14,9 +14,9 @@ import httpx
 
 from app.openclaw.models import OpenClawTransportError
 
-_IMAGE_MODEL = "openai/gpt-image-2"
+_IMAGE_MODEL = "openai/cx/gpt-5.5-image"
 _IMAGE_PROVIDER = "openai"
-_IMAGE_MODEL_ID = "gpt-image-2"
+_IMAGE_MODEL_ID = "cx/gpt-5.5-image"
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 _IMAGE_FILENAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}(?:---[0-9a-f-]{36})?\.png$")
@@ -155,14 +155,9 @@ class OpenClawImageGenerator:
         if len(openai_rows) != 1:
             raise OpenClawImageGenerator._subscription_route_error()
         provider = openai_rows[0]
-        models = provider.get("models")
         if provider.get("configured") is not True:
             raise OpenClawImageGenerator._subscription_route_error()
         if "selected" in provider and provider.get("selected") is not True:
-            raise OpenClawImageGenerator._subscription_route_error()
-        if provider.get("defaultModel") != _IMAGE_MODEL_ID:
-            raise OpenClawImageGenerator._subscription_route_error()
-        if not isinstance(models, list) or _IMAGE_MODEL_ID not in models:
             raise OpenClawImageGenerator._subscription_route_error()
 
     @staticmethod
@@ -214,10 +209,9 @@ class OpenClawImageGenerator:
                 "filename": f"{run_id}.png",
                 "timeoutMs": int(self.timeout_seconds * 1000),
             },
-            # OpenClaw 2026.7.1 may detach this native media task. Core waits
-            # for the managed artifact below; the Telegram session remains owned
-            # by Core and notifier.
-            "sessionKey": self._sync_session_key(run_id),
+            # Keep the HTTP tool invocation synchronous. Supplying sessionKey
+            # detaches media generation in OpenClaw 2026.7.1 and hides terminal
+            # upstream errors from Core.
             "idempotencyKey": idempotency_key,
         }
         if aspect_ratio:

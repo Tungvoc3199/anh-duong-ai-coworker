@@ -90,7 +90,7 @@ async def test_native_generator_is_one_call_and_recovers_same_artifact(tmp_path:
                 "result": {
                     "details": {
                         "provider": "openai",
-                        "model": "gpt-image-2",
+                        "model": "cx/gpt-5.5-image",
                         "count": 1,
                         "paths": [media_path],
                         "attachments": [
@@ -128,7 +128,7 @@ async def test_native_generator_is_one_call_and_recovers_same_artifact(tmp_path:
     assert len(requests) == 1
     args = requests[0]["args"]
     assert args["count"] == 1
-    assert args["model"] == "openai/gpt-image-2"
+    assert args["model"] == "openai/cx/gpt-5.5-image"
     assert args["outputFormat"] == "png"
     assert args["filename"] == "run_img_exec.png"
     assert requests[0]["idempotencyKey"] == "visual-image:run_img_exec"
@@ -136,6 +136,50 @@ async def test_native_generator_is_one_call_and_recovers_same_artifact(tmp_path:
     assert second.recovered is True
     assert first.sha256 == second.sha256
     assert first.media_path.endswith("run_img_exec.png")
+
+
+@pytest.mark.asyncio
+async def test_native_generator_routes_9router_model_synchronously(tmp_path: Path) -> None:
+    requests: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        requests.append(payload)
+        media_path = "/media/run_9router.png"
+        (tmp_path / "run_9router.png").write_bytes(PNG_BYTES)
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "result": {
+                    "details": {
+                        "provider": "openai",
+                        "model": "cx/gpt-5.5-image",
+                        "count": 1,
+                        "paths": [media_path],
+                    }
+                },
+            },
+        )
+
+    generator = OpenClawImageGenerator(
+        base_url="http://openclaw",
+        host_output_root=tmp_path,
+        container_output_root="/media",
+        auth_token="test-token",
+        transport=httpx.MockTransport(handler),
+    )
+    artifact = await generator.generate(
+        prompt="one image through 9router",
+        run_id="run_9router",
+        aspect_ratio="16:9",
+    )
+
+    assert len(requests) == 1
+    assert requests[0]["args"]["model"] == "openai/cx/gpt-5.5-image"
+    assert "sessionKey" not in requests[0]
+    assert artifact.provider == "openai"
+    assert artifact.model == "cx/gpt-5.5-image"
 
 
 @pytest.mark.asyncio
@@ -155,7 +199,7 @@ async def test_native_generator_waits_for_detached_native_artifact(tmp_path: Pat
                         "async": True,
                         "status": "started",
                         "provider": "openai",
-                        "model": "gpt-image-2",
+                        "model": "cx/gpt-5.5-image",
                     },
                 },
             },
@@ -195,7 +239,7 @@ async def test_native_generator_rejects_invalid_png_without_regeneration(tmp_pat
                 "result": {
                     "details": {
                         "provider": "openai",
-                        "model": "gpt-image-2",
+                        "model": "cx/gpt-5.5-image",
                         "count": 1,
                         "paths": [media_path],
                     },
@@ -256,14 +300,6 @@ def test_subscription_route_catalog_accepts_openclaw_2026_7_1_openai_catalog() -
         {
             "id": "openai", "configured": True, "selected": "false",
             "defaultModel": "gpt-image-2", "models": ["gpt-image-2"],
-        },
-        {
-            "id": "openai", "configured": True, "selected": True,
-            "defaultModel": "gpt-image-1.5", "models": ["gpt-image-2"],
-        },
-        {
-            "id": "openai", "configured": True, "selected": True,
-            "defaultModel": "gpt-image-2", "models": ["gpt-image-1.5"],
         },
     ],
 )
@@ -354,7 +390,7 @@ async def test_native_generator_rejects_any_native_fallback_attempt(tmp_path: Pa
                 "result": {
                     "details": {
                         "provider": "openai",
-                        "model": "gpt-image-2",
+                        "model": "cx/gpt-5.5-image",
                         "count": 1,
                         "paths": [media_path],
                         "attempts": [
@@ -401,7 +437,7 @@ class FakeImageGenerator:
             width=1024,
             height=1536,
             provider="openai",
-            model="gpt-image-2",
+            model="cx/gpt-5.5-image",
             requested_aspect_ratio=aspect_ratio,
             rendered_size="1024x1536",
             recovered=False,
@@ -434,7 +470,7 @@ async def test_visual_image_executor_compiles_then_generates_once(tmp_path: Path
     ]
     assert result.outcome == "completed"
     assert result.provider == "openai"
-    assert result.model == "gpt-image-2"
+    assert result.model == "cx/gpt-5.5-image"
     assert result.profile == "visualforge-v0.2+openclaw-image"
     assert isinstance(result.artifacts, dict)
     image = cast(dict[str, Any], result.artifacts["image"])

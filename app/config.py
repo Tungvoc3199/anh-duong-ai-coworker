@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     openclaw_notification_timeout_seconds: float = 30.0
     openclaw_auth_token: str | None = None
     openclaw_container_name: str = "openclaw-openclaw-gateway-1"
-    openclaw_image_model: str = "openai/gpt-image-2"
+    openclaw_image_model: str = "openai/cx/gpt-5.5-image"
     openclaw_image_timeout_seconds: float = 600.0
     openclaw_image_output_root: Path = Path(
         "/home/thadc/.openclaw/media/tool-image-generation"
