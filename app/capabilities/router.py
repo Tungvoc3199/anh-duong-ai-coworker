@@ -94,6 +94,53 @@ _EXTERNAL_ACTION_SIGNALS = (
     "notify",
     "thong bao",
 )
+_VISUAL_SOCIAL_PURPOSE_PATTERNS = (
+    re.compile(
+        r"\b(?:để|de)\s+(?:(?:làm|lam|tạo|tao)\s+(?:nội|noi)\s+dung\s+)?"
+        r"(?:đăng|dang|post|publish|upload)\s+(?:lên\s+)?"
+        r"(?:facebook|instagram|tiktok|social\s+media)\b", re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bto\s+(?:post|publish|upload)\s+(?:(?:on|to)\s+)?"
+        r"(?:facebook|instagram|tiktok|social\s+media)\b", re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bfor\s+(?:posting\s+on\s+(?:facebook|instagram|tiktok|social\s+media)|"
+        r"use\s+in\s+(?:a\s+)?(?:facebook|instagram|tiktok|social\s+media)\s+(?:post|content)|"
+        r"(?:a\s+)?(?:facebook|instagram|tiktok|social\s+media)\s+(?:post|content))\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:(?:dùng|dung)\s+cho|cho)\s+"
+        r"(?:(?:bài|bai|nội\s+dung|noi\s+dung)\s+)?"
+        r"(?:(?:đăng|dang)\s+)?(?:facebook|instagram|tiktok|social\s+media)\b", re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bintended\s+for(?:\s+use\s+in)?\s+(?:(?:a|an)\s+)?"
+        r"(?:facebook|instagram|tiktok|social\s+media)(?:\s+post)?\b", re.IGNORECASE,
+    ),
+)
+_VISUAL_EXTERNAL_TAIL = re.compile(
+    r"\b(?:post|publish|upload|send|email|notify|share|schedule|"
+    r"đăng|gửi|thông\s+báo|chia\s+sẻ|lên\s+lịch)\b", re.IGNORECASE,
+)
+_VISUAL_AGENTIVE_BRIDGE = re.compile(
+    r"\b(?:for\s+you|want\s+you|need\s+you|ask\s+you|have\s+you|"
+    r"để\s+em|de\s+em|cho\s+em|muốn\s+em|muon\s+em|nhờ\s+em|nho\s+em)\b",
+    re.IGNORECASE,
+)
+_VISUAL_CONSEQUENTIAL_BRIDGE = re.compile(
+    r"\b(?:then|afterwards|later|have\s+\w+|ask\s+\w+|tell\s+\w+|"
+    r"want\s+\w+\s+to|need\s+\w+\s+to|rồi|xong|sau\s+đó|"
+    r"nhờ\s+\w+|bảo\s+\w+)\b", re.IGNORECASE,
+)
+_VISUAL_BENIGN_PURPOSE_SUFFIX = re.compile(
+    r"^\s*(?:[.!?]*|"
+    r"(?:theo\s+(?:phương|phuong)\s+(?:án|an)|as\s+(?:we\s+)?discussed)"
+    r"[^;!?]*[.!?]?)\s*$",
+    re.IGNORECASE,
+)
+
 _EXTERNAL_TARGET_SIGNALS = (
     "email",
     "telegram",
@@ -359,9 +406,14 @@ class CapabilityRouter:
         visual_image_requested = bool(image_action_signals) and self._visual_image_requested(
             request
         )
+        visual_side_effect_source = (
+            self._strip_visual_social_purpose(request)
+            if visual_image_requested
+            else request
+        )
         side_effect_text = (
-            self._visual_side_effect_text(request)
-            if visual_actions and (visual_targets or visual_image_requested)
+            self._visual_side_effect_text(visual_side_effect_source)
+            if (visual_actions and visual_targets) or visual_image_requested
             else normalized
         )
         system_signals = self._compound_signals(
@@ -463,6 +515,46 @@ class CapabilityRouter:
             source_route,
             "capability.workflow.unknown",
         )
+
+    @classmethod
+    def _strip_visual_social_purpose(cls, request: str) -> str:
+        text = request
+        for pattern in _VISUAL_SOCIAL_PURPOSE_PATTERNS:
+            def replace(match: re.Match[str], current: str = text) -> str:
+                prefix = current[:match.start()]
+                boundary = max(prefix.rfind(mark) for mark in ".;!?\n")
+                clause_prefix = prefix[boundary + 1:]
+                targets = list(_VISUAL_IMAGE_TARGET_PATTERN.finditer(clause_prefix))
+                if not targets:
+                    targets = list(re.finditer(r"\b(?:anh|hinh)\b", clause_prefix, re.I))
+                if targets:
+                    bridge = clause_prefix[targets[-1].end():]
+                else:
+                    previous = prefix[:boundary]
+                    previous_targets = list(_VISUAL_IMAGE_TARGET_PATTERN.finditer(previous))
+                    purpose_lead = clause_prefix.strip().casefold()
+                    cross_clause = (
+                        bool(previous_targets)
+                        and purpose_lead in {"it is", "this image is", "the image is"}
+                        and match.group(0).strip().casefold().startswith(("for ", "intended for"))
+                    )
+                    if not cross_clause:
+                        return match.group(0)
+                    bridge = ""
+                if (
+                    _VISUAL_EXTERNAL_TAIL.search(bridge)
+                    or _VISUAL_AGENTIVE_BRIDGE.search(bridge)
+                    or _VISUAL_CONSEQUENTIAL_BRIDGE.search(bridge)
+                ):
+                    return match.group(0)
+                after = current[match.end():]
+                if _VISUAL_EXTERNAL_TAIL.search(after):
+                    return match.group(0)
+                if _VISUAL_BENIGN_PURPOSE_SUFFIX.fullmatch(after) is None:
+                    return match.group(0)
+                return " "
+            text = pattern.sub(replace, text)
+        return text
 
     @classmethod
     def _visual_image_requested(cls, request: str) -> bool:

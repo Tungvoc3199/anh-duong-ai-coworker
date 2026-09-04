@@ -1245,3 +1245,25 @@ def test_configuration_word_does_not_trigger_image_generation() -> None:
     )
 
     assert prepared.capability_decision.capability is CapabilityKind.SYSTEM_OPERATION
+
+
+def test_real_telegram_image_goal_does_not_require_approval() -> None:
+    project = _project()
+    text = (
+        "E làm luôn 1 ảnh minh hoạ chủ đề ChatGPT bị gián đoạn toàn cầu "
+        "để đăng Facebook theo phương án mình vừa bàn nhé."
+    )
+    prepared = _pipeline(project_reader=ProjectReader((project,))).prepare(
+        CoreRequest(
+            text=text, request_id="image-primary-goal", channel="telegram",
+            actor="telegram:actor-hash", source_chat_id="chat-42",
+            source_session_id="session-42", source_message_id="message-image-primary",
+        )
+    )
+    assert prepared.capability_decision.capability is CapabilityKind.VISUAL_IMAGE_GENERATE
+    assert prepared.workflow is not None
+    assert prepared.workflow.approval_required is False
+    assert prepared.workflow.policy_decision is DecisionKind.ALLOW
+    for item in ("one_image_max", "subscription_quota_only", "no_paid_fallback",
+                 "retry_delivery_without_regeneration"):
+        assert item in prepared.workflow.constraints

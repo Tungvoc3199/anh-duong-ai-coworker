@@ -130,3 +130,24 @@ def test_visual_image_generation_is_owner_allowed_and_bounded() -> None:
     )
     assert decision.kind is DecisionKind.ALLOW
     assert decision.effective_risk_level is RiskLevel.READ_ONLY
+
+
+def test_image_for_facebook_post_auto_executes_bounded() -> None:
+    goal = "Tạo 1 ảnh minh hoạ để đăng Facebook theo phương án mình vừa bàn."
+    _, capability = _capability(goal)
+    assert capability.capability is CapabilityKind.VISUAL_IMAGE_GENERATE
+    project = _project()
+    envelope = WorkflowResolver().resolve(
+        request=CoreRequest(
+            text=goal, channel="telegram", actor="telegram:test",
+            project_id=project.id, source_chat_id="chat",
+            source_session_id="session", source_message_id="message-image-post",
+        ),
+        request_id="req_image_post", normalized_text=goal,
+        capability=capability.capability, project=project,
+    )
+    assert envelope.approval_required is False
+    assert envelope.policy_decision is DecisionKind.ALLOW
+    for item in ("one_image_max", "subscription_quota_only", "no_paid_fallback",
+                 "retry_delivery_without_regeneration"):
+        assert item in envelope.constraints

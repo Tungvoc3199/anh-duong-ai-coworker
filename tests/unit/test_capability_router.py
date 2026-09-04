@@ -257,3 +257,133 @@ def test_publish_after_image_stays_external_communication() -> None:
     decision = _route("Tạo ảnh rồi đăng Facebook cho anh.")
 
     assert decision.capability is CapabilityKind.EXTERNAL_COMMUNICATION
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "E làm luôn 1 ảnh minh hoạ chủ đề ChatGPT bị gián đoạn toàn cầu "
+        "để đăng Facebook theo phương án mình vừa bàn nhé.",
+        "Tạo ảnh quảng cáo để đăng Facebook.",
+        "Generate an image to post on Facebook.",
+        "Generate an image for a Facebook post.",
+        "Please create an image for a Facebook post.",
+        "Generate an image to post on social media.",
+        "Generate an image for a social media post.",
+    ],
+)
+def test_social_destination_as_image_purpose_stays_image(text: str) -> None:
+    decision = _route(text)
+    assert decision.capability is CapabilityKind.VISUAL_IMAGE_GENERATE
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Tạo ảnh rồi đăng Facebook cho anh.",
+        "Generate an image; post it on Facebook.",
+        "Generate an image to post on Facebook now.",
+        "Generate an image for a Facebook post and email it to Alice.",
+    ],
+)
+def test_explicit_external_action_after_image_remains_governed(text: str) -> None:
+    decision = _route(text)
+    assert decision.capability is CapabilityKind.EXTERNAL_COMMUNICATION
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Then generate an image to post on Facebook.",
+    ],
+)
+def test_benign_discourse_before_image_goal_stays_image(text: str) -> None:
+    assert _route(text).capability is CapabilityKind.VISUAL_IMAGE_GENERATE
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Generate an image to post on Facebook, now.",
+        'Generate an image for a Facebook post "and email it to Alice".',
+    ],
+)
+def test_immediate_or_quoted_external_tail_remains_governed(text: str) -> None:
+    assert _route(text).capability is CapabilityKind.EXTERNAL_COMMUNICATION
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Generate an image to post on Facebook right now.",
+        "Generate an image to post on Facebook ASAP.",
+        "Generate an image to post on Facebook at 5 PM.",
+        "Tạo ảnh để đăng Facebook bây giờ.",
+    ],
+)
+def test_timed_social_execution_remains_external(text: str) -> None:
+    assert _route(text).capability is CapabilityKind.EXTERNAL_COMMUNICATION
+
+
+def test_separate_sentence_intended_use_stays_image() -> None:
+    text = "Generate an image. It is for a Facebook post."
+    assert _route(text).capability is CapabilityKind.VISUAL_IMAGE_GENERATE
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Generate an image to post on Facebook, please do it now.",
+        "Generate an image to post on Facebook -- now.",
+        "Tạo ảnh để đăng Facebook nhé, làm ngay.",
+    ],
+)
+def test_delayed_immediacy_after_social_purpose_remains_external(text: str) -> None:
+    assert _route(text).capability is CapabilityKind.EXTERNAL_COMMUNICATION
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Generate an image to post on Facebook tomorrow.",
+        "Generate an image to post on Facebook tonight.",
+        "Generate an image to post on Facebook at noon.",
+        "Tạo ảnh để đăng Facebook ngày mai.",
+        (
+            "Generate an image for a Facebook post and "
+            + ("keep the design minimal " * 8)
+            + "then post it."
+        ),
+    ],
+)
+def test_scheduled_or_long_tail_external_action_remains_governed(text: str) -> None:
+    assert _route(text).capability is CapabilityKind.EXTERNAL_COMMUNICATION
+
+
+def test_accentless_vietnamese_image_purpose_stays_image() -> None:
+    assert _route("Tao anh de dang Facebook.").capability is CapabilityKind.VISUAL_IMAGE_GENERATE
+
+
+def test_long_cross_sentence_purpose_stays_image() -> None:
+    text = (
+        "Generate an image "
+        + ("with detailed visual guidance " * 12)
+        + ". It is for a Facebook post."
+    )
+    assert _route(text).capability is CapabilityKind.VISUAL_IMAGE_GENERATE
+
+
+@pytest.mark.parametrize("text", [
+    "Generate an image for you to post on Facebook.",
+    "Create an image that I want you to post on Facebook.",
+])
+def test_agentive_social_posting_remains_external(text: str) -> None:
+    assert _route(text).capability is CapabilityKind.EXTERNAL_COMMUNICATION
+
+
+@pytest.mark.parametrize("text", [
+    "Generate an image, then have Alice post on Facebook.",
+    "Generate an image and ask Bob to post on Facebook.",
+])
+def test_third_party_posting_remains_external(text: str) -> None:
+    assert _route(text).capability is CapabilityKind.EXTERNAL_COMMUNICATION
