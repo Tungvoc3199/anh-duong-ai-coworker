@@ -140,7 +140,7 @@ _VISUAL_IMAGE_TARGET_PHRASES = (
     "banner", "thumbnail",
 )
 _VISUAL_IMAGE_TARGET_PATTERN = re.compile(
-    r"(?<!\w)(?:ảnh|hình(?:\s+ảnh)?|image|photo|picture|artwork|poster|banner|thumbnail)(?!\w)",
+    r"(?<!\w)(?:ảnh|hình(?:\s+ảnh)?|hinh(?:\s+anh)?|image|photo|picture|artwork|poster|banner|thumbnail)(?!\w)",
     re.IGNORECASE,
 )
 
