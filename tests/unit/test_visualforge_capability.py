@@ -300,6 +300,24 @@ def test_visualforge_compose_argv_enforces_network_namespace(tmp_path: Path) -> 
     assert "-I" in argv[:6]
 
 
+def test_visual_prompt_parser_treats_negated_text_as_no_visible_copy() -> None:
+    from app.visualforge import VisualPromptParser
+
+    goal = (
+        "Tạo cho anh đúng 1 ảnh thời trang nữ cao cấp để đăng Facebook. "
+        "Yêu cầu: Người mẫu nữ mặc váy đỏ burgundy hiện đại, thanh lịch "
+        "Background studio màu be tối giản Ánh sáng editorial cao cấp, "
+        "da và chất liệu váy chân thực Bố cục toàn thân, sang trọng "
+        "Tỷ lệ dọc 4:5 Không chữ, không logo, không watermark "
+        "Chỉ tạo và gửi đúng 1 ảnh, không gửi trùng Tự thực hiện luôn, không hỏi lại."
+    )
+
+    spec = VisualPromptParser().parse(goal)
+
+    assert spec.required_text == ""
+    assert spec.aspect_ratio == "4:5"
+
+
 @pytest.mark.parametrize(
     "goal",
     [

@@ -22,14 +22,18 @@ class VisualPromptParser:
         r'(?:required\s*text|text(?:\s+(?:hi[eể]n\s+th[iị]\s+)?ch[ií]nh\s+x[aá]c)?|headline|ch[uữ]|n[oộ]i\s+dung|copy|visible\s+text|exact\s+copy)',
         re.IGNORECASE,
     )
+    _NEGATED_TEXT_LABEL_PREFIX = re.compile(
+        r'(?:^|\s)(?:khong(?:\s+co)?|dung(?:\s+co)?|no|without|do\s+not|don\s+t)\s*$',
+        re.IGNORECASE,
+    )
     _ASPECT_PATTERN = re.compile(r'(?<!\d)(1:1|4:5|5:4|9:16|16:9|3:4|4:3)(?!\d)')
     _QUOTED_PATTERN = re.compile(r'["“](.+?)["”]')
 
     def parse(self, goal: str) -> VisualPromptSpec:
         normalized = self._normalize(goal)
         template = self._template(normalized)
-        required_match = self._TEXT_PATTERN.search(goal)
-        label_match = self._TEXT_LABEL_PATTERN.search(goal)
+        required_match = self._first_non_negated_text_match(self._TEXT_PATTERN, goal)
+        label_match = self._first_non_negated_text_match(self._TEXT_LABEL_PATTERN, goal)
         quoted_values = self._QUOTED_PATTERN.findall(goal)
         if required_match:
             required_text = required_match.group(1)
@@ -56,6 +60,16 @@ class VisualPromptParser:
             required_text=required_text,
             aspect_ratio=(aspect_match.group(1) if aspect_match else ""),
         )
+
+    @classmethod
+    def _first_non_negated_text_match(
+        cls, pattern: re.Pattern[str], value: str
+    ) -> re.Match[str] | None:
+        for match in pattern.finditer(value):
+            prefix = cls._normalize(value[max(0, match.start() - 32) : match.start()])
+            if not cls._NEGATED_TEXT_LABEL_PREFIX.search(prefix):
+                return match
+        return None
 
     @staticmethod
     def _normalize(value: str) -> str:
