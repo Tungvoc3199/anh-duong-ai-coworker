@@ -269,6 +269,7 @@ export function createAnhDuongCoreHooks({
     "day",
     "ok lam di",
     "tao di",
+    "e tu tao di",
     "lam di",
     "nhu cai nay",
     "lam lai",
@@ -295,11 +296,18 @@ export function createAnhDuongCoreHooks({
 
   function recentAssistantVisualContext(messages) {
     if (!Array.isArray(messages)) return undefined;
-    for (const message of [...messages].reverse()) {
+    const recentMessages = messages.slice(-6);
+    for (const message of [...recentMessages].reverse()) {
       if (message?.role !== "assistant" || typeof message?.content !== "string") continue;
       const text = message.content.trim();
       const normalized = normalizeFollowUp(text);
-      if (/\b(?:anh|hinh anh|poster|banner|visual|facebook 4:5|tao anh)\b/.test(normalized)) {
+      const hasVisualSignal =
+        /hình ảnh/iu.test(text) ||
+        /\b(?:photo|picture|poster|banner|thumbnail)\b/i.test(text) ||
+        /\b(?:create|generate|make|design|render)\s+(?:an?\s+|the\s+)?image\b/i.test(text) ||
+        /(?:^|[^\p{L}\p{N}_])(?:tạo|làm|chốt|thiết kế|prompt)\s+(?:1\s+|một\s+)?(?:ảnh(?!\s+hưởng(?:$|[^\p{L}\p{N}_]))|hình ảnh|poster|banner|thumbnail)(?=$|[^\p{L}\p{N}_])/iu.test(text) ||
+        /(?:^|[^\p{L}\p{N}_])ảnh\s+(?:dọc|ngang|vuông|thời trang|quảng cáo|minh họa|sản phẩm|facebook|tiktok|reels|bìa|cover)(?=$|[^\p{L}\p{N}_])/iu.test(text);
+      if (hasVisualSignal) {
         return text.slice(0, 4000);
       }
     }

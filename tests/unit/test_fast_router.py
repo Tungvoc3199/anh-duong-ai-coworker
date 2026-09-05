@@ -256,3 +256,15 @@ def test_question_mark_does_not_hide_real_execution_objective(text: str) -> None
 
     assert decision.route is FastRoute.WORKFLOW
     assert decision.rule_id == "routing.workflow.explicit_action"
+
+def test_explicit_fashion_image_request_with_phong_cach_routes_visual_workflow() -> None:
+    text = (
+        "Tạo cho anh 1 ảnh thời trang nữ phong cách sang trọng, người mẫu mặc váy "
+        "trắng hiện đại, background studio tối giản, ánh sáng đẹp, tông màu cao cấp, "
+        "tỷ lệ dọc 4:5 để đăng Facebook."
+    )
+
+    decision = FastRouter().route(text)
+
+    assert decision.route is FastRoute.WORKFLOW
+    assert decision.rule_id == "routing.workflow.visual_image"

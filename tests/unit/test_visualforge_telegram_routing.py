@@ -151,3 +151,32 @@ def test_image_for_facebook_post_auto_executes_bounded() -> None:
     for item in ("one_image_max", "subscription_quota_only", "no_paid_fallback",
                  "retry_delivery_without_regeneration"):
         assert item in envelope.constraints
+
+def test_fashion_image_with_phong_cach_auto_executes_without_approval() -> None:
+    goal = (
+        "Tạo cho anh 1 ảnh thời trang nữ phong cách sang trọng, người mẫu mặc váy "
+        "trắng hiện đại, background studio tối giản, ánh sáng đẹp, tông màu cao cấp, "
+        "tỷ lệ dọc 4:5 để đăng Facebook."
+    )
+    route, capability = _capability(goal)
+    assert route.route is FastRoute.WORKFLOW
+    assert capability.capability is CapabilityKind.VISUAL_IMAGE_GENERATE
+
+    project = _project()
+    envelope = WorkflowResolver().resolve(
+        request=CoreRequest(
+            text=goal,
+            channel="telegram",
+            actor="telegram:test",
+            project_id=project.id,
+            source_chat_id="chat",
+            source_session_id="session",
+            source_message_id="message-fashion",
+        ),
+        request_id="req_fashion_image",
+        normalized_text=goal,
+        capability=capability.capability,
+        project=project,
+    )
+    assert envelope.approval_required is False
+    assert envelope.policy_decision is DecisionKind.ALLOW

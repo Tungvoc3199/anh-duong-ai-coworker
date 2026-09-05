@@ -387,7 +387,16 @@ class FastRouter:
 
     @classmethod
     def _is_advisory_request(cls, normalized: str) -> bool:
-        return cls._contains_any(normalized, _ADVISORY_PHRASES)
+        advisory_without_cach = tuple(
+            phrase for phrase in _ADVISORY_PHRASES if phrase != "cach"
+        )
+        if cls._contains_any(normalized, advisory_without_cach):
+            return True
+        words = normalized.split()
+        return any(
+            word == "cach" and (index == 0 or words[index - 1] != "phong")
+            for index, word in enumerate(words)
+        )
 
     @classmethod
     def _is_operational_guidance_request(

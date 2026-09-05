@@ -1105,3 +1105,160 @@ test("natural follow-up uses recent assistant visual context for one-turn image 
   assert.match(prompts[0], /Facebook 4:5/);
   assert.match(prompts[0], /E làm theo phương án này đi để đăng bài fb/);
 });
+
+test("natural E tự tạo đi follow-up reuses recent assistant image context", async () => {
+  const prompts = [];
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    prompts.push(body.text);
+    const isImage = body.text.startsWith("Tạo ảnh theo phương án đã chốt");
+    return new Response(JSON.stringify(responseFixture(body.request_id, {
+      route: isImage ? "workflow" : "direct",
+      capability: isImage ? "visual_image_generate" : undefined,
+      workflowOverrides: isImage ? { goal: body.text } : {},
+    })), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const ctx = telegramContext("run-natural-tu-tao-followup");
+  const messages = [{
+    role: "assistant",
+    content: "Ảnh thời trang nữ cao cấp, váy trắng hiện đại, studio tối giản, vertical 4:5.",
+  }];
+
+  const prepared = await hooks.beforePromptBuild({ prompt: "E tự tạo đi", messages }, ctx);
+
+  assert.match(prepared.prependContext, /capability: visual_image_generate/);
+  assert.equal(prompts.length, 1);
+  assert.match(prompts[0], /^Tạo ảnh theo phương án đã chốt/);
+  assert.match(prompts[0], /E tự tạo đi/);
+});
+
+test("E tự tạo đi without recent visual context does not infer image generation", async () => {
+  const prompts = [];
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    prompts.push(body.text);
+    return new Response(JSON.stringify(responseFixture(body.request_id, {
+      route: "direct",
+    })), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const ctx = telegramContext("run-natural-tu-tao-no-visual");
+  const messages = [{ role: "assistant", content: "Được anh, em đã hiểu yêu cầu." }];
+
+  const prepared = await hooks.beforePromptBuild({ prompt: "E tự tạo đi", messages }, ctx);
+
+  assert.match(prepared.prependContext, /capability: conversational_response/);
+  assert.equal(prompts.length, 1);
+  assert.equal(prompts[0], "E tự tạo đi");
+});
+
+test("E tự tạo đi ignores misleading nonvisual terms", async () => {
+  const prompts = [];
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    prompts.push(body.text);
+    return new Response(JSON.stringify(responseFixture(body.request_id, { route: "direct" })), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const ctx = telegramContext("run-tu-tao-misleading-nonvisual");
+  const messages = [{
+    role: "assistant",
+    content: "Điều này ảnh hưởng Android Studio; tỷ lệ lỗi hiện là 1:2.",
+  }];
+
+  const prepared = await hooks.beforePromptBuild({ prompt: "E tự tạo đi", messages }, ctx);
+
+  assert.match(prepared.prependContext, /capability: conversational_response/);
+  assert.equal(prompts.length, 1);
+  assert.equal(prompts[0], "E tự tạo đi");
+});
+
+test("E tự tạo đi rejects ảnh hưởng at sentence start and after làm", async () => {
+  for (const content of [
+    "Ảnh hưởng của Android Studio đến build hiện tại là không đáng kể.",
+    "Việc này làm ảnh hưởng tiến độ nhưng không liên quan đến hình minh họa.",
+  ]) {
+    const prompts = [];
+    const fetchImpl = async (_url, init) => {
+      const body = JSON.parse(init.body);
+      prompts.push(body.text);
+      return new Response(JSON.stringify(responseFixture(body.request_id, { route: "direct" })), { status: 200 });
+    };
+    const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+    const ctx = telegramContext(`run-tu-tao-anh-huong-${prompts.length}`);
+    const messages = [{ role: "assistant", content }];
+    const prepared = await hooks.beforePromptBuild({ prompt: "E tự tạo đi", messages }, ctx);
+    assert.match(prepared.prependContext, /capability: conversational_response/);
+    assert.equal(prompts.length, 1);
+    assert.equal(prompts[0], "E tự tạo đi");
+  }
+});
+
+test("E tự tạo đi never treats Vietnamese pronoun anh as ảnh", async () => {
+  for (const content of [
+    "Anh đọc tài liệu này trước nhé.",
+    "Việc này làm anh mất thời gian nhưng không liên quan đến hình minh họa.",
+  ]) {
+    const prompts = [];
+    const fetchImpl = async (_url, init) => {
+      const body = JSON.parse(init.body);
+      prompts.push(body.text);
+      return new Response(JSON.stringify(responseFixture(body.request_id, { route: "direct" })), { status: 200 });
+    };
+    const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+    const ctx = telegramContext("run-tu-tao-pronoun-anh");
+    const messages = [{ role: "assistant", content }];
+    const prepared = await hooks.beforePromptBuild({ prompt: "E tự tạo đi", messages }, ctx);
+    assert.match(prepared.prependContext, /capability: conversational_response/);
+    assert.equal(prompts.length, 1);
+    assert.equal(prompts[0], "E tự tạo đi");
+  }
+});
+
+test("E tự tạo đi ignores technical Docker/container image context", async () => {
+  for (const content of [
+    "Use the Docker image for deployment.",
+    "Rebuild the container image from the current base image.",
+  ]) {
+    const prompts = [];
+    const fetchImpl = async (_url, init) => {
+      const body = JSON.parse(init.body);
+      prompts.push(body.text);
+      return new Response(JSON.stringify(responseFixture(body.request_id, { route: "direct" })), { status: 200 });
+    };
+    const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+    const ctx = telegramContext("run-tu-tao-technical-image");
+    const messages = [{ role: "assistant", content }];
+    const prepared = await hooks.beforePromptBuild({ prompt: "E tự tạo đi", messages }, ctx);
+    assert.match(prepared.prependContext, /capability: conversational_response/);
+    assert.equal(prompts.length, 1);
+    assert.equal(prompts[0], "E tự tạo đi");
+  }
+});
+
+test("E tự tạo đi does not reuse visual context older than the recent window", async () => {
+  const prompts = [];
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    prompts.push(body.text);
+    return new Response(JSON.stringify(responseFixture(body.request_id, { route: "direct" })), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const ctx = telegramContext("run-tu-tao-stale-visual");
+  const messages = [
+    { role: "assistant", content: "Ảnh thời trang nữ cao cấp, váy trắng, nền studio." },
+    { role: "user", content: "ok" },
+    { role: "assistant", content: "Được anh." },
+    { role: "user", content: "tiếp" },
+    { role: "assistant", content: "Em đang theo dõi." },
+    { role: "user", content: "rồi" },
+    { role: "assistant", content: "Không có thay đổi mới." },
+  ];
+
+  const prepared = await hooks.beforePromptBuild({ prompt: "E tự tạo đi", messages }, ctx);
+
+  assert.match(prepared.prependContext, /capability: conversational_response/);
+  assert.equal(prompts.length, 1);
+  assert.equal(prompts[0], "E tự tạo đi");
+});
