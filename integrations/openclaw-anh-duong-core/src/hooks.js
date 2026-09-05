@@ -321,6 +321,34 @@ export function createAnhDuongCoreHooks({
     return `Tạo ảnh theo phương án đã chốt. Ngữ cảnh trước đó: ${context}\nYêu cầu hiện tại: ${text}`;
   }
 
+  function trustedTelegramReplyImageReference(ctx) {
+    const replyMedia = ctx?.channelContext?.chat?.replyMedia;
+    if (!Array.isArray(replyMedia)) return undefined;
+    const candidates = replyMedia.filter((item) =>
+      typeof item?.path === "string" &&
+      item.path.startsWith("/home/node/.openclaw/media/") &&
+      typeof item?.contentType === "string" &&
+      item.contentType.toLowerCase().startsWith("image/"),
+    );
+    return candidates.length === 1 ? candidates[0].path : undefined;
+  }
+
+  function imageRevisionPrompt(text, ctx) {
+    const referenceImage = trustedTelegramReplyImageReference(ctx);
+    if (!referenceImage || typeof text !== "string") {
+      return { prompt: text, referenceImage: undefined };
+    }
+    const normalized = normalizeFollowUp(text);
+    const isRevision = /(?:^|\b)(?:thay|doi|sua|chinh|xoa|them|replace|change|edit|remove|add)(?:\b|$)/.test(normalized);
+    if (!isRevision) {
+      return { prompt: text, referenceImage: undefined };
+    }
+    return {
+      prompt: `Tạo ảnh chỉnh sửa từ ảnh tham chiếu. Yêu cầu hiện tại: ${text}`,
+      referenceImage,
+    };
+  }
+
   function isVisualImageWorkflowState(state) {
     return (
       state?.prepared?.route_decision?.route === "workflow" &&
@@ -429,7 +457,9 @@ export function createAnhDuongCoreHooks({
         ? retrySplit.basePrompt
         : rawPrompt;
     const parsedPrompt = corePromptForTelegramReply(promptForCore);
-    const corePrompt = contextualVisualImagePrompt(parsedPrompt, event?.messages);
+    const contextualPrompt = contextualVisualImagePrompt(parsedPrompt, event?.messages);
+    const revision = imageRevisionPrompt(contextualPrompt, ctx);
+    const corePrompt = revision.prompt;
     safeLog(logger, "info", {
       event: "anh_duong_core_prompt_shape",
       hook: "before_prompt_build",
@@ -525,6 +555,7 @@ export function createAnhDuongCoreHooks({
         senderId: ctx?.senderId,
         chatId: ctx?.chatId,
         sessionKey: ctx?.sessionKey,
+        referenceImage: revision.referenceImage,
       });
       requestId = request.request_id;
       const prepared = await prepareCoreRequest({ config, request, fetchImpl });

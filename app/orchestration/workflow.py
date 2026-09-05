@@ -91,6 +91,7 @@ class WorkflowResolver:
             source_chat_id=request.source_chat_id,
             source_session_id=request.source_session_id,
             source_message_id=request.source_message_id,
+            reference_image=request.reference_image,
             idempotency_key=self._idempotency_key(request),
             correlation_id=request_id,
             constraints=constraints,

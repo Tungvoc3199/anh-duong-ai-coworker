@@ -74,11 +74,14 @@ class VisualForgeRoutingExecutor:
                     "Native image generator is not configured.",
                     retryable=False,
                 )
-            artifact = await self.image_generator.generate(
-                prompt=compiled.prompt,
-                run_id=request.run_id,
-                aspect_ratio=spec.aspect_ratio,
-            )
+            generate_kwargs = {
+                "prompt": compiled.prompt,
+                "run_id": request.run_id,
+                "aspect_ratio": spec.aspect_ratio,
+            }
+            if request.reference_image is not None:
+                generate_kwargs["reference_image"] = request.reference_image
+            artifact = await self.image_generator.generate(**generate_kwargs)
             return self._image_result(request, spec, compiled, artifact)
 
         summary = self._summary(spec, compiled)

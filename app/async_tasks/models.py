@@ -13,6 +13,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.image_reference import validate_managed_image_reference
 from app.tasks.models import TaskPriority
 from app.timeutil import format_display
 
@@ -117,6 +118,7 @@ class AsyncTaskCreate(BaseModel):
     )
     source_session_id: str | None = Field(default=None, max_length=128)
     source_message_id: str | None = Field(default=None, max_length=128)
+    reference_image: str | None = Field(default=None, max_length=2048)
     correlation_id: str | None = Field(default=None, max_length=128)
     idempotency_key: str | None = Field(
         default=None,
@@ -139,6 +141,11 @@ class AsyncTaskCreate(BaseModel):
         if not normalized:
             raise ValueError("value cannot be blank")
         return normalized
+
+    @field_validator("reference_image")
+    @classmethod
+    def normalize_reference_image(cls, value: str | None) -> str | None:
+        return validate_managed_image_reference(value)
 
     @field_validator("deadline", mode="before")
     @classmethod

@@ -656,3 +656,74 @@ async def test_native_generator_permission_error_is_contract_failure(
     assert caught.value.code == "image_artifact_root_unavailable"
     assert caught.value.retryable is False
     assert caught.value.uncertain_side_effect is False
+
+@pytest.mark.asyncio
+async def test_native_generator_passes_one_managed_reference_image_for_revision(
+    tmp_path: Path,
+) -> None:
+    requests: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        requests.append(payload)
+        media_path = "/media/run_revision.png"
+        (tmp_path / "run_revision.png").write_bytes(PNG_BYTES)
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "result": {
+                    "details": {
+                        "provider": "openai",
+                        "model": "cx/gpt-5.5-image",
+                        "count": 1,
+                        "paths": [media_path],
+                    }
+                },
+            },
+        )
+
+    generator = OpenClawImageGenerator(
+        base_url="http://openclaw",
+        host_output_root=tmp_path,
+        container_output_root="/media",
+        auth_token="test-token",
+        transport=httpx.MockTransport(handler),
+    )
+    reference_image = "/home/node/.openclaw/media/inbound/reply-source.jpg"
+    await generator.generate(
+        prompt="replace the subject",
+        run_id="run_revision",
+        aspect_ratio="4:5",
+        reference_image=reference_image,
+    )
+
+    assert len(requests) == 1
+    assert requests[0]["args"]["image"] == reference_image
+    assert requests[0]["args"]["count"] == 1
+
+def test_revision_reference_image_is_preserved_by_async_and_execution_contracts() -> None:
+    from app.async_tasks.models import AsyncTaskCreate
+
+    reference_image = "/home/node/.openclaw/media/inbound/reply-source.jpg"
+    task = AsyncTaskCreate(
+        project_id="proj_img",
+        title="image revision",
+        goal="Tạo ảnh chỉnh sửa từ ảnh tham chiếu",
+        source_channel="telegram",
+        idempotency_key="telegram:chat:message",
+        reference_image=reference_image,
+    )
+    execution = OpenClawExecutionRequest(
+        task_id="task_img",
+        run_id="run_revision_contract",
+        attempt=1,
+        idempotency_key="run_revision_contract:1",
+        project_id="proj_img",
+        goal=task.goal,
+        mode="build",
+        reference_image=task.reference_image,
+    )
+
+    assert task.reference_image == reference_image
+    assert execution.reference_image == reference_image

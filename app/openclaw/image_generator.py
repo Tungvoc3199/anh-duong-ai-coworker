@@ -175,6 +175,7 @@ class OpenClawImageGenerator:
         prompt: str,
         run_id: str,
         aspect_ratio: str = "",
+        reference_image: str | None = None,
     ) -> OpenClawImageArtifact:
         if not prompt.strip():
             raise self._error("image_prompt_empty", "Image prompt cannot be blank.")
@@ -216,6 +217,8 @@ class OpenClawImageGenerator:
         }
         if aspect_ratio:
             payload["args"]["aspectRatio"] = aspect_ratio
+        if reference_image:
+            payload["args"]["image"] = reference_image
 
         headers = {
             "Content-Type": "application/json",

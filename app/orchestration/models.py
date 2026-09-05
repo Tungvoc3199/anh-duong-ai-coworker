@@ -13,6 +13,7 @@ from pydantic import (
 
 from app.capabilities.models import CapabilityDecision
 from app.context_builder.models import ContextBundle
+from app.image_reference import validate_managed_image_reference
 from app.policy import DecisionKind, RiskLevel
 from app.routing.models import RouteDecision
 
@@ -32,6 +33,7 @@ class CoreRequest(BaseModel):
     source_chat_id: str | None = Field(default=None, max_length=128)
     source_session_id: str | None = Field(default=None, max_length=128)
     source_message_id: str | None = Field(default=None, max_length=128)
+    reference_image: str | None = Field(default=None, max_length=2048)
 
     @field_validator("text")
     @classmethod
@@ -58,6 +60,11 @@ class CoreRequest(BaseModel):
         if not normalized:
             raise ValueError("identifier cannot be blank")
         return normalized
+
+    @field_validator("reference_image")
+    @classmethod
+    def normalize_reference_image(cls, value: str | None) -> str | None:
+        return validate_managed_image_reference(value)
 
     @field_validator("channel", "actor")
     @classmethod
@@ -109,6 +116,7 @@ class WorkflowEnvelope(BaseModel):
     source_chat_id: str | None = Field(default=None, max_length=128)
     source_session_id: str | None = Field(default=None, max_length=128)
     source_message_id: str | None = Field(default=None, max_length=128)
+    reference_image: str | None = Field(default=None, max_length=2048)
     idempotency_key: str | None = Field(default=None, max_length=255)
     correlation_id: str = Field(min_length=1, max_length=128)
     constraints: tuple[str, ...] = ()

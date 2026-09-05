@@ -1262,3 +1262,52 @@ test("E tự tạo đi does not reuse visual context older than the recent windo
   assert.equal(prompts.length, 1);
   assert.equal(prompts[0], "E tự tạo đi");
 });
+
+test("Telegram reply-to-image revision carries one trusted reference image into async submission", async () => {
+  const referenceImage = "/home/node/.openclaw/media/inbound/reply-source.jpg";
+  const userText = "Thay cô gái bằng cô gái 20 tuổi người Việt Nam";
+  let preparedBody;
+  let submitted;
+  const fetchImpl = async (url, init) => {
+    const body = init?.body ? JSON.parse(init.body) : undefined;
+    if (url.endsWith("/prepare")) {
+      preparedBody = body;
+      const isRevision = body.text.startsWith("Tạo ảnh") && body.text.includes(userText);
+      return new Response(JSON.stringify(responseFixture(body.request_id, {
+        route: isRevision ? "workflow" : "direct",
+        capability: isRevision ? "visual_image_generate" : undefined,
+        workflowOverrides: isRevision ? { goal: body.text, reference_image: body.reference_image } : {},
+      })), { status: 200 });
+    }
+    if (url.endsWith("/api/async-tasks")) {
+      submitted = body;
+      return new Response(JSON.stringify({
+        task_id: "task-image-revision",
+        run_id: "run-image-revision",
+        status: "pending",
+        message: "ACCEPTED",
+        replayed: false,
+      }), { status: 202 });
+    }
+    return new Response(JSON.stringify({ status: "running" }), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl, workflowProgressDelayMs: 0 });
+  const ctx = telegramContext("run-image-revision");
+  ctx.channelContext = {
+    chat: {
+      id: "private-chat",
+      replyMedia: [{ path: referenceImage, contentType: "image/jpeg" }],
+    },
+  };
+
+  const injection = await hooks.beforePromptBuild({ prompt: userText, messages: [] }, ctx);
+  assert.match(injection.prependContext, /capability: visual_image_generate/);
+  assert.equal(preparedBody.reference_image, referenceImage);
+  assert.match(preparedBody.text, /^Tạo ảnh/);
+  assert.match(preparedBody.text, /Thay cô gái bằng cô gái 20 tuổi người Việt Nam/);
+
+  const reply = await hooks.beforeAgentReply({ cleanedBody: userText }, ctx);
+  assert.equal(reply.handled, true);
+  assert.equal(submitted.reference_image, referenceImage);
+  assert.equal(submitted.goal, preparedBody.text);
+});

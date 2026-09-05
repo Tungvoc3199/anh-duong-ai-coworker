@@ -4,6 +4,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from app.image_reference import validate_managed_image_reference
+
 
 class OpenClawChecklistItem(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -51,6 +53,7 @@ class OpenClawExecutionRequest(BaseModel):
     goal: str
     mode: Literal["quick", "build"]
     workspace: str | None = None
+    reference_image: str | None = Field(default=None, max_length=2048)
     constraints: tuple[str, ...] = ()
     plan_node_id: str | None = Field(default=None, max_length=64)
     plan_node_title: str | None = Field(default=None, max_length=255)
@@ -59,6 +62,11 @@ class OpenClawExecutionRequest(BaseModel):
     verification_requirements: tuple[str, ...] = ()
     prior_evidence: tuple[str, ...] = ()
     remaining_budget: dict[str, int] = Field(default_factory=dict)
+
+    @field_validator("reference_image")
+    @classmethod
+    def normalize_reference_image(cls, value: str | None) -> str | None:
+        return validate_managed_image_reference(value)
 
 
 class GovernanceResult(BaseModel):

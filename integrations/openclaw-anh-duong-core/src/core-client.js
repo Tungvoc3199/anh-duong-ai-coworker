@@ -80,7 +80,7 @@ function requireNullableString(value, requestId, options) {
   return value === null ? null : requireString(value, requestId, options);
 }
 
-export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey }) {
+export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey, referenceImage }) {
   if (typeof prompt !== "string" || prompt.trim().length === 0 || prompt.length > 20_000) {
     throw validationError();
   }
@@ -109,6 +109,9 @@ export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey }
       ? { source_session_id: sessionKey }
       : {}),
     source_message_id: sourceMessageId,
+    ...(typeof referenceImage === "string" && referenceImage.length > 0
+      ? { reference_image: referenceImage }
+      : {}),
   };
 }
 
@@ -133,6 +136,9 @@ function validateWorkflowEnvelope(value, requestId) {
   requireString(workflow.source_chat_id, requestId, { maxLength: 128 });
   requireString(workflow.source_session_id, requestId, { maxLength: 128 });
   requireString(workflow.source_message_id, requestId, { maxLength: 128 });
+  if (workflow.reference_image !== undefined && workflow.reference_image !== null) {
+    requireString(workflow.reference_image, requestId, { maxLength: 2048 });
+  }
   const idempotencyKey = requireString(workflow.idempotency_key, requestId, { maxLength: 255 });
   if (!idempotencyKey.startsWith("telegram:")) {
     throw validationError(requestId);
@@ -237,6 +243,9 @@ export function buildAsyncTaskCreate(prepared) {
     source_chat_id: workflow.source_chat_id,
     source_session_id: workflow.source_session_id,
     source_message_id: workflow.source_message_id,
+    ...(workflow.reference_image !== undefined && workflow.reference_image !== null
+      ? { reference_image: workflow.reference_image }
+      : {}),
     idempotency_key: workflow.idempotency_key,
     correlation_id: workflow.correlation_id,
     constraints: workflow.constraints,

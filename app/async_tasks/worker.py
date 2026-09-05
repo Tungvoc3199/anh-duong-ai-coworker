@@ -194,6 +194,7 @@ class AsyncTaskWorker:
             goal=request.goal,
             mode=request.mode.value,
             workspace=request.workspace,
+            reference_image=request.reference_image,
             constraints=self._execution_constraints(request),
         )
 
@@ -555,6 +556,7 @@ class AsyncTaskWorker:
             goal=request.goal,
             mode=request.mode.value,
             workspace=request.workspace,
+            reference_image=request.reference_image,
             constraints=constraints,
             plan_node_id=node.id,
             plan_node_title=node.title,
