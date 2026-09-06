@@ -16,7 +16,10 @@ from app.openclaw.models import (
 
 
 class OpenClawExecutor:
-    _HOST_WORKSPACE = PurePosixPath("/mnt/f/AIOS/anh-duong-core")
+    _HOST_WORKSPACES = (
+        PurePosixPath("/home/thadc/AIOS/anh-duong-core"),
+        PurePosixPath("/mnt/f/AIOS/anh-duong-core"),
+    )
     _GATEWAY_WORKSPACE = PurePosixPath("/workspaces/anh-duong-core")
     _COMPLETED_OUTCOMES = {
         "completed",
@@ -91,9 +94,32 @@ class OpenClawExecutor:
             "include outcome (completed|blocked|failed) and a non-empty "
             "summary; artifacts and verification are optional. " + self._RUNTIME_EVIDENCE_POLICY
         )
+        instructions += (
+            " Execution target: tools execute inside the OpenClaw gateway container, "
+            "not the Windows/WSL host. Core is a separate host service. A container-local "
+            "process list, localhost port or missing host path cannot establish that Core "
+            "is stopped or its repository is corrupt. Treat permission failures and "
+            "unreachable probes as unknown, not proof of absence. For Core status, use "
+            "the gateway's configured ANH_DUONG_CORE_BASE_URL and probe /health and /ready "
+            "with a bounded timeout; never print tokens or the complete environment. "
+            "Report endpoint, HTTP status and returned status from this request. "
+            "For OpenClaw status use its own health interface. Keep the two observations "
+            "separate. The mapped Core source workspace is read-only; inspect it there. "
+            "For writes use an explicitly available authorized writable worktree; "
+            "do not recreate missing host directories or change mounts/permissions. "
+            "Do not send Telegram messages or invoke delivery tools: Core verifies "
+            "the result and owns final delivery."
+        )
         if request is not None and request.dod_criteria:
             instructions += (
-                " Definition-of-done evidence rule: return "
+                " Return exactly one JSON object, without Markdown or prose outside it. "
+                "Required keys: outcome, summary, criterion_verification. "
+                "summary is the user-facing answer in the user's language. "
+                "criterion_verification contains objects with criterion, status and "
+                "evidence_refs (an array of actual observations, not intended commands). "
+                "If checks cannot be completed, return blocked and unknown/unmet; "
+                "never claim completion just because a command ran. "
+                "Definition-of-done evidence rule: return "
                 "criterion_verification as an array. For every supplied DoD "
                 "criterion, repeat the criterion text exactly and set status "
                 "to verified, unmet, or unknown. A verified criterion must "
@@ -532,11 +558,13 @@ class OpenClawExecutor:
         if workspace is None:
             return None
         path = PurePosixPath(workspace)
-        try:
-            relative = path.relative_to(cls._HOST_WORKSPACE)
-        except ValueError:
-            return workspace
-        return str(cls._GATEWAY_WORKSPACE / relative)
+        for host_workspace in cls._HOST_WORKSPACES:
+            try:
+                relative = path.relative_to(host_workspace)
+            except ValueError:
+                continue
+            return str(cls._GATEWAY_WORKSPACE / relative)
+        return workspace
 
     @staticmethod
     def _extract_output_text(body: Any) -> str:
@@ -580,8 +608,16 @@ class OpenClawExecutor:
 
     @staticmethod
     def _parse_result_payload(text: str) -> dict[str, Any]:
+        candidate = text.strip()
+        lines = candidate.splitlines()
+        if (
+            len(lines) >= 3
+            and lines[0].strip().casefold() in {"```json", "```"}
+            and lines[-1].strip() == "```"
+        ):
+            candidate = "\n".join(lines[1:-1]).strip()
         try:
-            parsed = json.loads(text)
+            parsed = json.loads(candidate)
         except json.JSONDecodeError:
             for raw_line in text.splitlines():
                 folded = raw_line.strip().casefold()
