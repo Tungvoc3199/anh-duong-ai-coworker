@@ -17,7 +17,9 @@ def telegram_idempotency_key(
 
 
 def legacy_telegram_idempotency_key(
-    *, source_chat_id: str, source_message_id: str,
+    *,
+    source_chat_id: str,
+    source_message_id: str,
 ) -> str:
     """Return the pre-PDPA Telegram key shape for replay lookup only."""
     candidate = f"telegram:{source_chat_id}:{source_message_id}"
@@ -39,8 +41,10 @@ def canonicalize_telegram_idempotency_key(
             source_message_id=source_message_id,
         )
     suffix = provided_key.removeprefix("telegram:")
-    if provided_key.startswith("telegram:") and len(suffix) == 64 and all(
-        char in "0123456789abcdef" for char in suffix
+    if (
+        provided_key.startswith("telegram:")
+        and len(suffix) == 64
+        and all(char in "0123456789abcdef" for char in suffix)
     ):
         return provided_key
     return "telegram:" + hashlib.sha256(provided_key.encode("utf-8")).hexdigest()
@@ -99,9 +103,10 @@ def verify_async_request_identity_fingerprint(
         return any(
             hmac.compare_digest(
                 fingerprint,
-                "hmac-sha256-v1:" + async_request_identity_fingerprint(
-                    payload, secret=secret, key_id=key_id
-                ).rsplit(":", 1)[1],
+                "hmac-sha256-v1:"
+                + async_request_identity_fingerprint(payload, secret=secret, key_id=key_id).rsplit(
+                    ":", 1
+                )[1],
             )
             for key_id, secret in secrets.items()
         )
@@ -115,35 +120,43 @@ def legacy_async_request_identity_sha256(payload: dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def validate_async_identity_hmac_keyring(
+    active_id: str, active_secret: str | None, previous_keys: dict[str, str]
+) -> dict[str, str]:
+    """Validate the complete identity HMAC keyring and return a copy."""
+    placeholders = {"change-me", "changeme", "default", "secret"}
+    invalid_active = (
+        not active_id
+        or ":" in active_id
+        or not active_secret
+        or len(active_secret) < 32
+        or active_secret.strip().lower() in placeholders
+    )
+    if invalid_active or active_id in previous_keys:
+        raise RuntimeError("async identity HMAC keyring is invalid")
+    keys = dict(previous_keys)
+    if any(
+        not key_id
+        or ":" in key_id
+        or not secret
+        or len(secret) < 32
+        or secret.strip().lower() in placeholders
+        for key_id, secret in keys.items()
+    ):
+        raise RuntimeError("async identity HMAC keyring is invalid")
+    keys[active_id] = active_secret
+    return keys
+
+
 def resolve_async_identity_hmac_keyring() -> tuple[str, dict[str, str]]:
     """Resolve active and retained server-side identity HMAC keys."""
     from app.config import get_settings
 
     settings = get_settings()
     active_id = settings.async_identity_hmac_key_id
-    active_secret = settings.async_identity_hmac_secret
-    placeholders = {"change-me", "changeme", "default", "secret"}
-    if (
-        not active_id
-        or ":" in active_id
-        or not active_secret
-        or len(active_secret) < 32
-        or active_secret.strip().lower() in placeholders
-    ):
-        raise RuntimeError("async identity HMAC keyring is invalid")
-    keys = dict(settings.async_identity_hmac_previous_keys)
-    keys[active_id] = active_secret
-    if any(
-        (
-            not key_id
-            or ":" in key_id
-            or not secret
-            or len(secret) < 32
-            or secret.strip().lower() in placeholders
-        )
-        for key_id, secret in keys.items()
-    ):
-        raise RuntimeError("async identity HMAC keyring is invalid")
+    keys = validate_async_identity_hmac_keyring(
+        active_id, settings.async_identity_hmac_secret, settings.async_identity_hmac_previous_keys
+    )
     return active_id, keys
 
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import hmac
 import json
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -26,9 +25,7 @@ from app.planning import (
     PlanRepository,
 )
 from app.privacy import (
-    legacy_async_request_identity_sha256,
     legacy_telegram_idempotency_key,
-    normalize_async_request_identity_payload,
     telegram_idempotency_key,
     verify_async_request_identity_fingerprint,
 )
@@ -167,30 +164,12 @@ class AsyncTaskService:
                 ) from error
             request_payload = request.model_dump(mode="json")
             persisted_fingerprint = persisted.get("_semantic_identity_fingerprint")
-            persisted_legacy_sha = persisted.get("_semantic_identity_sha256")
-            if persisted_fingerprint is not None:
-                if not verify_async_request_identity_fingerprint(
-                    request_payload,
-                    str(persisted_fingerprint),
-                    secrets=self.repository.identity_hmac_keys,
-                ):
-                    raise AsyncTaskIdempotencyConflict(
-                        "idempotency replay payload mismatch"
-                    )
-            elif persisted_legacy_sha is not None:
-                current_legacy_sha = legacy_async_request_identity_sha256(request_payload)
-                if not hmac.compare_digest(str(persisted_legacy_sha), current_legacy_sha):
-                    raise AsyncTaskIdempotencyConflict(
-                        "idempotency replay payload mismatch"
-                    )
-            else:
-                current_identity = normalize_async_request_identity_payload(request_payload)
-                persisted_identity = normalize_async_request_identity_payload(persisted)
-                redacted_current = self.repository.redactor.redact(current_identity)
-                if persisted_identity != redacted_current:
-                    raise AsyncTaskIdempotencyConflict(
-                        "idempotency replay payload mismatch"
-                    )
+            if persisted_fingerprint is None or not verify_async_request_identity_fingerprint(
+                request_payload,
+                str(persisted_fingerprint),
+                secrets=self.repository.identity_hmac_keys,
+            ):
+                raise AsyncTaskIdempotencyConflict("idempotency replay payload mismatch")
             return AsyncTaskAccepted(
                 task_id=existing.task_id,
                 run_id=existing.id,

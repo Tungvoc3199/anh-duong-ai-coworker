@@ -9,6 +9,7 @@ from app.privacy.minimization import (
     resolve_async_identity_hmac_keyring,
     resolve_async_identity_hmac_secret,
     telegram_idempotency_key,
+    validate_async_identity_hmac_keyring,
     verify_async_request_identity_fingerprint,
 )
 
@@ -24,4 +25,5 @@ __all__ = [
     "legacy_telegram_idempotency_key",
     "minimize_async_request_payload",
     "telegram_idempotency_key",
+    "validate_async_identity_hmac_keyring",
 ]
