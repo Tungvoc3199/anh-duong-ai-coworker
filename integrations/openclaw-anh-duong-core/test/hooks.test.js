@@ -1547,3 +1547,16 @@ test("mixed valid image plus non-image reply media fails closed", async () => {
     { path: "/tmp/voice.ogg", contentType: "audio/ogg" },
   ], "run-mixed-non-image");
 });
+
+
+test("single UUID-backed image path without MIME fails closed", async () => {
+  await assertReplyMediaRevisionBlocked([
+    { path: "/home/node/.openclaw/media/inbound/a---11111111-1111-4111-8111-111111111111.jpg" },
+  ], "run-single-missing-mime");
+});
+
+test("single UUID-backed image path mislabeled non-image fails closed", async () => {
+  await assertReplyMediaRevisionBlocked([
+    { path: "/home/node/.openclaw/media/inbound/a---11111111-1111-4111-8111-111111111111.jpg", contentType: "audio/ogg" },
+  ], "run-single-mislabeled-image");
+});

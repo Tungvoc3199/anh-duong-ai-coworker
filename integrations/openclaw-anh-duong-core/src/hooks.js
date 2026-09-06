@@ -328,9 +328,15 @@ export function createAnhDuongCoreHooks({
   function trustedTelegramReplyImageReference(ctx) {
     const replyMedia = ctx?.channelContext?.chat?.replyMedia;
     if (!Array.isArray(replyMedia)) return { status: "none" };
+    if (replyMedia.length === 0) return { status: "none" };
+    const imageSuffix = /\.(?:png|jpe?g|webp|gif)$/i;
+    if (replyMedia.some((item) =>
+      typeof item?.path !== "string" || item.path.includes("\0") ||
+      typeof item?.contentType !== "string" ||
+      (!item.contentType.toLowerCase().startsWith("image/") && imageSuffix.test(item.path))
+    )) return { status: "invalid" };
     const imageEntries = replyMedia.filter(
-      (item) => typeof item?.contentType === "string" &&
-        item.contentType.toLowerCase().startsWith("image/"),
+      (item) => item.contentType.toLowerCase().startsWith("image/"),
     );
     if (imageEntries.length === 0) return { status: "none" };
     if (imageEntries.length !== 1 || replyMedia.length !== 1) {
