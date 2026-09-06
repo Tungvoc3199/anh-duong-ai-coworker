@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import plugin from "../index.js";
+import plugin, { createPluginHandlers } from "../index.js";
 import { SAFE_MESSAGE, createAnhDuongCoreHooks } from "../src/hooks.js";
 
 const ENV = {
@@ -574,7 +574,7 @@ test("plugin entry registers workflow short-circuit before the three TG-1 hooks"
   });
   assert.deepEqual(
     registrations.map(({ name }) => name),
-    ["before_agent_reply", "before_prompt_build", "before_agent_run", "before_tool_call", "agent_end"],
+    ["message_received", "before_agent_reply", "before_prompt_build", "before_agent_run", "before_tool_call", "agent_end"],
   );
   assert.ok(registrations[0].options.timeoutMs > 0);
   assert.ok(registrations[1].options.timeoutMs > 0);
@@ -1621,4 +1621,73 @@ test("current staged image without canonical managed file fails closed", async (
   const raw=`[media attached: ${root}/${mediaId} (image/jpeg)]\n[Image]\nUser text:\nĐổi áo thành đỏ\nDescription:\nx`;
   assert.equal(await hooks.beforePromptBuild({prompt:raw,messages:[]},ctx),undefined);
   assert.equal(calls,0);
+});
+
+
+test("17:35 Telegram reply snapshot preserves original instruction and replied image across markerless Vision prompt", async () => {
+  const mediaId = "53c80bbd-5b55-4a0c-a7e2-97772ddd2bbf.jpg";
+  const referencePath = `/home/node/.openclaw/media/inbound/${mediaId}`;
+  const referenceImage = `media://inbound/${mediaId}`;
+  const userText = "Thay cô gái bằng cô gái 20 tuổi người Việt Nam";
+  const enrichedPrompt = `${userText}\n\nVision context: A young woman appears in the supplied reference image. `.padEnd(339, "x");
+  assert.equal(enrichedPrompt.length, 339);
+  assert.equal(enrichedPrompt.includes("[Image]"), false);
+  assert.equal(enrichedPrompt.includes("User text:"), false);
+  assert.equal(enrichedPrompt.includes("Description:"), false);
+
+  let preparedBody;
+  const fetchImpl = async (url, init) => {
+    const body = init?.body ? JSON.parse(init.body) : undefined;
+    if (url.endsWith("/prepare")) {
+      preparedBody = body;
+      return new Response(JSON.stringify(responseFixture(body.request_id, {
+        route: "workflow",
+        capability: "visual_image_generate",
+        workflowOverrides: { goal: body.text, reference_image: body.reference_image },
+      })), { status: 200 });
+    }
+    return new Response(JSON.stringify({ status: "running" }), { status: 200 });
+  };
+
+  const handlers = createPluginHandlers({
+    env: ENV,
+    fetchImpl,
+    realpathImpl: (value) => value,
+    statImpl: () => ({ isFile: () => true }),
+  });
+  handlers.messageReceived(
+    {
+      content: userText,
+      sessionKey: "agent:main:telegram:direct:7535966424",
+      senderId: "7535966424",
+      messageId: "5511",
+      replyToId: "5510",
+      metadata: {
+        provider: "telegram",
+        originatingChannel: "telegram",
+        mediaPath: referencePath,
+        mediaType: "image/jpeg",
+      },
+    },
+    {
+      channelId: "telegram",
+      sessionKey: "agent:main:telegram:direct:7535966424",
+      senderId: "7535966424",
+      conversationId: "7535966424",
+      replyToId: "5510",
+    },
+  );
+
+  const ctx = telegramContext();
+  delete ctx.runId;
+  ctx.sessionKey = "agent:main:telegram:direct:7535966424";
+  ctx.senderId = "7535966424";
+  ctx.chatId = "7535966424";
+  ctx.channelContext = { chat: { id: "7535966424" } };
+
+  const injection = await handlers.beforePromptBuild({ prompt: enrichedPrompt, messages: [] }, ctx);
+
+  assert.equal(preparedBody.text, `Tạo ảnh chỉnh sửa từ ảnh tham chiếu. Yêu cầu hiện tại: ${userText}`);
+  assert.equal(preparedBody.reference_image, referenceImage);
+  assert.match(injection.prependContext, /capability: visual_image_generate/);
 });

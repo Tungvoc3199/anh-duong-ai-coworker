@@ -188,6 +188,7 @@ export function createAnhDuongCoreHooks({
   scheduleWorkflowCleanup,
   realpathImpl = realpathSync,
   statImpl = statSync,
+  resolveOriginalTurn,
 } = {}) {
   let config;
   let configFailure;
@@ -325,8 +326,12 @@ export function createAnhDuongCoreHooks({
     return `Tạo ảnh theo phương án đã chốt. Ngữ cảnh trước đó: ${context}\nYêu cầu hiện tại: ${text}`;
   }
 
-  function trustedTelegramReplyImageReference(ctx) {
-    const replyMedia = ctx?.channelContext?.chat?.replyMedia;
+  function trustedTelegramReplyImageReference(ctx, originalTurn) {
+    const preservedPaths = Array.isArray(originalTurn?.mediaPaths) ? originalTurn.mediaPaths : [];
+    const preservedTypes = Array.isArray(originalTurn?.mediaTypes) ? originalTurn.mediaTypes : [];
+    const replyMedia = preservedPaths.length > 0
+      ? preservedPaths.map((path, index) => ({ path, contentType: preservedTypes[index] }))
+      : ctx?.channelContext?.chat?.replyMedia;
     if (!Array.isArray(replyMedia)) return { status: "none" };
     if (replyMedia.length === 0) return { status: "none" };
     const imageSuffix = /\.(?:png|jpe?g|webp|gif)$/i;
@@ -409,7 +414,7 @@ export function createAnhDuongCoreHooks({
     }
   }
 
-  function imageRevisionPrompt(text, ctx, rawPrompt) {
+  function imageRevisionPrompt(text, ctx, rawPrompt, originalTurn) {
     if (typeof text !== "string") {
       return { prompt: text, referenceImage: undefined };
     }
@@ -418,7 +423,7 @@ export function createAnhDuongCoreHooks({
     if (!isRevision) {
       return { prompt: text, referenceImage: undefined };
     }
-    const replyResolution = trustedTelegramReplyImageReference(ctx);
+    const replyResolution = trustedTelegramReplyImageReference(ctx, originalTurn);
     const resolution = replyResolution.status === "none"
       ? trustedCurrentPromptImageReference(rawPrompt)
       : replyResolution;
@@ -539,17 +544,28 @@ export function createAnhDuongCoreHooks({
     }
 
     const rawPrompt = event?.prompt;
+    const originalTurn = resolveOriginalTurn?.({
+      runId: ctx?.runId,
+      sessionKey: ctx?.sessionKey ?? ctx?.sessionId,
+      chatId: ctx?.chatId,
+      senderId: ctx?.senderId,
+      rawPrompt,
+    });
+    const originalInstruction = typeof originalTurn?.text === "string" && originalTurn.text.trim()
+      ? originalTurn.text.trim()
+      : undefined;
     const retrySplit = splitRetryContinuation(rawPrompt);
     const isRetryContinuation = retrySplit !== undefined;
     // A synthetic continuation carries the original request as its prefix, so
     // Core must classify that original intent rather than the control text.
     const promptForCore =
-      isRetryContinuation && retrySplit.basePrompt !== undefined
+      originalInstruction ??
+      (isRetryContinuation && retrySplit.basePrompt !== undefined
         ? retrySplit.basePrompt
-        : rawPrompt;
+        : rawPrompt);
     const parsedPrompt = corePromptForTelegramReply(promptForCore);
     const contextualPrompt = contextualVisualImagePrompt(parsedPrompt, event?.messages);
-    const revision = imageRevisionPrompt(contextualPrompt, ctx, rawPrompt);
+    const revision = imageRevisionPrompt(contextualPrompt, ctx, rawPrompt, originalTurn);
     const corePrompt = revision.prompt;
     if (revision.ambiguousReference) {
       const referenceFailureClass = revision.referenceFailureClass ?? "ambiguous_reply_media";

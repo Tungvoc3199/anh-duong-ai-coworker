@@ -14,6 +14,7 @@ const WORKFLOW_HOOK_TIMEOUT_MS = 65_000;
 const GATE_HOOK_TIMEOUT_MS = 2_000;
 const MESSAGE_HOOK_TIMEOUT_MS = 2_000;
 const WORKFLOW_PROGRESS_TTL_MS = 5 * 60_000;
+const ORIGINAL_TURN_TTL_MS = 5 * 60_000;
 const DEFAULT_POLL_MS = 2_000;
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "blocked", "cancelled"]);
 
@@ -48,9 +49,12 @@ export function createPluginHandlers({
   workflowProgressCleanupMaxAttempts = 900,
   deleteWorkflowProgress = (target) => deleteTelegramWorkflowProgress(api, target),
   scheduleWorkflowCleanup = (task) => { void task; },
+  realpathImpl,
+  statImpl,
 } = {}) {
   const replyContext = new AsyncLocalStorage();
   const pending = new Map();
+  const originalTurns = new Map();
   let lastAccepted;
   let config;
   try { config = readCoreConfig(env); } catch { config = undefined; }
@@ -69,7 +73,56 @@ export function createPluginHandlers({
     }
     return response;
   }
-  const hooks = createAnhDuongCoreHooks({ env, fetchImpl: trackedFetch, logger: api?.logger, ...(workflowProgressDelayMs === undefined ? {} : { workflowProgressDelayMs }) });
+  function originalTurnKey(sessionKey, senderId) {
+    const session = typeof sessionKey === "string" ? sessionKey.trim() : "";
+    const sender = typeof senderId === "string" ? senderId.trim() : "";
+    return session && sender ? `${session}\0${sender}` : undefined;
+  }
+  function sweepOriginalTurns() {
+    const current = Date.now();
+    for (const [key, queue] of originalTurns) {
+      const retained = queue.filter((item) => item.expiresAt > current);
+      if (retained.length) originalTurns.set(key, retained); else originalTurns.delete(key);
+    }
+  }
+  function messageReceived(event, ctx) {
+    const channel = String(ctx?.channelId ?? event?.metadata?.originatingChannel ?? event?.metadata?.provider ?? "").toLowerCase();
+    const text = typeof event?.content === "string" ? event.content.trim() : "";
+    const key = originalTurnKey(event?.sessionKey ?? ctx?.sessionKey, event?.senderId ?? ctx?.senderId);
+    if (channel !== "telegram" || !key || !text) return;
+    sweepOriginalTurns();
+    const isReply = event?.replyToId !== undefined || ctx?.replyToId !== undefined;
+    const metadata = event?.metadata ?? {};
+    const mediaPaths = isReply
+      ? (Array.isArray(metadata.mediaPaths) && metadata.mediaPaths.length ? metadata.mediaPaths : metadata.mediaPath ? [metadata.mediaPath] : [])
+      : [];
+    const mediaTypes = isReply
+      ? (Array.isArray(metadata.mediaTypes) && metadata.mediaTypes.length ? metadata.mediaTypes : metadata.mediaType ? [metadata.mediaType] : [])
+      : [];
+    const queue = originalTurns.get(key) ?? [];
+    queue.push({ text, mediaPaths, mediaTypes, expiresAt: Date.now() + ORIGINAL_TURN_TTL_MS });
+    originalTurns.set(key, queue.slice(-8));
+  }
+  function resolveOriginalTurn({ sessionKey, senderId, rawPrompt }) {
+    const key = originalTurnKey(sessionKey, senderId);
+    if (!key) return undefined;
+    sweepOriginalTurns();
+    const queue = originalTurns.get(key) ?? [];
+    if (!queue.length) return undefined;
+    const matching = typeof rawPrompt === "string" ? queue.filter((item) => rawPrompt.includes(item.text)) : [];
+    if (matching.length === 1) return matching[0];
+    if (matching.length > 1) return undefined;
+    return queue.length === 1 ? queue[0] : undefined;
+  }
+  const hooks = createAnhDuongCoreHooks({
+    env,
+    fetchImpl: trackedFetch,
+    logger: api?.logger,
+    resolveOriginalTurn,
+    ...(realpathImpl === undefined ? {} : { realpathImpl }),
+    ...(statImpl === undefined ? {} : { statImpl }),
+    ...(workflowProgressDelayMs === undefined ? {} : { workflowProgressDelayMs }),
+  });
   function sweep() {
     const now = Date.now();
     for (const [key, queue] of pending) {
@@ -127,7 +180,7 @@ export function createPluginHandlers({
     const progress = take(event, ctx); if (!progress) return undefined;
     scheduleWorkflowCleanup(monitor(progress, String(message.messageId))); return undefined;
   }
-  return { beforeAgentReply: trackedReply, beforePromptBuild: hooks.beforePromptBuild, beforeAgentRun: hooks.beforeAgentRun, beforeToolCall: hooks.beforeToolCall, messageSent, agentEnd: hooks.agentEnd };
+  return { messageReceived, beforeAgentReply: trackedReply, beforePromptBuild: hooks.beforePromptBuild, beforeAgentRun: hooks.beforeAgentRun, beforeToolCall: hooks.beforeToolCall, messageSent, agentEnd: hooks.agentEnd };
 }
 
 export function createPluginHandlersLegacy(options) { return createPluginHandlers(options); }
@@ -136,6 +189,7 @@ export default {
   id: "anh-duong-core", name: "Ánh Dương Core Gate", description: "Fail-closed Core preparation gate for ordinary Telegram agent turns.",
   register(api) {
     const handlers = createPluginHandlers({ api });
+    api.on("message_received", handlers.messageReceived, { priority: 100, timeoutMs: MESSAGE_HOOK_TIMEOUT_MS });
     api.on("before_agent_reply", handlers.beforeAgentReply, { priority: 100, timeoutMs: WORKFLOW_HOOK_TIMEOUT_MS });
     api.on("before_prompt_build", handlers.beforePromptBuild, { priority: 100, timeoutMs: PROMPT_HOOK_TIMEOUT_MS });
     api.on("before_agent_run", handlers.beforeAgentRun, { priority: 100, timeoutMs: GATE_HOOK_TIMEOUT_MS });
