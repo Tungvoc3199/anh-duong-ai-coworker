@@ -1560,3 +1560,65 @@ test("single UUID-backed image path mislabeled non-image fails closed", async ()
     { path: "/home/node/.openclaw/media/inbound/a---11111111-1111-4111-8111-111111111111.jpg", contentType: "audio/ogg" },
   ], "run-single-mislabeled-image");
 });
+
+
+test("runtime staged Telegram image revision re-anchors current media into managed reference", async () => {
+  const mediaId = "99db006b-fd9d-400a-bc5f-5fb336b9faec.jpg";
+  const staged = `/home/node/.openclaw/workspace/media/inbound/openclaw-staged-b5f1cccb-ec84-4e4a-82bc-0460d6a4b7c2/${mediaId}`;
+  const expected = `media://inbound/${mediaId}`;
+  const userText = "Đổi áo cô gái thành màu đỏ, tất cả giữ nguyên.";
+  let preparedBody;
+  let submitted;
+  const fetchImpl = async (url, init) => {
+    const body = init?.body ? JSON.parse(init.body) : undefined;
+    if (url.endsWith("/prepare")) {
+      preparedBody = body;
+      return new Response(JSON.stringify(responseFixture(body.request_id, {
+        route: body.reference_image ? "workflow" : "direct",
+        capability: body.reference_image ? "visual_image_generate" : undefined,
+        workflowOverrides: body.reference_image ? { goal: body.text, reference_image: body.reference_image } : {},
+      })), { status: 200 });
+    }
+    if (url.endsWith("/api/async-tasks")) {
+      submitted = body;
+      return new Response(JSON.stringify({ task_id:"task-staged", run_id:"run-staged", status:"pending", message:"ACCEPTED", replayed:false }), { status: 202 });
+    }
+    return new Response(JSON.stringify({ status:"running" }), { status: 200 });
+  };
+
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl, workflowProgressDelayMs:0, realpathImpl:(value)=>value, statImpl:()=>({ isFile:()=>true }) });
+  const ctx = telegramContext("run-runtime-staged-revision");
+  const rawPrompt = `[media attached: ${staged} (image/jpeg)]\n[Image]\nUser text:\n[Telegram TungntT id:7535966424] **${userText}**\nDescription:\nA woman in beige clothing.`;
+  const injection = await hooks.beforePromptBuild({ prompt: rawPrompt, messages: [] }, ctx);
+  assert.match(injection.prependContext, /capability: visual_image_generate/);
+  assert.equal(preparedBody.reference_image, expected);
+  assert.match(preparedBody.text, /^Tạo ảnh chỉnh sửa từ ảnh tham chiếu\./);
+  assert.match(preparedBody.text, /Đổi áo cô gái thành màu đỏ/);
+  const reply = await hooks.beforeAgentReply({ cleanedBody: userText }, ctx);
+  assert.equal(reply.handled, true);
+  assert.equal(submitted.reference_image, expected);
+});
+
+
+test("multiple current staged images fail closed before Core prepare", async () => {
+  let calls = 0;
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl:async()=>{ calls++; throw new Error("must not prepare"); }, realpathImpl:(v)=>v, statImpl:()=>({isFile:()=>true}) });
+  const a="11111111-1111-4111-8111-111111111111.jpg";
+  const b="22222222-2222-4222-8222-222222222222.jpg";
+  const root="/home/node/.openclaw/workspace/media/inbound/openclaw-staged-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const raw=`[media attached: ${root}/${a} (image/jpeg)]\n[media attached: ${root}/${b} (image/jpeg)]\n[Image]\nUser text:\nĐổi áo thành đỏ\nDescription:\nx`;
+  const ctx=telegramContext("run-staged-multiple");
+  assert.equal(await hooks.beforePromptBuild({prompt:raw,messages:[]},ctx), undefined);
+  assert.equal(calls,0);
+});
+
+test("current staged image without canonical managed file fails closed", async () => {
+  let calls=0;
+  const mediaId="33333333-3333-4333-8333-333333333333.jpg";
+  const root="/home/node/.openclaw/workspace/media/inbound/openclaw-staged-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const hooks=createAnhDuongCoreHooks({env:ENV,fetchImpl:async()=>{calls++;throw new Error("must not prepare");},realpathImpl:(v)=>v,statImpl:()=>({isFile:()=>false})});
+  const ctx=telegramContext("run-staged-missing-managed");
+  const raw=`[media attached: ${root}/${mediaId} (image/jpeg)]\n[Image]\nUser text:\nĐổi áo thành đỏ\nDescription:\nx`;
+  assert.equal(await hooks.beforePromptBuild({prompt:raw,messages:[]},ctx),undefined);
+  assert.equal(calls,0);
+});

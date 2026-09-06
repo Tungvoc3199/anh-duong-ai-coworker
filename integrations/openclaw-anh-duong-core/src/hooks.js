@@ -373,7 +373,43 @@ export function createAnhDuongCoreHooks({
     }
   }
 
-  function imageRevisionPrompt(text, ctx) {
+  function trustedCurrentPromptImageReference(rawPrompt) {
+    if (typeof rawPrompt !== "string") return { status: "none" };
+    const markerPrefix = "[media attached:";
+    const markerLines = rawPrompt.split("\n").filter((line) => line.startsWith(markerPrefix));
+    if (markerLines.length === 0) return { status: "none" };
+    if (markerLines.length !== 1) return { status: "ambiguous" };
+    const match = markerLines[0].match(/^\[media attached: (.+) \(([^()]+)\)\]$/);
+    if (!match) return { status: "invalid" };
+    const stagedPath = match[1];
+    const contentType = match[2].toLowerCase();
+    if (!contentType.startsWith("image/")) return { status: "none" };
+    const stagedRoot = "/home/node/.openclaw/workspace/media/inbound";
+    const resolvedStaged = posixPath.resolve(stagedPath);
+    const stagedRelative = posixPath.relative(stagedRoot, resolvedStaged);
+    const parts = stagedRelative.split("/");
+    if (parts.length !== 2 || !parts[0].startsWith("openclaw-staged-") || !parts[1]) {
+      return { status: "invalid" };
+    }
+    const mediaId = parts[1];
+    const uuidImageId = /^(?:[\p{L}\p{N}._-]+---)?[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:png|jpe?g|webp|gif)$/iu;
+    if (!uuidImageId.test(mediaId)) return { status: "invalid" };
+    const mediaRoot = "/home/node/.openclaw/media/inbound";
+    const managedPath = posixPath.join(mediaRoot, mediaId);
+    try {
+      const canonicalRoot = realpathImpl(mediaRoot);
+      const canonicalPath = realpathImpl(managedPath);
+      if (canonicalPath !== managedPath || posixPath.dirname(canonicalPath) !== canonicalRoot) {
+        return { status: "invalid" };
+      }
+      if (!statImpl(canonicalPath).isFile()) return { status: "invalid" };
+      return { status: "single", referenceImage: `media://inbound/${encodeURIComponent(mediaId)}` };
+    } catch {
+      return { status: "invalid" };
+    }
+  }
+
+  function imageRevisionPrompt(text, ctx, rawPrompt) {
     if (typeof text !== "string") {
       return { prompt: text, referenceImage: undefined };
     }
@@ -382,7 +418,10 @@ export function createAnhDuongCoreHooks({
     if (!isRevision) {
       return { prompt: text, referenceImage: undefined };
     }
-    const resolution = trustedTelegramReplyImageReference(ctx);
+    const replyResolution = trustedTelegramReplyImageReference(ctx);
+    const resolution = replyResolution.status === "none"
+      ? trustedCurrentPromptImageReference(rawPrompt)
+      : replyResolution;
     if (resolution.status === "ambiguous" || resolution.status === "invalid") {
       return {
         prompt: text,
@@ -510,7 +549,7 @@ export function createAnhDuongCoreHooks({
         : rawPrompt;
     const parsedPrompt = corePromptForTelegramReply(promptForCore);
     const contextualPrompt = contextualVisualImagePrompt(parsedPrompt, event?.messages);
-    const revision = imageRevisionPrompt(contextualPrompt, ctx);
+    const revision = imageRevisionPrompt(contextualPrompt, ctx, rawPrompt);
     const corePrompt = revision.prompt;
     if (revision.ambiguousReference) {
       const referenceFailureClass = revision.referenceFailureClass ?? "ambiguous_reply_media";
