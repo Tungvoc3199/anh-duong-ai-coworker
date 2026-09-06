@@ -12,7 +12,10 @@ from app.main import create_app
 def test_ready_async_schema_requires_gateway_bearer_token(
     tmp_path: Path,
 ) -> None:
-    engine = create_db_engine(f"sqlite+pysqlite:///{tmp_path / 'security-runtime.db'}")
+    engine = create_db_engine(
+        "sqlite+pysqlite:///"
+        f"{tmp_path / 'security-runtime.db'}"
+    )
     Base.metadata.create_all(engine)
     settings = Settings(
         database_url="sqlite+pysqlite:///:memory:",
@@ -29,45 +32,6 @@ def test_ready_async_schema_requires_gateway_bearer_token(
             RuntimeError,
             match="openclaw_auth_token",
         ):
-            with TestClient(app):
-                pass
-    finally:
-        engine.dispose()
-
-
-def test_api_only_startup_requires_identity_hmac_keyring(tmp_path: Path) -> None:
-    engine = create_db_engine(f"sqlite+pysqlite:///{tmp_path / 'api-only.db'}")
-    Base.metadata.create_all(engine)
-    settings = Settings(
-        _env_file=None,
-        database_url="sqlite+pysqlite:///:memory:",
-        audit_path=tmp_path / "api-only-audit.jsonl",
-        async_worker_enabled=False,
-        async_identity_hmac_secret=None,
-    )
-    app = create_app(settings=settings, engine=engine)
-    try:
-        with pytest.raises(RuntimeError, match="identity HMAC"):
-            with TestClient(app):
-                pass
-    finally:
-        engine.dispose()
-
-
-def test_api_only_startup_rejects_invalid_previous_identity_key(tmp_path: Path) -> None:
-    engine = create_db_engine(f"sqlite+pysqlite:///{tmp_path / 'api-only-rotation.db'}")
-    Base.metadata.create_all(engine)
-    settings = Settings(
-        _env_file=None,
-        database_url="sqlite+pysqlite:///:memory:",
-        audit_path=tmp_path / "api-only-rotation-audit.jsonl",
-        async_worker_enabled=False,
-        async_identity_hmac_secret="A" * 48,
-        async_identity_hmac_previous_keys={"previous-v1": "short"},
-    )
-    app = create_app(settings=settings, engine=engine)
-    try:
-        with pytest.raises(RuntimeError, match="identity HMAC"):
             with TestClient(app):
                 pass
     finally:

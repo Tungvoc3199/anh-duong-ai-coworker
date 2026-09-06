@@ -4,7 +4,7 @@ import pytest
 
 import app.config as config_module
 from app.config import Settings
-from app.main import _validate_async_identity_settings
+from app.main import _validate_async_settings
 from app.privacy.minimization import resolve_async_identity_hmac_keyring
 
 
@@ -64,4 +64,4 @@ def test_async_worker_startup_rejects_missing_identity_hmac_secret(tmp_path) -> 
         async_identity_hmac_secret=None,
     )
     with pytest.raises(RuntimeError, match="identity HMAC"):
-        _validate_async_identity_settings(settings)
+        _validate_async_settings(settings)

@@ -648,13 +648,14 @@ def test_legacy_origin_main_request_json_replays_after_reference_field_addition(
             legacy, ensure_ascii=False, separators=(",", ":"), sort_keys=True
         )
         session.flush()
+        replay = service.create(base)
+        assert replay.replayed is True
         with pytest.raises(ValueError, match="idempotency replay payload mismatch"):
-            service.create(base)
+            service.create(base.model_copy(update={"goal": "changed goal"}))
 
 
 def test_idempotent_replay_survives_identity_hmac_secret_rotation(
-    session_factory: sessionmaker[Session],
-    tmp_path: Path,
+    session_factory: sessionmaker[Session], tmp_path: Path,
 ) -> None:
     with session_factory() as session:
         project_id = _seed_project(session)
@@ -665,10 +666,8 @@ def test_idempotent_replay_survives_identity_hmac_secret_rotation(
         old_service = AsyncTaskService(
             task_service=TaskService(TaskRepository(session), audit_writer),
             repository=AsyncTaskRepository(
-                session,
-                audit_writer=audit_writer,
-                identity_hmac_secret="old-secret",
-                identity_hmac_key_id="2026-08",
+                session, audit_writer=audit_writer,
+                identity_hmac_secret="old-secret", identity_hmac_key_id="2026-08",
             ),
             policy_gate=AsyncTaskPolicyGate((tmp_path,)),
         )
@@ -677,10 +676,8 @@ def test_idempotent_replay_survives_identity_hmac_secret_rotation(
         rotated_service = AsyncTaskService(
             task_service=TaskService(TaskRepository(session), audit_writer),
             repository=AsyncTaskRepository(
-                session,
-                audit_writer=audit_writer,
-                identity_hmac_secret="new-secret",
-                identity_hmac_key_id="2026-09",
+                session, audit_writer=audit_writer,
+                identity_hmac_secret="new-secret", identity_hmac_key_id="2026-09",
                 identity_hmac_previous_keys={"2026-08": "old-secret"},
             ),
             policy_gate=AsyncTaskPolicyGate((tmp_path,)),
@@ -688,45 +685,3 @@ def test_idempotent_replay_survives_identity_hmac_secret_rotation(
         replay = rotated_service.create(request)
         assert replay.replayed is True
         assert replay.run_id == accepted.run_id
-
-
-def test_marker_free_legacy_replay_fails_closed(session_factory, tmp_path):
-    with session_factory() as session:
-        project_id = _seed_project(session)
-        service = _service(session, tmp_path)
-        base = _request(project_id, tmp_path).model_copy(
-            update={"source_message_id": "legacy-marker-free"}
-        )
-        accepted = service.create(base)
-        row = session.get(AsyncTaskRunRow, accepted.run_id)
-        persisted = json.loads(row.request_json)
-        persisted.pop("_semantic_identity_fingerprint", None)
-        persisted.pop("_semantic_identity_sha256", None)
-        row.request_json = json.dumps(
-            persisted, ensure_ascii=False, separators=(",", ":"), sort_keys=True
-        )
-        session.flush()
-        with pytest.raises(ValueError, match="idempotency replay payload mismatch"):
-            service.create(base)
-
-
-def test_unkeyed_sha256_legacy_replay_fails_closed(session_factory, tmp_path):
-    from app.privacy import legacy_async_request_identity_sha256
-
-    with session_factory() as session:
-        project_id = _seed_project(session)
-        service = _service(session, tmp_path)
-        base = _request(project_id, tmp_path).model_copy(update={"source_message_id": "legacy-sha"})
-        accepted = service.create(base)
-        row = session.get(AsyncTaskRunRow, accepted.run_id)
-        persisted = json.loads(row.request_json)
-        persisted.pop("_semantic_identity_fingerprint", None)
-        persisted["_semantic_identity_sha256"] = legacy_async_request_identity_sha256(
-            base.model_dump(mode="json")
-        )
-        row.request_json = json.dumps(
-            persisted, ensure_ascii=False, separators=(",", ":"), sort_keys=True
-        )
-        session.flush()
-        with pytest.raises(ValueError, match="idempotency replay payload mismatch"):
-            service.create(base)

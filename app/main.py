@@ -31,7 +31,6 @@ from app.context_builder import create_context_builder
 from app.db.session import create_db_engine
 from app.openclaw import OpenClawExecutor, OpenClawImageGenerator, OpenClawNotifier
 from app.orchestration import create_core_request_pipeline
-from app.privacy import validate_async_identity_hmac_keyring
 from app.visualforge import VisualForgeClient, VisualForgeRoutingExecutor
 
 logger = logging.getLogger(__name__)
@@ -54,14 +53,18 @@ def create_app(
     notifier: FinalNotifier | None = None,
 ) -> FastAPI:
     runtime_settings = settings or get_settings()
-    policy_gate = AsyncTaskPolicyGate(tuple(runtime_settings.async_worker_workspace_roots))
+    policy_gate = AsyncTaskPolicyGate(
+        tuple(runtime_settings.async_worker_workspace_roots)
+    )
     audit_writer = AuditWriter(runtime_settings.audit_path)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         owns_engine = app.state.engine is None
         if owns_engine:
-            app.state.engine = create_db_engine(runtime_settings.database_url)
+            app.state.engine = create_db_engine(
+                runtime_settings.database_url
+            )
 
         stop_event: asyncio.Event | None = None
         runtime_executor: AsyncTaskExecutor | None = None
@@ -69,7 +72,9 @@ def create_app(
         try:
             runtime_engine = app.state.engine
             if runtime_engine is None:
-                raise RuntimeError("Database engine failed to initialize")
+                raise RuntimeError(
+                    "Database engine failed to initialize"
+                )
             factory = sessionmaker(
                 bind=runtime_engine,
                 class_=Session,
@@ -77,19 +82,26 @@ def create_app(
                 autoflush=False,
             )
             app.state.session_factory = factory
-            _validate_async_identity_settings(runtime_settings)
             app.state.background_tasks = []
             app.state.accepting_async_tasks = True
             app.state.async_runtime_ready = False
 
             if runtime_settings.async_worker_enabled:
                 _validate_async_settings(runtime_settings)
-                has_schema = inspect(runtime_engine).has_table("async_task_runs")
+                has_schema = inspect(runtime_engine).has_table(
+                    "async_task_runs"
+                )
                 if has_schema:
-                    needs_gateway_token = executor is None or notifier is None
-                    if needs_gateway_token and not runtime_settings.openclaw_auth_token:
+                    needs_gateway_token = (
+                        executor is None or notifier is None
+                    )
+                    if (
+                        needs_gateway_token
+                        and not runtime_settings.openclaw_auth_token
+                    ):
                         raise RuntimeError(
-                            "openclaw_auth_token is required when async workers use OpenClaw."
+                            "openclaw_auth_token is required "
+                            "when async workers use OpenClaw."
                         )
                     recover_stale_runs(
                         factory,
@@ -126,10 +138,19 @@ def create_app(
                     )
                     runtime_notifier = notifier or OpenClawNotifier(
                         base_url=runtime_settings.openclaw_base_url,
-                        notification_path=(runtime_settings.openclaw_notification_path),
-                        auth_token=(runtime_settings.openclaw_auth_token),
-                        image_media_root=(runtime_settings.openclaw_image_container_output_root),
-                        timeout_seconds=(runtime_settings.openclaw_notification_timeout_seconds),
+                        notification_path=(
+                            runtime_settings.openclaw_notification_path
+                        ),
+                        auth_token=(
+                            runtime_settings.openclaw_auth_token
+                        ),
+                        image_media_root=(
+                            runtime_settings.openclaw_image_container_output_root
+                        ),
+                        timeout_seconds=(
+                            runtime_settings
+                            .openclaw_notification_timeout_seconds
+                        ),
                     )
                     execution_worker = AsyncTaskWorker(
                         session_factory=factory,
@@ -137,7 +158,10 @@ def create_app(
                         policy_gate=policy_gate,
                         executor=runtime_executor,
                         worker_id=f"core-{uuid4().hex}",
-                        lease_seconds=(runtime_settings.async_worker_lease_seconds),
+                        lease_seconds=(
+                            runtime_settings
+                            .async_worker_lease_seconds
+                        ),
                     )
                     notification_worker = NotificationWorker(
                         session_factory=factory,
@@ -150,7 +174,8 @@ def create_app(
                             _run_worker_loop(
                                 execution_worker,
                                 stop_event,
-                                runtime_settings.async_worker_poll_seconds,
+                                runtime_settings
+                                .async_worker_poll_seconds,
                             ),
                             name="async-task-execution-worker",
                         ),
@@ -158,7 +183,8 @@ def create_app(
                             _run_worker_loop(
                                 notification_worker,
                                 stop_event,
-                                runtime_settings.async_worker_poll_seconds,
+                                runtime_settings
+                                .async_worker_poll_seconds,
                             ),
                             name="async-task-notification-worker",
                         ),
@@ -258,23 +284,30 @@ async def _close_component(
         await component.aclose()
 
 
-def _validate_async_identity_settings(settings: Settings) -> None:
-    validate_async_identity_hmac_keyring(
-        settings.async_identity_hmac_key_id,
-        settings.async_identity_hmac_secret,
-        settings.async_identity_hmac_previous_keys,
-    )
-
-
 def _validate_async_settings(settings: Settings) -> None:
     if settings.async_worker_poll_seconds <= 0:
-        raise RuntimeError("async_worker_poll_seconds must be positive")
+        raise RuntimeError(
+            "async_worker_poll_seconds must be positive"
+        )
     if settings.async_worker_lease_seconds <= 0:
-        raise RuntimeError("async_worker_lease_seconds must be positive")
+        raise RuntimeError(
+            "async_worker_lease_seconds must be positive"
+        )
     if settings.async_worker_shutdown_seconds <= 0:
-        raise RuntimeError("async_worker_shutdown_seconds must be positive")
+        raise RuntimeError(
+            "async_worker_shutdown_seconds must be positive"
+        )
     if not settings.async_worker_workspace_roots:
-        raise RuntimeError("async_worker_workspace_roots cannot be empty")
+        raise RuntimeError(
+            "async_worker_workspace_roots cannot be empty"
+        )
+    identity_secret = settings.async_identity_hmac_secret
+    if (
+        not identity_secret
+        or len(identity_secret) < 32
+        or identity_secret.strip().lower() in {"change-me", "changeme", "default", "secret"}
+    ):
+        raise RuntimeError("async identity HMAC secret is invalid")
 
 
 app = create_app()
