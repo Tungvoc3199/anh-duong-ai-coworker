@@ -1365,3 +1365,22 @@ test("reply-image reference rejects symlink escape from managed media root", asy
   assert.equal(preparedBody.reference_image, undefined);
   assert.equal(preparedBody.text, "Thay cô gái bằng người khác");
 });
+
+
+test("safe in-root symlink validates canonically but preserves original managed reference", async () => {
+  let preparedBody;
+  const mediaRoot = "/home/node/.openclaw/media";
+  const referenceImage = `${mediaRoot}/inbound/link/source.jpg`;
+  const canonicalImage = `${mediaRoot}/inbound/real/source.jpg`;
+  const realpathImpl = (value) => value === referenceImage ? canonicalImage : value;
+  const statImpl = () => ({ isFile: () => true });
+  const fetchImpl = async (_url, init) => {
+    preparedBody = JSON.parse(init.body);
+    return new Response(JSON.stringify(responseFixture(preparedBody.request_id, { route: "workflow", capability: "visual_image_generate", workflowOverrides: { goal: preparedBody.text, reference_image: preparedBody.reference_image } })), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl, realpathImpl, statImpl });
+  const ctx = telegramContext("run-reference-safe-symlink");
+  ctx.channelContext = { chat: { replyMedia: [{ path: referenceImage, contentType: "image/jpeg" }] } };
+  await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx);
+  assert.equal(preparedBody.reference_image, referenceImage);
+});

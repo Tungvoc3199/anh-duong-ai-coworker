@@ -341,7 +341,7 @@ export function createAnhDuongCoreHooks({
         const canonicalRelative = posixPath.relative(canonicalRoot, canonicalPath);
         if (!canonicalRelative || canonicalRelative === ".." || canonicalRelative.startsWith("../") || posixPath.isAbsolute(canonicalRelative)) return [];
         if (!statImpl(canonicalPath).isFile()) return [];
-        return [canonicalPath];
+        return [resolved];
       } catch {
         return [];
       }
