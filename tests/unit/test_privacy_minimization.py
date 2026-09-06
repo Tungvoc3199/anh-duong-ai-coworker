@@ -96,3 +96,27 @@ def test_openclaw_execution_contract_has_no_telegram_routing_identifiers() -> No
     assert "source_chat_id" not in payload
     assert "source_session_id" not in payload
     assert "source_message_id" not in payload
+
+
+def test_async_identity_fingerprint_is_versioned_and_keyed() -> None:
+    from app.privacy import minimization as privacy
+
+    payload = {"goal": "replace subject", "reference_image": None, "correlation_id": "a"}
+    first = privacy.async_request_identity_fingerprint(payload, secret="server-secret-a")
+    same = privacy.async_request_identity_fingerprint(
+        payload | {"correlation_id": "b"}, secret="server-secret-a"
+    )
+    other_key = privacy.async_request_identity_fingerprint(payload, secret="server-secret-b")
+    assert re.fullmatch(r"hmac-sha256-v1:[0-9a-f]{64}", first)
+    assert first == same
+    assert first != other_key
+
+
+def test_async_identity_normalization_treats_missing_new_optional_field_as_default() -> None:
+    from app.privacy import minimization as privacy
+
+    legacy = {"goal": "same"}
+    current = {"goal": "same", "reference_image": None}
+    assert privacy.normalize_async_request_identity_payload(
+        legacy
+    ) == privacy.normalize_async_request_identity_payload(current)

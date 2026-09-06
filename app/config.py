@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     )
     log_level: str = "INFO"
     approval_hmac_secret: str = "change-me"
+    async_identity_hmac_secret: str | None = None
 
 
 @lru_cache(maxsize=1)

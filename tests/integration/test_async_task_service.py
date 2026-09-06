@@ -26,10 +26,7 @@ from app.tasks import TaskRepository, TaskService, TaskStatus
 
 @pytest.fixture
 def engine(tmp_path: Path) -> Iterator[Engine]:
-    database_url = (
-        "sqlite+pysqlite:///"
-        f"{tmp_path / 'async-runner-service.db'}"
-    )
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'async-runner-service.db'}"
     runtime_engine = create_db_engine(database_url)
     Base.metadata.create_all(runtime_engine)
     try:
@@ -246,6 +243,7 @@ def test_ambiguous_goal_blocks_before_worker_queue(
     assert blocker["question"]
     assert blocker["reason"]
 
+
 def test_planning_blocker_does_not_create_approval(
     session_factory: sessionmaker[Session],
     tmp_path: Path,
@@ -255,9 +253,7 @@ def test_planning_blocker_does_not_create_approval(
     with session_factory() as session:
         project_id = _seed_project(session)
         service = _service(session, tmp_path)
-        request = _request(
-            project_id, tmp_path, risk_level=2, approval_required=True
-        ).model_copy(
+        request = _request(project_id, tmp_path, risk_level=2, approval_required=True).model_copy(
             update={
                 "goal": "do it",
                 "idempotency_key": "telegram:ambiguous-approval",
@@ -282,9 +278,7 @@ def test_long_idempotency_key_still_creates_bounded_plan_id(
         project_id = _seed_project(session)
         service = _service(session, tmp_path)
         long_key = "telegram:" + ("x" * 240)
-        request = _request(project_id, tmp_path).model_copy(
-            update={"idempotency_key": long_key}
-        )
+        request = _request(project_id, tmp_path).model_copy(update={"idempotency_key": long_key})
 
         accepted = service.create(request)
         session.commit()
@@ -293,6 +287,7 @@ def test_long_idempotency_key_still_creates_bounded_plan_id(
     assert accepted.status is AsyncRunStatus.PENDING
     assert workflow is not None
     assert len(workflow.plan_payload["id"]) <= 128
+
 
 def test_policy_denied_request_does_not_persist_plan(
     session_factory: sessionmaker[Session],
@@ -340,13 +335,10 @@ def test_planning_blocked_audit_reason_is_not_policy_gate(
         .read_text(encoding="utf-8")
         .splitlines()
     ]
-    blocked = [
-        record
-        for record in records
-        if record["event_type"] == "async_run.blocked"
-    ]
+    blocked = [record for record in records if record["event_type"] == "async_run.blocked"]
     assert blocked
     assert blocked[-1]["payload"]["reason"] == "planning_blocked"
+
 
 def test_whitespace_equivalent_idempotency_key_replays_same_task_and_run(
     session_factory: sessionmaker[Session],
@@ -430,7 +422,6 @@ def test_pseudonymous_telegram_key_replays_legacy_raw_idempotency_row(
     assert len(runs) == 1
 
 
-
 def test_pseudonymous_telegram_key_replays_legacy_custom_idempotency_row(
     session_factory: sessionmaker[Session],
     tmp_path: Path,
@@ -473,6 +464,7 @@ def test_pseudonymous_telegram_key_replays_legacy_custom_idempotency_row(
     assert replay.task_id == first.task_id
     assert replay.run_id == first.id
     assert len(runs) == 1
+
 
 def test_new_telegram_run_persists_only_canonical_pseudonymous_idempotency_key(
     session_factory: sessionmaker[Session],
@@ -544,7 +536,8 @@ def test_scoped_approval_continuation_resumes_same_telegram_run(
 
 
 def test_idempotent_replay_rejects_changed_reference_image(
-    session_factory: sessionmaker[Session], tmp_path: Path,
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
 ) -> None:
     ref1 = "media://inbound/one---11111111-1111-4111-8111-111111111111.jpg"
     ref2 = "media://inbound/two---22222222-2222-4222-8222-222222222222.jpg"
@@ -564,7 +557,8 @@ def test_idempotent_replay_rejects_changed_reference_image(
 
 
 def test_revision_replay_rejects_same_reference_with_changed_goal(
-    session_factory: sessionmaker[Session], tmp_path: Path,
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
 ) -> None:
     ref = "media://inbound/reply---11111111-1111-4111-8111-111111111111.jpg"
     with session_factory() as session:
@@ -584,7 +578,8 @@ def test_revision_replay_rejects_same_reference_with_changed_goal(
 
 
 def test_revision_identity_uses_unredacted_semantic_fingerprint(
-    session_factory, tmp_path,
+    session_factory,
+    tmp_path,
 ):
     ref = "media://inbound/reply---11111111-1111-4111-8111-111111111111.jpg"
     with session_factory() as session:
@@ -599,9 +594,7 @@ def test_revision_identity_uses_unredacted_semantic_fingerprint(
         )
         service.create(base)
         with pytest.raises(ValueError, match="idempotency replay payload mismatch"):
-            service.create(
-                base.model_copy(update={"goal": "replace subject access_token=beta"})
-            )
+            service.create(base.model_copy(update={"goal": "replace subject access_token=beta"}))
 
 
 def test_revision_identity_ignores_correlation_id(session_factory, tmp_path):
@@ -617,9 +610,7 @@ def test_revision_identity_ignores_correlation_id(session_factory, tmp_path):
             }
         )
         first = service.create(base)
-        replay = service.create(
-            base.model_copy(update={"correlation_id": "prepare-b"})
-        )
+        replay = service.create(base.model_copy(update={"correlation_id": "prepare-b"}))
         assert first.replayed is False
         assert replay.replayed is True
 
@@ -634,3 +625,30 @@ def test_idempotent_replay_rejects_changed_goal_without_reference(session_factor
         service.create(base)
         with pytest.raises(ValueError, match="idempotency replay payload mismatch"):
             service.create(base.model_copy(update={"goal": "different goal"}))
+
+
+def test_legacy_origin_main_request_json_replays_after_reference_field_addition(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    with session_factory() as session:
+        project_id = _seed_project(session)
+        service = _service(session, tmp_path)
+        base = _request(project_id, tmp_path).model_copy(
+            update={"source_message_id": "legacy-origin-main", "goal": "same goal"}
+        )
+        accepted = service.create(base)
+        row = session.get(AsyncTaskRunRow, accepted.run_id)
+        assert row is not None
+        legacy = json.loads(row.request_json)
+        legacy.pop("reference_image", None)
+        legacy.pop("_semantic_identity_sha256", None)
+        legacy.pop("_semantic_identity_fingerprint", None)
+        row.request_json = json.dumps(
+            legacy, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+        )
+        session.flush()
+        replay = service.create(base)
+        assert replay.replayed is True
+        with pytest.raises(ValueError, match="idempotency replay payload mismatch"):
+            service.create(base.model_copy(update={"goal": "changed goal"}))

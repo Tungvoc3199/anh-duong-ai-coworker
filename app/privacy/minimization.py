@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 from typing import Any
 
@@ -58,13 +59,42 @@ def minimize_async_request_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return minimized
 
 
-def async_request_identity_fingerprint(payload: dict[str, Any]) -> str:
-    """Hash semantic async request identity before redaction."""
+def normalize_async_request_identity_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return version-stable semantic identity with transport metadata removed."""
     identity = minimize_async_request_payload(payload)
     identity.pop("idempotency_key", None)
     identity.pop("correlation_id", None)
+    identity.pop("_semantic_identity_sha256", None)
+    identity.pop("_semantic_identity_fingerprint", None)
+    identity.setdefault("reference_image", None)
+    return identity
+
+
+def async_request_identity_fingerprint(payload: dict[str, Any], *, secret: str) -> str:
+    """Return a versioned keyed fingerprint of semantic async request identity."""
+    identity = normalize_async_request_identity_payload(payload)
+    canonical = json.dumps(identity, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    material = b"anh-duong:async-request-identity:v1\0" + canonical.encode("utf-8")
+    digest = hmac.new(secret.encode("utf-8"), material, hashlib.sha256).hexdigest()
+    return f"hmac-sha256-v1:{digest}"
+
+
+def legacy_async_request_identity_sha256(payload: dict[str, Any]) -> str:
+    """Return the pre-HMAC fingerprint only for compatibility with existing rows."""
+    identity = normalize_async_request_identity_payload(payload)
     canonical = json.dumps(identity, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def resolve_async_identity_hmac_secret() -> str:
+    """Resolve the server-side identity key with backward-compatible config fallback."""
+    from app.config import get_settings
+
+    settings = get_settings()
+    secret = settings.async_identity_hmac_secret or settings.approval_hmac_secret
+    if not secret:
+        raise RuntimeError("async identity HMAC secret is required")
+    return secret
 
 
 def content_fingerprint(value: str) -> dict[str, int | str]:

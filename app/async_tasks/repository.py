@@ -22,6 +22,7 @@ from app.privacy import (
     canonicalize_telegram_idempotency_key,
     legacy_telegram_idempotency_key,
     minimize_async_request_payload,
+    resolve_async_identity_hmac_secret,
 )
 
 
@@ -40,10 +41,12 @@ class AsyncTaskRepository:
         *,
         audit_writer: AuditWriter | None = None,
         redactor: SecretRedactor | None = None,
+        identity_hmac_secret: str | None = None,
     ) -> None:
         self.session = session
         self.audit_writer = audit_writer
         self.redactor = redactor or SecretRedactor()
+        self.identity_hmac_secret = identity_hmac_secret or resolve_async_identity_hmac_secret()
 
     def acquire_sqlite_write_lock(self) -> None:
         """Acquire an early write lock on a fresh SQLite session."""
@@ -90,11 +93,13 @@ class AsyncTaskRepository:
 
         timestamp = self._utc(now)
         raw_request_payload = request.model_dump(mode="json")
-        identity_fingerprint = async_request_identity_fingerprint(raw_request_payload)
+        identity_fingerprint = async_request_identity_fingerprint(
+            raw_request_payload, secret=self.identity_hmac_secret
+        )
         request_payload = minimize_async_request_payload(raw_request_payload)
         request_payload["idempotency_key"] = normalized_key
         redacted_payload = self.redactor.redact(request_payload)
-        redacted_payload["_semantic_identity_sha256"] = identity_fingerprint
+        redacted_payload["_semantic_identity_fingerprint"] = identity_fingerprint
 
         row = AsyncTaskRunRow(
             id=new_async_run_id(),
