@@ -581,3 +581,44 @@ def test_revision_replay_rejects_same_reference_with_changed_goal(
         assert first.replayed is False
         with pytest.raises(ValueError, match="idempotency replay payload mismatch"):
             service.create(base.model_copy(update={"goal": "remove background"}))
+
+
+def test_revision_identity_uses_unredacted_semantic_fingerprint(
+    session_factory, tmp_path,
+):
+    ref = "media://inbound/reply---11111111-1111-4111-8111-111111111111.jpg"
+    with session_factory() as session:
+        project_id = _seed_project(session)
+        service = _service(session, tmp_path)
+        base = _request(project_id, tmp_path).model_copy(
+            update={
+                "source_message_id": "revision-fingerprint",
+                "reference_image": ref,
+                "goal": "replace subject access_token=alpha",
+            }
+        )
+        service.create(base)
+        with pytest.raises(ValueError, match="idempotency replay payload mismatch"):
+            service.create(
+                base.model_copy(update={"goal": "replace subject access_token=beta"})
+            )
+
+
+def test_revision_identity_ignores_correlation_id(session_factory, tmp_path):
+    ref = "media://inbound/reply---22222222-2222-4222-8222-222222222222.jpg"
+    with session_factory() as session:
+        project_id = _seed_project(session)
+        service = _service(session, tmp_path)
+        base = _request(project_id, tmp_path).model_copy(
+            update={
+                "source_message_id": "revision-correlation",
+                "reference_image": ref,
+                "correlation_id": "prepare-a",
+            }
+        )
+        first = service.create(base)
+        replay = service.create(
+            base.model_copy(update={"correlation_id": "prepare-b"})
+        )
+        assert first.replayed is False
+        assert replay.replayed is True

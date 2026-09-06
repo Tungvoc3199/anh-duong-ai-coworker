@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from typing import Any
 
 
@@ -55,6 +56,15 @@ def minimize_async_request_payload(payload: dict[str, Any]) -> dict[str, Any]:
         if field in minimized:
             minimized[field] = None
     return minimized
+
+
+def async_request_identity_fingerprint(payload: dict[str, Any]) -> str:
+    """Hash semantic async request identity before redaction."""
+    identity = minimize_async_request_payload(payload)
+    identity.pop("idempotency_key", None)
+    identity.pop("correlation_id", None)
+    canonical = json.dumps(identity, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def content_fingerprint(value: str) -> dict[str, int | str]:

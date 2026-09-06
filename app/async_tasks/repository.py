@@ -18,6 +18,7 @@ from app.async_tasks.models import (
 from app.audit import AuditWriter, SecretRedactor
 from app.db.models import ApprovalRow, AsyncTaskRunRow, TaskRow
 from app.privacy import (
+    async_request_identity_fingerprint,
     canonicalize_telegram_idempotency_key,
     legacy_telegram_idempotency_key,
     minimize_async_request_payload,
@@ -88,11 +89,12 @@ class AsyncTaskRepository:
                 return existing
 
         timestamp = self._utc(now)
-        request_payload = minimize_async_request_payload(
-            request.model_dump(mode="json")
-        )
+        raw_request_payload = request.model_dump(mode="json")
+        identity_fingerprint = async_request_identity_fingerprint(raw_request_payload)
+        request_payload = minimize_async_request_payload(raw_request_payload)
         request_payload["idempotency_key"] = normalized_key
         redacted_payload = self.redactor.redact(request_payload)
+        redacted_payload["_semantic_identity_sha256"] = identity_fingerprint
 
         row = AsyncTaskRunRow(
             id=new_async_run_id(),

@@ -1,4 +1,5 @@
 from app.privacy.minimization import (
+    async_request_identity_fingerprint,
     canonicalize_telegram_idempotency_key,
     content_fingerprint,
     legacy_telegram_idempotency_key,
@@ -7,6 +8,7 @@ from app.privacy.minimization import (
 )
 
 __all__ = [
+    "async_request_identity_fingerprint",
     "canonicalize_telegram_idempotency_key",
     "content_fingerprint",
     "legacy_telegram_idempotency_key",
