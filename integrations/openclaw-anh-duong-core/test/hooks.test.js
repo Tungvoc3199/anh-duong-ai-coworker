@@ -1665,8 +1665,8 @@ test("17:35 Telegram reply snapshot preserves original instruction and replied i
       metadata: {
         provider: "telegram",
         originatingChannel: "telegram",
-        mediaPath: referencePath,
-        mediaType: "image/jpeg",
+        replyMediaPath: referencePath,
+        replyMediaType: "image/jpeg",
       },
     },
     {

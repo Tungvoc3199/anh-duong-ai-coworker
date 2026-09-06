@@ -94,10 +94,14 @@ export function createPluginHandlers({
     const isReply = event?.replyToId !== undefined || ctx?.replyToId !== undefined;
     const metadata = event?.metadata ?? {};
     const mediaPaths = isReply
-      ? (Array.isArray(metadata.mediaPaths) && metadata.mediaPaths.length ? metadata.mediaPaths : metadata.mediaPath ? [metadata.mediaPath] : [])
+      ? (Array.isArray(metadata.replyMediaPaths) && metadata.replyMediaPaths.length
+          ? metadata.replyMediaPaths
+          : metadata.replyMediaPath ? [metadata.replyMediaPath] : [])
       : [];
     const mediaTypes = isReply
-      ? (Array.isArray(metadata.mediaTypes) && metadata.mediaTypes.length ? metadata.mediaTypes : metadata.mediaType ? [metadata.mediaType] : [])
+      ? (Array.isArray(metadata.replyMediaTypes) && metadata.replyMediaTypes.length
+          ? metadata.replyMediaTypes
+          : metadata.replyMediaType ? [metadata.replyMediaType] : [])
       : [];
     const queue = originalTurns.get(key) ?? [];
     queue.push({ text, mediaPaths, mediaTypes, expiresAt: Date.now() + ORIGINAL_TURN_TTL_MS });
