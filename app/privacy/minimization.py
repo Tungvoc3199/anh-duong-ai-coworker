@@ -134,7 +134,6 @@ def validate_async_identity_hmac_keyring(
     )
     if invalid_active or active_id in previous_keys:
         raise RuntimeError("async identity HMAC keyring is invalid")
-    assert active_secret is not None
     keys = dict(previous_keys)
     if any(
         not key_id
