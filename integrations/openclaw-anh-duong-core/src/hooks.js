@@ -328,21 +328,23 @@ export function createAnhDuongCoreHooks({
   function trustedTelegramReplyImageReference(ctx) {
     const replyMedia = ctx?.channelContext?.chat?.replyMedia;
     if (!Array.isArray(replyMedia)) return undefined;
-    const mediaRoot = "/home/node/.openclaw/media";
+    const mediaRoot = "/home/node/.openclaw/media/inbound";
+    const uuidImageId = /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:png|jpe?g|webp|gif)$/i;
     const candidates = replyMedia.flatMap((item) => {
       if (typeof item?.path !== "string" || typeof item?.contentType !== "string") return [];
       if (!item.contentType.toLowerCase().startsWith("image/") || item.path.includes("\0")) return [];
       const resolved = posixPath.resolve(item.path);
       const relative = posixPath.relative(mediaRoot, resolved);
-      if (!relative || relative === ".." || relative.startsWith("../") || posixPath.isAbsolute(relative)) return [];
+      if (!relative || relative !== posixPath.basename(relative)) return [];
       try {
         const canonicalRoot = realpathImpl(mediaRoot);
         const canonicalPath = realpathImpl(resolved);
         const canonicalRelative = posixPath.relative(canonicalRoot, canonicalPath);
-        if (!canonicalRelative || canonicalRelative === ".." || canonicalRelative.startsWith("../") || posixPath.isAbsolute(canonicalRelative)) return [];
-        if (canonicalPath !== resolved) return [];
-        if (!statImpl(canonicalPath).isFile()) return [];
-        return [resolved];
+        if (!canonicalRelative || canonicalRelative !== posixPath.basename(canonicalRelative)) return [];
+        if (canonicalPath !== resolved || !statImpl(canonicalPath).isFile()) return [];
+        const mediaId = posixPath.basename(resolved);
+        if (!uuidImageId.test(mediaId)) return [];
+        return [`media://inbound/${encodeURIComponent(mediaId)}`];
       } catch {
         return [];
       }

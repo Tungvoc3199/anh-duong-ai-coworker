@@ -1264,7 +1264,9 @@ test("E tự tạo đi does not reuse visual context older than the recent windo
 });
 
 test("Telegram reply-to-image revision carries one trusted reference image into async submission", async () => {
-  const referenceImage = "/home/node/.openclaw/media/inbound/reply-source.jpg";
+  const mediaId = "reply-source---11111111-1111-4111-8111-111111111111.jpg";
+  const referencePath = `/home/node/.openclaw/media/inbound/${mediaId}`;
+  const referenceImage = `media://inbound/${mediaId}`;
   const userText = "Thay cô gái bằng cô gái 20 tuổi người Việt Nam";
   let preparedBody;
   let submitted;
@@ -1296,7 +1298,7 @@ test("Telegram reply-to-image revision carries one trusted reference image into 
   ctx.channelContext = {
     chat: {
       id: "private-chat",
-      replyMedia: [{ path: referenceImage, contentType: "image/jpeg" }],
+      replyMedia: [{ path: referencePath, contentType: "image/jpeg" }],
     },
   };
 
@@ -1326,10 +1328,12 @@ test("same-session referenced revision re-prepares instead of reusing stale visu
   const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl, realpathImpl: (value) => value, statImpl: () => ({ isFile: () => true }) });
   await hooks.beforePromptBuild({ prompt: "Tạo cho anh một ảnh thời trang", messages: [] }, telegramContext("run-base-image"));
   const ctx = telegramContext("run-revision-same-session");
-  ctx.channelContext = { chat: { replyMedia: [{ path: "/home/node/.openclaw/media/inbound/reply-source.jpg", contentType: "image/jpeg" }] } };
+  const mediaId = "reply-source---22222222-2222-4222-8222-222222222222.jpg";
+  const referencePath = `/home/node/.openclaw/media/inbound/${mediaId}`;
+  ctx.channelContext = { chat: { replyMedia: [{ path: referencePath, contentType: "image/jpeg" }] } };
   await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng cô gái 20 tuổi người Việt Nam", messages: [] }, ctx);
   assert.equal(bodies.length, 2, "referenced revision must issue a fresh Core prepare");
-  assert.equal(bodies[1].reference_image, "/home/node/.openclaw/media/inbound/reply-source.jpg");
+  assert.equal(bodies[1].reference_image, `media://inbound/${mediaId}`);
 });
 
 
@@ -1381,6 +1385,30 @@ test("all symlink reply-image references are rejected even when target stays in 
   const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl, realpathImpl, statImpl });
   const ctx = telegramContext("run-reference-safe-symlink");
   ctx.channelContext = { chat: { replyMedia: [{ path: referenceImage, contentType: "image/jpeg" }] } };
+  await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx);
+  assert.equal(preparedBody.reference_image, undefined);
+});
+
+
+test("revision emits opaque managed media URI instead of raw filesystem path", async () => {
+  let preparedBody;
+  const id = "reply-source---11111111-1111-4111-8111-111111111111.jpg";
+  const sourcePath = `/home/node/.openclaw/media/inbound/${id}`;
+  const expected = `media://inbound/${id}`;
+  const fetchImpl = async (_url, init) => { preparedBody = JSON.parse(init.body); return new Response(JSON.stringify(responseFixture(preparedBody.request_id, { route: "workflow", capability: "visual_image_generate", workflowOverrides: { goal: preparedBody.text, reference_image: preparedBody.reference_image } })), { status: 200 }); };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl, realpathImpl: (value) => value, statImpl: () => ({ isFile: () => true }) });
+  const ctx = telegramContext("run-media-uri-reference");
+  ctx.channelContext = { chat: { replyMedia: [{ path: sourcePath, contentType: "image/jpeg" }] } };
+  await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx);
+  assert.equal(preparedBody.reference_image, expected);
+});
+
+test("revision rejects inbound media path whose id is not UUID-backed", async () => {
+  let preparedBody;
+  const fetchImpl = async (_url, init) => { preparedBody = JSON.parse(init.body); return new Response(JSON.stringify(responseFixture(preparedBody.request_id, { route: "direct" })), { status: 200 }); };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl, realpathImpl: (value) => value, statImpl: () => ({ isFile: () => true }) });
+  const ctx = telegramContext("run-media-uri-nonuuid");
+  ctx.channelContext = { chat: { replyMedia: [{ path: "/home/node/.openclaw/media/inbound/guessable.jpg", contentType: "image/jpeg" }] } };
   await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx);
   assert.equal(preparedBody.reference_image, undefined);
 });

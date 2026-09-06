@@ -541,3 +541,23 @@ def test_scoped_approval_continuation_resumes_same_telegram_run(
     assert resumed_run.id == accepted.run_id
     assert resumed_run.status is AsyncRunStatus.PENDING
     assert approval.status == "approved"
+
+
+def test_idempotent_replay_rejects_changed_reference_image(
+    session_factory: sessionmaker[Session], tmp_path: Path,
+) -> None:
+    ref1 = "media://inbound/one---11111111-1111-4111-8111-111111111111.jpg"
+    ref2 = "media://inbound/two---22222222-2222-4222-8222-222222222222.jpg"
+    with session_factory() as session:
+        project_id = _seed_project(session)
+        service = _service(session, tmp_path)
+        base = _request(project_id, tmp_path).model_copy(
+            update={
+                "source_message_id": "revision-message",
+                "reference_image": ref1,
+            }
+        )
+        first = service.create(base)
+        with pytest.raises(ValueError, match="reference_image"):
+            service.create(base.model_copy(update={"reference_image": ref2}))
+        assert first.replayed is False

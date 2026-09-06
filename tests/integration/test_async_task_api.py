@@ -296,3 +296,21 @@ def test_resolve_latest_approval_is_scoped_and_resumes_same_run(
     assert resolved.json()["id"] == created.json()["run_id"]
     assert resolved.json()["status"] == "pending"
     assert replay.status_code == 409
+
+
+def test_telegram_replay_with_changed_reference_returns_409(
+    engine: Engine, tmp_path: Path,
+) -> None:
+    app = create_app(settings=_settings(tmp_path), engine=engine)
+    payload = _payload(tmp_path) | {
+        "source_channel": "telegram", "source_chat_id": "chat-1",
+        "source_message_id": "msg-revision", "idempotency_key": "telegram:revision",
+        "reference_image": "media://inbound/one---11111111-1111-4111-8111-111111111111.jpg",
+    }
+    with TestClient(app) as client:
+        first = client.post("/api/async-tasks", headers=_headers(), json=payload)
+        second_payload = payload | {"reference_image": "media://inbound/two---22222222-2222-4222-8222-222222222222.jpg"}
+        second = client.post("/api/async-tasks", headers=_headers(), json=second_payload)
+    assert first.status_code == 202
+    assert second.status_code == 409
+    assert "reference_image" in second.json()["detail"]

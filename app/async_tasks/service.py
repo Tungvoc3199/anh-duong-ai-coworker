@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -30,6 +31,10 @@ from app.privacy import (
 from app.projects.repository import ProjectRepository
 from app.routing.fast_router import FastRouter
 from app.tasks import TaskCreate, TaskService, TaskStatus
+
+
+class AsyncTaskIdempotencyConflict(ValueError):
+    pass
 
 
 class AsyncTaskService:
@@ -150,6 +155,14 @@ class AsyncTaskService:
         if existing is None and provided_key != idempotency_key and provided_key != legacy_key:
             existing = self.repository.get_by_idempotency_key(provided_key)
         if existing is not None:
+            try:
+                persisted = json.loads(existing.request_json)
+            except (TypeError, ValueError) as error:
+                raise AsyncTaskIdempotencyConflict(
+                    "stored idempotent request is invalid"
+                ) from error
+            if persisted.get("reference_image") != request.reference_image:
+                raise AsyncTaskIdempotencyConflict("idempotency replay reference_image mismatch")
             return AsyncTaskAccepted(
                 task_id=existing.task_id,
                 run_id=existing.id,

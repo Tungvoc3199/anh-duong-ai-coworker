@@ -690,7 +690,7 @@ async def test_native_generator_passes_one_managed_reference_image_for_revision(
         auth_token="test-token",
         transport=httpx.MockTransport(handler),
     )
-    reference_image = "/home/node/.openclaw/media/inbound/reply-source.jpg"
+    reference_image = "media://inbound/reply-source---11111111-1111-4111-8111-111111111111.jpg"
     await generator.generate(
         prompt="replace the subject",
         run_id="run_revision",
@@ -705,7 +705,7 @@ async def test_native_generator_passes_one_managed_reference_image_for_revision(
 def test_revision_reference_image_is_preserved_by_async_and_execution_contracts() -> None:
     from app.async_tasks.models import AsyncTaskCreate
 
-    reference_image = "/home/node/.openclaw/media/inbound/reply-source.jpg"
+    reference_image = "media://inbound/reply-source---11111111-1111-4111-8111-111111111111.jpg"
     task = AsyncTaskCreate(
         project_id="proj_img",
         title="image revision",

@@ -30,7 +30,7 @@ from app.async_tasks.repository import (
     AsyncTaskRepository,
     new_async_run_id,
 )
-from app.async_tasks.service import AsyncTaskService
+from app.async_tasks.service import AsyncTaskIdempotencyConflict, AsyncTaskService
 from app.async_tasks.worker import (
     RETRY_DELAYS_SECONDS,
     AsyncTaskExecutor,
@@ -52,6 +52,7 @@ __all__ = [
     "AsyncTaskAccepted",
     "AsyncTaskCreate",
     "AsyncTaskExecutor",
+    "AsyncTaskIdempotencyConflict",
     "AsyncTaskMode",
     "AsyncTaskPolicyGate",
     "AsyncTaskRepository",

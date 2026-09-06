@@ -22,6 +22,7 @@ from app.async_tasks import (
     AsyncRunStatus,
     AsyncTaskAccepted,
     AsyncTaskCreate,
+    AsyncTaskIdempotencyConflict,
     AsyncTaskPolicyGate,
     AsyncTaskRepository,
     AsyncTaskRun,
@@ -133,7 +134,10 @@ def create_async_task(
             ),
             policy_gate=_policy(request),
         )
-        accepted = service.create(payload)
+        try:
+            accepted = service.create(payload)
+        except AsyncTaskIdempotencyConflict as error:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
         session.commit()
         return accepted
 
