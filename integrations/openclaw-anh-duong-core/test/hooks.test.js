@@ -1532,3 +1532,18 @@ test("reply media with zero image entries stays ordinary revision input", async 
   assert.equal(preparedBody.reference_image, undefined);
   assert.equal(preparedBody.text, prompt);
 });
+
+
+test("mixed valid image plus missing-MIME reply media fails closed", async () => {
+  await assertReplyMediaRevisionBlocked([
+    { path: "/home/node/.openclaw/media/inbound/a---11111111-1111-4111-8111-111111111111.jpg", contentType: "image/jpeg" },
+    { path: "/tmp/unknown.bin" },
+  ], "run-mixed-missing-mime");
+});
+
+test("mixed valid image plus non-image reply media fails closed", async () => {
+  await assertReplyMediaRevisionBlocked([
+    { path: "/home/node/.openclaw/media/inbound/a---11111111-1111-4111-8111-111111111111.jpg", contentType: "image/jpeg" },
+    { path: "/tmp/voice.ogg", contentType: "audio/ogg" },
+  ], "run-mixed-non-image");
+});

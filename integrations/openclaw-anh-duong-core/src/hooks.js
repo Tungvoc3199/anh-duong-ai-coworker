@@ -333,7 +333,9 @@ export function createAnhDuongCoreHooks({
         item.contentType.toLowerCase().startsWith("image/"),
     );
     if (imageEntries.length === 0) return { status: "none" };
-    if (imageEntries.length !== 1) return { status: "ambiguous" };
+    if (imageEntries.length !== 1 || replyMedia.length !== 1) {
+      return { status: "ambiguous" };
+    }
 
     const item = imageEntries[0];
     if (typeof item?.path !== "string" || item.path.includes("\0")) {
