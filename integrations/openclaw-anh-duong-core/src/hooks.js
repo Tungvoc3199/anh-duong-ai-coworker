@@ -327,7 +327,7 @@ export function createAnhDuongCoreHooks({
 
   function trustedTelegramReplyImageReference(ctx) {
     const replyMedia = ctx?.channelContext?.chat?.replyMedia;
-    if (!Array.isArray(replyMedia)) return undefined;
+    if (!Array.isArray(replyMedia)) return { status: "none" };
     const mediaRoot = "/home/node/.openclaw/media/inbound";
     const uuidImageId = /^(?:[\p{L}\p{N}._-]+---)?[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:png|jpe?g|webp|gif)$/iu;
     const candidates = replyMedia.flatMap((item) => {
@@ -349,12 +349,16 @@ export function createAnhDuongCoreHooks({
         return [];
       }
     });
-    return candidates.length === 1 ? candidates[0] : undefined;
+    const uniqueCandidates = [...new Set(candidates)];
+    if (uniqueCandidates.length === 0) return { status: "none" };
+    if (uniqueCandidates.length === 1) {
+      return { status: "single", referenceImage: uniqueCandidates[0] };
+    }
+    return { status: "ambiguous" };
   }
 
   function imageRevisionPrompt(text, ctx) {
-    const referenceImage = trustedTelegramReplyImageReference(ctx);
-    if (!referenceImage || typeof text !== "string") {
+    if (typeof text !== "string") {
       return { prompt: text, referenceImage: undefined };
     }
     const normalized = normalizeFollowUp(text);
@@ -362,9 +366,16 @@ export function createAnhDuongCoreHooks({
     if (!isRevision) {
       return { prompt: text, referenceImage: undefined };
     }
+    const resolution = trustedTelegramReplyImageReference(ctx);
+    if (resolution.status === "ambiguous") {
+      return { prompt: text, referenceImage: undefined, ambiguousReference: true };
+    }
+    if (resolution.status !== "single") {
+      return { prompt: text, referenceImage: undefined };
+    }
     return {
       prompt: `Tạo ảnh chỉnh sửa từ ảnh tham chiếu. Yêu cầu hiện tại: ${text}`,
-      referenceImage,
+      referenceImage: resolution.referenceImage,
     };
   }
 
@@ -479,6 +490,22 @@ export function createAnhDuongCoreHooks({
     const contextualPrompt = contextualVisualImagePrompt(parsedPrompt, event?.messages);
     const revision = imageRevisionPrompt(contextualPrompt, ctx);
     const corePrompt = revision.prompt;
+    if (revision.ambiguousReference) {
+      const ambiguousRunId = ctx?.runId;
+      if (typeof ambiguousRunId === "string" && ambiguousRunId.length > 0) {
+        states.set(ambiguousRunId, {
+          status: "failed",
+          failureClass: "ambiguous_reply_media",
+          expiresAt: now() + STATE_TTL_MS,
+        });
+      }
+      safeLog(logger, "warn", {
+        event: "anh_duong_core_prepare",
+        outcome: "failure",
+        failure_class: "ambiguous_reply_media",
+      });
+      return undefined;
+    }
     safeLog(logger, "info", {
       event: "anh_duong_core_prompt_shape",
       hook: "before_prompt_build",

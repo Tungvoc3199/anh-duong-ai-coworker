@@ -26,11 +26,11 @@ from app.planning import (
     PlanRepository,
 )
 from app.privacy import (
-    async_request_identity_fingerprint,
     legacy_async_request_identity_sha256,
     legacy_telegram_idempotency_key,
     normalize_async_request_identity_payload,
     telegram_idempotency_key,
+    verify_async_request_identity_fingerprint,
 )
 from app.projects.repository import ProjectRepository
 from app.routing.fast_router import FastRouter
@@ -166,13 +166,14 @@ class AsyncTaskService:
                     "stored idempotent request is invalid"
                 ) from error
             request_payload = request.model_dump(mode="json")
-            current_fingerprint = async_request_identity_fingerprint(
-                request_payload, secret=self.repository.identity_hmac_secret
-            )
             persisted_fingerprint = persisted.get("_semantic_identity_fingerprint")
             persisted_legacy_sha = persisted.get("_semantic_identity_sha256")
             if persisted_fingerprint is not None:
-                if not hmac.compare_digest(str(persisted_fingerprint), current_fingerprint):
+                if not verify_async_request_identity_fingerprint(
+                    request_payload,
+                    str(persisted_fingerprint),
+                    secrets=self.repository.identity_hmac_keys,
+                ):
                     raise AsyncTaskIdempotencyConflict(
                         "idempotency replay payload mismatch"
                     )

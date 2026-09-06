@@ -1443,3 +1443,18 @@ test("revision rejects UUID substring without OpenClaw producer separator", asyn
   await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx);
   assert.equal(preparedBody.reference_image, undefined);
 });
+
+
+test("ambiguous multi-image reply revision fails closed without Core submit", async () => {
+  let calls = 0;
+  const fetchImpl = async () => { calls += 1; throw new Error("must not submit"); };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl, realpathImpl: (value) => value, statImpl: () => ({ isFile: () => true }) });
+  const ctx = telegramContext("run-ambiguous-revision");
+  ctx.channelContext = { chat: { replyMedia: [
+    { path: "/home/node/.openclaw/media/inbound/a---11111111-1111-4111-8111-111111111111.jpg", contentType: "image/jpeg" },
+    { path: "/home/node/.openclaw/media/inbound/b---22222222-2222-4222-8222-222222222222.jpg", contentType: "image/jpeg" },
+  ] } };
+  assert.equal(await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx), undefined);
+  assert.equal(calls, 0);
+  assert.equal((await hooks.beforeAgentRun({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx)).outcome, "block");
+});

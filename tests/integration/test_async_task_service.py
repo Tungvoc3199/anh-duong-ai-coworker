@@ -652,3 +652,36 @@ def test_legacy_origin_main_request_json_replays_after_reference_field_addition(
         assert replay.replayed is True
         with pytest.raises(ValueError, match="idempotency replay payload mismatch"):
             service.create(base.model_copy(update={"goal": "changed goal"}))
+
+
+def test_idempotent_replay_survives_identity_hmac_secret_rotation(
+    session_factory: sessionmaker[Session], tmp_path: Path,
+) -> None:
+    with session_factory() as session:
+        project_id = _seed_project(session)
+        audit_writer = AuditWriter(tmp_path / "rotation-audit.jsonl", fsync=False)
+        request = _request(project_id, tmp_path).model_copy(
+            update={"source_message_id": "rotation-message", "goal": "same semantic request"}
+        )
+        old_service = AsyncTaskService(
+            task_service=TaskService(TaskRepository(session), audit_writer),
+            repository=AsyncTaskRepository(
+                session, audit_writer=audit_writer,
+                identity_hmac_secret="old-secret", identity_hmac_key_id="2026-08",
+            ),
+            policy_gate=AsyncTaskPolicyGate((tmp_path,)),
+        )
+        accepted = old_service.create(request)
+        session.flush()
+        rotated_service = AsyncTaskService(
+            task_service=TaskService(TaskRepository(session), audit_writer),
+            repository=AsyncTaskRepository(
+                session, audit_writer=audit_writer,
+                identity_hmac_secret="new-secret", identity_hmac_key_id="2026-09",
+                identity_hmac_previous_keys={"2026-08": "old-secret"},
+            ),
+            policy_gate=AsyncTaskPolicyGate((tmp_path,)),
+        )
+        replay = rotated_service.create(request)
+        assert replay.replayed is True
+        assert replay.run_id == accepted.run_id

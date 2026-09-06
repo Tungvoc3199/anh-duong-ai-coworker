@@ -70,13 +70,42 @@ def normalize_async_request_identity_payload(payload: dict[str, Any]) -> dict[st
     return identity
 
 
-def async_request_identity_fingerprint(payload: dict[str, Any], *, secret: str) -> str:
+def async_request_identity_fingerprint(
+    payload: dict[str, Any], *, secret: str, key_id: str = "primary-v1"
+) -> str:
     """Return a versioned keyed fingerprint of semantic async request identity."""
     identity = normalize_async_request_identity_payload(payload)
     canonical = json.dumps(identity, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
     material = b"anh-duong:async-request-identity:v1\0" + canonical.encode("utf-8")
     digest = hmac.new(secret.encode("utf-8"), material, hashlib.sha256).hexdigest()
-    return f"hmac-sha256-v1:{digest}"
+    if not key_id or ":" in key_id:
+        raise ValueError("async identity HMAC key_id is invalid")
+    return f"hmac-sha256-v1:{key_id}:{digest}"
+
+
+def verify_async_request_identity_fingerprint(
+    payload: dict[str, Any], fingerprint: str, *, secrets: dict[str, str]
+) -> bool:
+    parts = fingerprint.split(":")
+    if len(parts) == 3 and parts[0] == "hmac-sha256-v1":
+        key_id = parts[1]
+        secret = secrets.get(key_id)
+        if secret is None:
+            return False
+        expected = async_request_identity_fingerprint(payload, secret=secret, key_id=key_id)
+        return hmac.compare_digest(fingerprint, expected)
+    if len(parts) == 2 and parts[0] == "hmac-sha256-v1":
+        # Compatibility for pre-key-id candidate rows: try every retained key.
+        return any(
+            hmac.compare_digest(
+                fingerprint,
+                "hmac-sha256-v1:" + async_request_identity_fingerprint(
+                    payload, secret=secret, key_id=key_id
+                ).rsplit(":", 1)[1],
+            )
+            for key_id, secret in secrets.items()
+        )
+    return False
 
 
 def legacy_async_request_identity_sha256(payload: dict[str, Any]) -> str:
@@ -86,15 +115,26 @@ def legacy_async_request_identity_sha256(payload: dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def resolve_async_identity_hmac_secret() -> str:
-    """Resolve the server-side identity key with backward-compatible config fallback."""
+def resolve_async_identity_hmac_keyring() -> tuple[str, dict[str, str]]:
+    """Resolve active and retained server-side identity HMAC keys."""
     from app.config import get_settings
 
     settings = get_settings()
-    secret = settings.async_identity_hmac_secret or settings.approval_hmac_secret
-    if not secret:
-        raise RuntimeError("async identity HMAC secret is required")
-    return secret
+    active_id = settings.async_identity_hmac_key_id
+    active_secret = settings.async_identity_hmac_secret or settings.approval_hmac_secret
+    if not active_id or ":" in active_id or not active_secret:
+        raise RuntimeError("async identity HMAC keyring is invalid")
+    keys = dict(settings.async_identity_hmac_previous_keys)
+    keys[active_id] = active_secret
+    if any((not key_id or ":" in key_id or not secret) for key_id, secret in keys.items()):
+        raise RuntimeError("async identity HMAC keyring is invalid")
+    return active_id, keys
+
+
+def resolve_async_identity_hmac_secret() -> str:
+    """Compatibility accessor for the active server-side identity key."""
+    active_id, keys = resolve_async_identity_hmac_keyring()
+    return keys[active_id]
 
 
 def content_fingerprint(value: str) -> dict[str, int | str]:

@@ -22,7 +22,7 @@ from app.privacy import (
     canonicalize_telegram_idempotency_key,
     legacy_telegram_idempotency_key,
     minimize_async_request_payload,
-    resolve_async_identity_hmac_secret,
+    resolve_async_identity_hmac_keyring,
 )
 
 
@@ -42,11 +42,21 @@ class AsyncTaskRepository:
         audit_writer: AuditWriter | None = None,
         redactor: SecretRedactor | None = None,
         identity_hmac_secret: str | None = None,
+        identity_hmac_key_id: str | None = None,
+        identity_hmac_previous_keys: dict[str, str] | None = None,
     ) -> None:
         self.session = session
         self.audit_writer = audit_writer
         self.redactor = redactor or SecretRedactor()
-        self.identity_hmac_secret = identity_hmac_secret or resolve_async_identity_hmac_secret()
+        if identity_hmac_secret is not None:
+            active_id = identity_hmac_key_id or "primary-v1"
+            keys = dict(identity_hmac_previous_keys or {})
+            keys[active_id] = identity_hmac_secret
+        else:
+            active_id, keys = resolve_async_identity_hmac_keyring()
+        self.identity_hmac_key_id = active_id
+        self.identity_hmac_keys = keys
+        self.identity_hmac_secret = keys[active_id]
 
     def acquire_sqlite_write_lock(self) -> None:
         """Acquire an early write lock on a fresh SQLite session."""
@@ -94,7 +104,9 @@ class AsyncTaskRepository:
         timestamp = self._utc(now)
         raw_request_payload = request.model_dump(mode="json")
         identity_fingerprint = async_request_identity_fingerprint(
-            raw_request_payload, secret=self.identity_hmac_secret
+            raw_request_payload,
+            secret=self.identity_hmac_secret,
+            key_id=self.identity_hmac_key_id,
         )
         request_payload = minimize_async_request_payload(raw_request_payload)
         request_payload["idempotency_key"] = normalized_key

@@ -107,7 +107,7 @@ def test_async_identity_fingerprint_is_versioned_and_keyed() -> None:
         payload | {"correlation_id": "b"}, secret="server-secret-a"
     )
     other_key = privacy.async_request_identity_fingerprint(payload, secret="server-secret-b")
-    assert re.fullmatch(r"hmac-sha256-v1:[0-9a-f]{64}", first)
+    assert re.fullmatch(r"hmac-sha256-v1:primary-v1:[0-9a-f]{64}", first)
     assert first == same
     assert first != other_key
 
@@ -120,3 +120,18 @@ def test_async_identity_normalization_treats_missing_new_optional_field_as_defau
     assert privacy.normalize_async_request_identity_payload(
         legacy
     ) == privacy.normalize_async_request_identity_payload(current)
+
+
+def test_async_identity_fingerprint_verifies_previous_rotation_key() -> None:
+    from app.privacy import minimization as privacy
+
+    payload = {"goal": "replace subject", "reference_image": None}
+    old = privacy.async_request_identity_fingerprint(
+        payload, secret="old-secret", key_id="2026-08"
+    )
+    assert privacy.verify_async_request_identity_fingerprint(
+        payload, old, secrets={"2026-09": "new-secret", "2026-08": "old-secret"}
+    )
+    assert not privacy.verify_async_request_identity_fingerprint(
+        payload, old, secrets={"2026-09": "new-secret"}
+    )

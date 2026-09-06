@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_STATE_DIR = Path("/home/thadc/.local/state/anh-duong-core")
@@ -50,6 +51,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     approval_hmac_secret: str = "change-me"
     async_identity_hmac_secret: str | None = None
+    async_identity_hmac_key_id: str = "primary-v1"
+    async_identity_hmac_previous_keys: dict[str, str] = Field(default_factory=dict)
 
 
 @lru_cache(maxsize=1)
