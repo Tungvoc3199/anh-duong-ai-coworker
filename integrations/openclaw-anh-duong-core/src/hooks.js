@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { realpathSync, statSync } from "node:fs";
 import { posix as posixPath } from "node:path";
 import { CoreIntegrationError, readCoreConfig } from "./config.js";
 import {
@@ -185,6 +186,8 @@ export function createAnhDuongCoreHooks({
   workflowProgressCleanupPollMs = 1000,
   deleteWorkflowProgress,
   scheduleWorkflowCleanup,
+  realpathImpl = realpathSync,
+  statImpl = statSync,
 } = {}) {
   let config;
   let configFailure;
@@ -332,7 +335,16 @@ export function createAnhDuongCoreHooks({
       const resolved = posixPath.resolve(item.path);
       const relative = posixPath.relative(mediaRoot, resolved);
       if (!relative || relative === ".." || relative.startsWith("../") || posixPath.isAbsolute(relative)) return [];
-      return [resolved];
+      try {
+        const canonicalRoot = realpathImpl(mediaRoot);
+        const canonicalPath = realpathImpl(resolved);
+        const canonicalRelative = posixPath.relative(canonicalRoot, canonicalPath);
+        if (!canonicalRelative || canonicalRelative === ".." || canonicalRelative.startsWith("../") || posixPath.isAbsolute(canonicalRelative)) return [];
+        if (!statImpl(canonicalPath).isFile()) return [];
+        return [canonicalPath];
+      } catch {
+        return [];
+      }
     });
     return candidates.length === 1 ? candidates[0] : undefined;
   }

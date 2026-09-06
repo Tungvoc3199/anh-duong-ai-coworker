@@ -1291,7 +1291,7 @@ test("Telegram reply-to-image revision carries one trusted reference image into 
     }
     return new Response(JSON.stringify({ status: "running" }), { status: 200 });
   };
-  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl, workflowProgressDelayMs: 0 });
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl, workflowProgressDelayMs: 0, realpathImpl: (value) => value, statImpl: () => ({ isFile: () => true }) });
   const ctx = telegramContext("run-image-revision");
   ctx.channelContext = {
     chat: {
@@ -1323,7 +1323,7 @@ test("same-session referenced revision re-prepares instead of reusing stale visu
     }
     return new Response(JSON.stringify({ status: "running" }), { status: 200 });
   };
-  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl, realpathImpl: (value) => value, statImpl: () => ({ isFile: () => true }) });
   await hooks.beforePromptBuild({ prompt: "Tạo cho anh một ảnh thời trang", messages: [] }, telegramContext("run-base-image"));
   const ctx = telegramContext("run-revision-same-session");
   ctx.channelContext = { chat: { replyMedia: [{ path: "/home/node/.openclaw/media/inbound/reply-source.jpg", contentType: "image/jpeg" }] } };
@@ -1342,6 +1342,25 @@ test("reply-image reference rejects lexical escape from managed media root", asy
   const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
   const ctx = telegramContext("run-reference-escape");
   ctx.channelContext = { chat: { replyMedia: [{ path: "/home/node/.openclaw/media/inbound/../../outside.jpg", contentType: "image/jpeg" }] } };
+  await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx);
+  assert.equal(preparedBody.reference_image, undefined);
+  assert.equal(preparedBody.text, "Thay cô gái bằng người khác");
+});
+
+
+test("reply-image reference rejects symlink escape from managed media root", async () => {
+  let preparedBody;
+  const mediaRoot = "/home/node/.openclaw/media";
+  const referenceImage = `${mediaRoot}/inbound/link/secret.jpg`;
+  const realpathImpl = (value) => value === mediaRoot ? mediaRoot : value === referenceImage ? "/tmp/outside/secret.jpg" : value;
+  const statImpl = () => ({ isFile: () => true });
+  const fetchImpl = async (_url, init) => {
+    preparedBody = JSON.parse(init.body);
+    return new Response(JSON.stringify(responseFixture(preparedBody.request_id, { route: "direct" })), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl, realpathImpl, statImpl });
+  const ctx = telegramContext("run-reference-symlink-escape");
+  ctx.channelContext = { chat: { replyMedia: [{ path: referenceImage, contentType: "image/jpeg" }] } };
   await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx);
   assert.equal(preparedBody.reference_image, undefined);
   assert.equal(preparedBody.text, "Thay cô gái bằng người khác");
