@@ -340,6 +340,7 @@ export function createAnhDuongCoreHooks({
         const canonicalPath = realpathImpl(resolved);
         const canonicalRelative = posixPath.relative(canonicalRoot, canonicalPath);
         if (!canonicalRelative || canonicalRelative === ".." || canonicalRelative.startsWith("../") || posixPath.isAbsolute(canonicalRelative)) return [];
+        if (canonicalPath !== resolved) return [];
         if (!statImpl(canonicalPath).isFile()) return [];
         return [resolved];
       } catch {

@@ -1367,7 +1367,7 @@ test("reply-image reference rejects symlink escape from managed media root", asy
 });
 
 
-test("safe in-root symlink validates canonically but preserves original managed reference", async () => {
+test("all symlink reply-image references are rejected even when target stays in managed root", async () => {
   let preparedBody;
   const mediaRoot = "/home/node/.openclaw/media";
   const referenceImage = `${mediaRoot}/inbound/link/source.jpg`;
@@ -1382,5 +1382,5 @@ test("safe in-root symlink validates canonically but preserves original managed 
   const ctx = telegramContext("run-reference-safe-symlink");
   ctx.channelContext = { chat: { replyMedia: [{ path: referenceImage, contentType: "image/jpeg" }] } };
   await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx);
-  assert.equal(preparedBody.reference_image, referenceImage);
+  assert.equal(preparedBody.reference_image, undefined);
 });
