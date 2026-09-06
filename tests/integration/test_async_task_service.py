@@ -622,3 +622,15 @@ def test_revision_identity_ignores_correlation_id(session_factory, tmp_path):
         )
         assert first.replayed is False
         assert replay.replayed is True
+
+
+def test_idempotent_replay_rejects_changed_goal_without_reference(session_factory, tmp_path):
+    with session_factory() as session:
+        project_id = _seed_project(session)
+        service = _service(session, tmp_path)
+        base = _request(project_id, tmp_path).model_copy(
+            update={"source_message_id": "plain-identity", "goal": "first goal"}
+        )
+        service.create(base)
+        with pytest.raises(ValueError, match="idempotency replay payload mismatch"):
+            service.create(base.model_copy(update={"goal": "different goal"}))

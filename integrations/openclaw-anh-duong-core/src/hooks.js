@@ -329,7 +329,7 @@ export function createAnhDuongCoreHooks({
     const replyMedia = ctx?.channelContext?.chat?.replyMedia;
     if (!Array.isArray(replyMedia)) return undefined;
     const mediaRoot = "/home/node/.openclaw/media/inbound";
-    const uuidImageId = /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:png|jpe?g|webp|gif)$/i;
+    const uuidImageId = /^(?:[\p{L}\p{N}._-]+---)?[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:png|jpe?g|webp|gif)$/iu;
     const candidates = replyMedia.flatMap((item) => {
       if (typeof item?.path !== "string" || typeof item?.contentType !== "string") return [];
       if (!item.contentType.toLowerCase().startsWith("image/") || item.path.includes("\0")) return [];

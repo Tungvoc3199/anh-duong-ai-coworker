@@ -1431,3 +1431,15 @@ test("current Telegram turn never reuses prior replyMedia from the same session"
   assert.equal(bodies[1].reference_image, undefined);
   assert.equal(bodies[1].text, "Thay cô gái bằng người khác");
 });
+
+
+test("revision rejects UUID substring without OpenClaw producer separator", async () => {
+  let preparedBody;
+  const sourcePath = "/home/node/.openclaw/media/inbound/evil-11111111-1111-4111-8111-111111111111.jpg";
+  const fetchImpl = async (_url, init) => { preparedBody = JSON.parse(init.body); return new Response(JSON.stringify(responseFixture(preparedBody.request_id, { route: "direct" })), { status: 200 }); };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl, realpathImpl: (value) => value, statImpl: () => ({ isFile: () => true }) });
+  const ctx = telegramContext("run-media-producer-grammar");
+  ctx.channelContext = { chat: { replyMedia: [{ path: sourcePath, contentType: "image/jpeg" }] } };
+  await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx);
+  assert.equal(preparedBody.reference_image, undefined);
+});

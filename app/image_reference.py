@@ -5,7 +5,7 @@ from pathlib import PurePosixPath
 from urllib.parse import quote, unquote, urlsplit
 
 _ALLOWED_IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".webp", ".gif"})
-_UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", re.I)
+_UUID_V4 = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", re.I)
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
 def validate_managed_image_reference(value: str | None) -> str | None:
@@ -27,6 +27,19 @@ def validate_managed_image_reference(value: str | None) -> str | None:
     if quote(media_id, safe="-._~") != encoded_id:
         raise ValueError("reference_image must be canonically encoded")
     suffix = PurePosixPath(media_id).suffix.lower()
-    if not _UUID.search(media_id) or suffix not in _ALLOWED_IMAGE_SUFFIXES:
-        raise ValueError("reference_image must be a UUID-backed supported image")
+    stem = media_id[: -len(suffix)] if suffix else media_id
+    producer_name = None
+    uuid_text = stem
+    if "---" in stem:
+        producer_name, uuid_text = stem.rsplit("---", 1)
+    valid_name = producer_name is None or (
+        bool(producer_name)
+        and all(char.isalnum() or char in "._-" for char in producer_name)
+    )
+    if (
+        suffix not in _ALLOWED_IMAGE_SUFFIXES
+        or not valid_name
+        or _UUID_V4.fullmatch(uuid_text) is None
+    ):
+        raise ValueError("reference_image must match OpenClaw managed media ID grammar")
     return normalized

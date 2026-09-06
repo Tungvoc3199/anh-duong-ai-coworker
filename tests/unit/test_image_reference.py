@@ -21,3 +21,13 @@ def test_reference_accepts_only_opaque_inbound_media_uri() -> None:
 def test_reference_rejects_noncanonical_or_untrusted_uri(value: str) -> None:
     with pytest.raises(ValueError):
         validate_managed_image_reference(value)
+
+
+def test_reference_rejects_uuid_substring_without_producer_separator() -> None:
+    value = "media://inbound/evil-11111111-1111-4111-8111-111111111111.jpg"
+    with pytest.raises(ValueError):
+        validate_managed_image_reference(value)
+
+def test_reference_accepts_bare_openclaw_uuid_v4_id() -> None:
+    value = "media://inbound/11111111-1111-4111-8111-111111111111.png"
+    assert validate_managed_image_reference(value) == value

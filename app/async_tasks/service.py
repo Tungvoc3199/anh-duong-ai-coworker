@@ -163,31 +163,29 @@ class AsyncTaskService:
                 raise AsyncTaskIdempotencyConflict(
                     "stored idempotent request is invalid"
                 ) from error
-            persisted_reference = persisted.get("reference_image")
-            if persisted_reference is not None or request.reference_image is not None:
-                current_fingerprint = async_request_identity_fingerprint(
+            current_fingerprint = async_request_identity_fingerprint(
+                request.model_dump(mode="json")
+            )
+            persisted_fingerprint = persisted.get("_semantic_identity_sha256")
+            if persisted_fingerprint is not None:
+                if persisted_fingerprint != current_fingerprint:
+                    raise AsyncTaskIdempotencyConflict(
+                        "idempotency replay payload mismatch"
+                    )
+            else:
+                current_payload = minimize_async_request_payload(
                     request.model_dump(mode="json")
                 )
-                persisted_fingerprint = persisted.get("_semantic_identity_sha256")
-                if persisted_fingerprint is not None:
-                    if persisted_fingerprint != current_fingerprint:
-                        raise AsyncTaskIdempotencyConflict(
-                            "idempotency replay payload mismatch"
-                        )
-                else:
-                    current_payload = minimize_async_request_payload(
-                        request.model_dump(mode="json")
+                current_payload.pop("idempotency_key", None)
+                current_payload.pop("correlation_id", None)
+                persisted_payload = dict(persisted)
+                persisted_payload.pop("idempotency_key", None)
+                persisted_payload.pop("correlation_id", None)
+                redacted_current = self.repository.redactor.redact(current_payload)
+                if persisted_payload != redacted_current:
+                    raise AsyncTaskIdempotencyConflict(
+                        "idempotency replay payload mismatch"
                     )
-                    current_payload.pop("idempotency_key", None)
-                    current_payload.pop("correlation_id", None)
-                    persisted_payload = dict(persisted)
-                    persisted_payload.pop("idempotency_key", None)
-                    persisted_payload.pop("correlation_id", None)
-                    redacted_current = self.repository.redactor.redact(current_payload)
-                    if persisted_payload != redacted_current:
-                        raise AsyncTaskIdempotencyConflict(
-                            "idempotency replay payload mismatch"
-                        )
             return AsyncTaskAccepted(
                 task_id=existing.task_id,
                 run_id=existing.id,
