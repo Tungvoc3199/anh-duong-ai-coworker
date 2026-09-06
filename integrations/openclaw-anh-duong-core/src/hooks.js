@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { posix as posixPath } from "node:path";
 import { CoreIntegrationError, readCoreConfig } from "./config.js";
 import {
   buildAsyncTaskCreate,
@@ -324,13 +325,16 @@ export function createAnhDuongCoreHooks({
   function trustedTelegramReplyImageReference(ctx) {
     const replyMedia = ctx?.channelContext?.chat?.replyMedia;
     if (!Array.isArray(replyMedia)) return undefined;
-    const candidates = replyMedia.filter((item) =>
-      typeof item?.path === "string" &&
-      item.path.startsWith("/home/node/.openclaw/media/") &&
-      typeof item?.contentType === "string" &&
-      item.contentType.toLowerCase().startsWith("image/"),
-    );
-    return candidates.length === 1 ? candidates[0].path : undefined;
+    const mediaRoot = "/home/node/.openclaw/media";
+    const candidates = replyMedia.flatMap((item) => {
+      if (typeof item?.path !== "string" || typeof item?.contentType !== "string") return [];
+      if (!item.contentType.toLowerCase().startsWith("image/") || item.path.includes("\0")) return [];
+      const resolved = posixPath.resolve(item.path);
+      const relative = posixPath.relative(mediaRoot, resolved);
+      if (!relative || relative === ".." || relative.startsWith("../") || posixPath.isAbsolute(relative)) return [];
+      return [resolved];
+    });
+    return candidates.length === 1 ? candidates[0] : undefined;
   }
 
   function imageRevisionPrompt(text, ctx) {
@@ -492,7 +496,7 @@ export function createAnhDuongCoreHooks({
       return undefined;
     }
 
-    if (isVisualImageFollowUp(corePrompt)) {
+    if (!revision.referenceImage && isVisualImageFollowUp(corePrompt)) {
       const reusable = findReusableVisualImageState(ctx);
       if (reusable) {
         const reusedState = {

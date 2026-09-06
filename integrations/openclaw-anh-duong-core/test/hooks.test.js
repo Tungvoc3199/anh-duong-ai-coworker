@@ -1311,3 +1311,38 @@ test("Telegram reply-to-image revision carries one trusted reference image into 
   assert.equal(submitted.reference_image, referenceImage);
   assert.equal(submitted.goal, preparedBody.text);
 });
+
+
+test("same-session referenced revision re-prepares instead of reusing stale visual state", async () => {
+  const bodies = [];
+  const fetchImpl = async (url, init) => {
+    const body = init?.body ? JSON.parse(init.body) : undefined;
+    if (url.endsWith("/prepare")) {
+      bodies.push(body);
+      return new Response(JSON.stringify(responseFixture(body.request_id, { route: "workflow", capability: "visual_image_generate", workflowOverrides: { goal: body.text, reference_image: body.reference_image } })), { status: 200 });
+    }
+    return new Response(JSON.stringify({ status: "running" }), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  await hooks.beforePromptBuild({ prompt: "Tạo cho anh một ảnh thời trang", messages: [] }, telegramContext("run-base-image"));
+  const ctx = telegramContext("run-revision-same-session");
+  ctx.channelContext = { chat: { replyMedia: [{ path: "/home/node/.openclaw/media/inbound/reply-source.jpg", contentType: "image/jpeg" }] } };
+  await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng cô gái 20 tuổi người Việt Nam", messages: [] }, ctx);
+  assert.equal(bodies.length, 2, "referenced revision must issue a fresh Core prepare");
+  assert.equal(bodies[1].reference_image, "/home/node/.openclaw/media/inbound/reply-source.jpg");
+});
+
+
+test("reply-image reference rejects lexical escape from managed media root", async () => {
+  let preparedBody;
+  const fetchImpl = async (_url, init) => {
+    preparedBody = JSON.parse(init.body);
+    return new Response(JSON.stringify(responseFixture(preparedBody.request_id, { route: "direct" })), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const ctx = telegramContext("run-reference-escape");
+  ctx.channelContext = { chat: { replyMedia: [{ path: "/home/node/.openclaw/media/inbound/../../outside.jpg", contentType: "image/jpeg" }] } };
+  await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx);
+  assert.equal(preparedBody.reference_image, undefined);
+  assert.equal(preparedBody.text, "Thay cô gái bằng người khác");
+});
