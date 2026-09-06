@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     visualforge_python_executable: str = "/usr/bin/python3"
     visualforge_timeout_seconds: float = 20.0
     internal_api_token: str | None = None
+    owner_telegram_id: str | None = Field(default=None, pattern=r"^[1-9][0-9]{0,19}$")
     async_worker_enabled: bool = True
     async_worker_poll_seconds: float = 2.0
     async_worker_lease_seconds: int = 900

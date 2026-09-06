@@ -219,6 +219,7 @@ def create_app(
         create_core_request_pipeline,
         audit_writer=audit_writer,
         persona_root=Path("data/persona"),
+        owner_telegram_id=runtime_settings.owner_telegram_id,
     )
     application.state.background_tasks = []
     application.state.accepting_async_tasks = False

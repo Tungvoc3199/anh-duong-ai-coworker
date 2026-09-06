@@ -80,7 +80,7 @@ function requireNullableString(value, requestId, options) {
   return value === null ? null : requireString(value, requestId, options);
 }
 
-export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey, referenceImage }) {
+export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey, referenceImage, sourceOrigin }) {
   if (typeof prompt !== "string" || prompt.trim().length === 0 || prompt.length > 20_000) {
     throw validationError();
   }
@@ -102,6 +102,7 @@ export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey, 
     request_id: requestId,
     channel: "telegram",
     actor,
+    ...(sourceOrigin === "telegram_user" ? { source_origin: "telegram_user" } : {}),
     ...(typeof chatId === "string" && chatId.length > 0
       ? { source_chat_id: chatId }
       : {}),

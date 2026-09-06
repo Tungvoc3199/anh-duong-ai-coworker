@@ -27,6 +27,7 @@ class CoreRequest(BaseModel):
     request_id: str | None = Field(default=None, max_length=128)
     channel: str = Field(default="internal", max_length=64)
     actor: str = Field(default="internal", max_length=128)
+    source_origin: Literal["unknown", "telegram_user"] = "unknown"
     project_id: str | None = Field(default=None, max_length=64)
     task_id: str | None = Field(default=None, max_length=64)
     memory_scope_id: str | None = Field(default=None, max_length=128)

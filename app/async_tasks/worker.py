@@ -1196,6 +1196,11 @@ class AsyncTaskWorker:
     def _execution_constraints(
         request: AsyncTaskCreate,
     ) -> tuple[str, ...]:
+        if (
+            not request.approval_required
+            and "owner_request_authorized_current_goal" in request.constraints
+        ):
+            return request.constraints
         if request.approval_required or request.risk_level >= 2:
             return tuple(dict.fromkeys(request.constraints + STEP_LEVEL_EXECUTION_CONSTRAINTS))
         return request.constraints

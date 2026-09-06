@@ -543,6 +543,14 @@ export function createAnhDuongCoreHooks({
       return undefined;
     }
 
+    // Only runtime hook metadata grants direct-user provenance. Never infer it
+    // from prompt text, recent message queues, or a generated compatibility id.
+    const nativeUserTurn = ctx?.trigger === "user"
+      && typeof ctx?.runId === "string"
+      && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ctx.runId)
+      && typeof ctx?.senderId === "string" && /^[1-9][0-9]*$/.test(ctx.senderId)
+      && typeof ctx?.chatId === "string" && ctx.chatId.length > 0
+      && typeof ctx?.sessionKey === "string" && ctx.sessionKey.length > 0;
     const rawPrompt = event?.prompt;
     const originalTurn = resolveOriginalTurn?.({
       runId: ctx?.runId,
@@ -618,7 +626,7 @@ export function createAnhDuongCoreHooks({
 
     if (!revision.referenceImage && isVisualImageFollowUp(corePrompt)) {
       const reusable = findReusableVisualImageState(ctx);
-      if (reusable) {
+      if (reusable && (!reusable.state.ownerSource || nativeUserTurn)) {
         const reusedState = {
           ...reusable.state,
           prompt: corePrompt,
@@ -680,6 +688,7 @@ export function createAnhDuongCoreHooks({
         chatId: ctx?.chatId,
         sessionKey: ctx?.sessionKey,
         referenceImage: revision.referenceImage,
+        ...(nativeUserTurn ? { sourceOrigin: "telegram_user" } : {}),
       });
       requestId = request.request_id;
       const prepared = await prepareCoreRequest({ config, request, fetchImpl });
@@ -690,6 +699,7 @@ export function createAnhDuongCoreHooks({
         prepared,
         preparedContext,
         prompt: corePrompt,
+        ownerSource: nativeUserTurn,
         sessionKey: ctx?.sessionKey ?? ctx?.sessionId,
         chatId: ctx?.chatId,
         senderId: ctx?.senderId,

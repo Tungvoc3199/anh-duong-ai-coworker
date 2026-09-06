@@ -6,6 +6,7 @@ from app.audit import AuditWriter
 from app.capabilities import CapabilityRouter
 from app.context_builder import create_context_builder
 from app.orchestration.pipeline import CoreRequestPipeline
+from app.orchestration.workflow import WorkflowResolver
 from app.persona import load_persona
 from app.projects import ProjectRepository, ProjectService
 from app.routing import FastRouter
@@ -17,6 +18,7 @@ def create_core_request_pipeline(
     *,
     audit_writer: AuditWriter,
     persona_root: Path,
+    owner_telegram_id: str | None = None,
 ) -> CoreRequestPipeline:
     """Compose OR-1 dependencies without preparing or executing a request."""
 
@@ -34,5 +36,6 @@ def create_core_request_pipeline(
             audit_writer,
         ),
         audit_writer=audit_writer,
+        workflow_resolver=WorkflowResolver(owner_telegram_id=owner_telegram_id),
     )
 
