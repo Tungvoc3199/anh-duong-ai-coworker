@@ -1412,3 +1412,22 @@ test("revision rejects inbound media path whose id is not UUID-backed", async ()
   await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx);
   assert.equal(preparedBody.reference_image, undefined);
 });
+
+
+test("current Telegram turn never reuses prior replyMedia from the same session", async () => {
+  const bodies = [];
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    bodies.push(body);
+    return new Response(JSON.stringify(responseFixture(body.request_id, { route: "direct" })), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl, realpathImpl: (value) => value, statImpl: () => ({ isFile: () => true }) });
+  const first = telegramContext("run-reply-media-first");
+  first.channelContext = { chat: { replyMedia: [{ path: "/home/node/.openclaw/media/inbound/source---11111111-1111-4111-8111-111111111111.jpg", contentType: "image/jpeg" }] } };
+  await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, first);
+  const second = telegramContext("run-reply-media-second");
+  await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, second);
+  assert.match(bodies[0].reference_image, /^media:\/\/inbound\//);
+  assert.equal(bodies[1].reference_image, undefined);
+  assert.equal(bodies[1].text, "Thay cô gái bằng người khác");
+});

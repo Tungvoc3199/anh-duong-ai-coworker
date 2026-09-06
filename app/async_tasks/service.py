@@ -26,6 +26,7 @@ from app.planning import (
 )
 from app.privacy import (
     legacy_telegram_idempotency_key,
+    minimize_async_request_payload,
     telegram_idempotency_key,
 )
 from app.projects.repository import ProjectRepository
@@ -161,8 +162,19 @@ class AsyncTaskService:
                 raise AsyncTaskIdempotencyConflict(
                     "stored idempotent request is invalid"
                 ) from error
-            if persisted.get("reference_image") != request.reference_image:
-                raise AsyncTaskIdempotencyConflict("idempotency replay reference_image mismatch")
+            persisted_reference = persisted.get("reference_image")
+            if persisted_reference is not None or request.reference_image is not None:
+                current_payload = minimize_async_request_payload(
+                    request.model_dump(mode="json")
+                )
+                current_payload.pop("idempotency_key", None)
+                persisted_payload = dict(persisted)
+                persisted_payload.pop("idempotency_key", None)
+                redacted_current = self.repository.redactor.redact(current_payload)
+                if persisted_payload != redacted_current:
+                    raise AsyncTaskIdempotencyConflict(
+                        "idempotency replay payload mismatch"
+                    )
             return AsyncTaskAccepted(
                 task_id=existing.task_id,
                 run_id=existing.id,

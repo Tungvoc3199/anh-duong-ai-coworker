@@ -558,6 +558,26 @@ def test_idempotent_replay_rejects_changed_reference_image(
             }
         )
         first = service.create(base)
-        with pytest.raises(ValueError, match="reference_image"):
+        with pytest.raises(ValueError, match="idempotency replay payload mismatch"):
             service.create(base.model_copy(update={"reference_image": ref2}))
         assert first.replayed is False
+
+
+def test_revision_replay_rejects_same_reference_with_changed_goal(
+    session_factory: sessionmaker[Session], tmp_path: Path,
+) -> None:
+    ref = "media://inbound/reply---11111111-1111-4111-8111-111111111111.jpg"
+    with session_factory() as session:
+        project_id = _seed_project(session)
+        service = _service(session, tmp_path)
+        base = _request(project_id, tmp_path).model_copy(
+            update={
+                "source_message_id": "revision-identity",
+                "reference_image": ref,
+                "goal": "replace subject",
+            }
+        )
+        first = service.create(base)
+        assert first.replayed is False
+        with pytest.raises(ValueError, match="idempotency replay payload mismatch"):
+            service.create(base.model_copy(update={"goal": "remove background"}))

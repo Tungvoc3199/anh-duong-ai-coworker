@@ -152,3 +152,31 @@ async def test_two_concurrent_requests_create_one_task_and_run(
     assert task_count == 1
     assert run_count == 1
     assert run_task_id == responses[0].json()["task_id"]
+
+
+@pytest.mark.asyncio
+async def test_concurrent_changed_revision_reference_returns_conflict(
+    engine: Engine, tmp_path: Path,
+) -> None:
+    first = _payload(tmp_path) | {"reference_image": "media://inbound/a---11111111-1111-4111-8111-111111111111.jpg"}
+    second = _payload(tmp_path) | {"reference_image": "media://inbound/b---22222222-2222-4222-8222-222222222222.jpg"}
+    app = _app(engine, tmp_path)
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            responses = await asyncio.gather(
+                client.post(
+                    "/api/async-tasks",
+                    headers={"Authorization": f"Bearer {TOKEN}"},
+                    json=first,
+                ),
+                client.post(
+                    "/api/async-tasks",
+                    headers={"Authorization": f"Bearer {TOKEN}"},
+                    json=second,
+                ),
+            )
+    assert sorted(response.status_code for response in responses) == [202, 409]
+    with engine.connect() as connection:
+        assert connection.scalar(select(func.count()).select_from(TaskRow)) == 1
+        assert connection.scalar(select(func.count()).select_from(AsyncTaskRunRow)) == 1

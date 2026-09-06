@@ -313,4 +313,4 @@ def test_telegram_replay_with_changed_reference_returns_409(
         second = client.post("/api/async-tasks", headers=_headers(), json=second_payload)
     assert first.status_code == 202
     assert second.status_code == 409
-    assert "reference_image" in second.json()["detail"]
+    assert second.json()["detail"] == "idempotency replay payload mismatch"
