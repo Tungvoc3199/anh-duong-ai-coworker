@@ -121,12 +121,28 @@ def resolve_async_identity_hmac_keyring() -> tuple[str, dict[str, str]]:
 
     settings = get_settings()
     active_id = settings.async_identity_hmac_key_id
-    active_secret = settings.async_identity_hmac_secret or settings.approval_hmac_secret
-    if not active_id or ":" in active_id or not active_secret:
+    active_secret = settings.async_identity_hmac_secret
+    placeholders = {"change-me", "changeme", "default", "secret"}
+    if (
+        not active_id
+        or ":" in active_id
+        or not active_secret
+        or len(active_secret) < 32
+        or active_secret.strip().lower() in placeholders
+    ):
         raise RuntimeError("async identity HMAC keyring is invalid")
     keys = dict(settings.async_identity_hmac_previous_keys)
     keys[active_id] = active_secret
-    if any((not key_id or ":" in key_id or not secret) for key_id, secret in keys.items()):
+    if any(
+        (
+            not key_id
+            or ":" in key_id
+            or not secret
+            or len(secret) < 32
+            or secret.strip().lower() in placeholders
+        )
+        for key_id, secret in keys.items()
+    ):
         raise RuntimeError("async identity HMAC keyring is invalid")
     return active_id, keys
 

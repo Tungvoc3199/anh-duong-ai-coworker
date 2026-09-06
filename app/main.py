@@ -301,6 +301,13 @@ def _validate_async_settings(settings: Settings) -> None:
         raise RuntimeError(
             "async_worker_workspace_roots cannot be empty"
         )
+    identity_secret = settings.async_identity_hmac_secret
+    if (
+        not identity_secret
+        or len(identity_secret) < 32
+        or identity_secret.strip().lower() in {"change-me", "changeme", "default", "secret"}
+    ):
+        raise RuntimeError("async identity HMAC secret is invalid")
 
 
 app = create_app()

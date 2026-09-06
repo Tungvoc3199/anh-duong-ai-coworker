@@ -1347,8 +1347,7 @@ test("reply-image reference rejects lexical escape from managed media root", asy
   const ctx = telegramContext("run-reference-escape");
   ctx.channelContext = { chat: { replyMedia: [{ path: "/home/node/.openclaw/media/inbound/../../outside.jpg", contentType: "image/jpeg" }] } };
   await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx);
-  assert.equal(preparedBody.reference_image, undefined);
-  assert.equal(preparedBody.text, "Thay cô gái bằng người khác");
+  assert.equal(preparedBody, undefined);
 });
 
 
@@ -1366,8 +1365,7 @@ test("reply-image reference rejects symlink escape from managed media root", asy
   const ctx = telegramContext("run-reference-symlink-escape");
   ctx.channelContext = { chat: { replyMedia: [{ path: referenceImage, contentType: "image/jpeg" }] } };
   await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx);
-  assert.equal(preparedBody.reference_image, undefined);
-  assert.equal(preparedBody.text, "Thay cô gái bằng người khác");
+  assert.equal(preparedBody, undefined);
 });
 
 
@@ -1386,7 +1384,7 @@ test("all symlink reply-image references are rejected even when target stays in 
   const ctx = telegramContext("run-reference-safe-symlink");
   ctx.channelContext = { chat: { replyMedia: [{ path: referenceImage, contentType: "image/jpeg" }] } };
   await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx);
-  assert.equal(preparedBody.reference_image, undefined);
+  assert.equal(preparedBody, undefined);
 });
 
 
@@ -1410,7 +1408,7 @@ test("revision rejects inbound media path whose id is not UUID-backed", async ()
   const ctx = telegramContext("run-media-uri-nonuuid");
   ctx.channelContext = { chat: { replyMedia: [{ path: "/home/node/.openclaw/media/inbound/guessable.jpg", contentType: "image/jpeg" }] } };
   await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx);
-  assert.equal(preparedBody.reference_image, undefined);
+  assert.equal(preparedBody, undefined);
 });
 
 
@@ -1441,7 +1439,7 @@ test("revision rejects UUID substring without OpenClaw producer separator", asyn
   const ctx = telegramContext("run-media-producer-grammar");
   ctx.channelContext = { chat: { replyMedia: [{ path: sourcePath, contentType: "image/jpeg" }] } };
   await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx);
-  assert.equal(preparedBody.reference_image, undefined);
+  assert.equal(preparedBody, undefined);
 });
 
 
@@ -1457,4 +1455,80 @@ test("ambiguous multi-image reply revision fails closed without Core submit", as
   assert.equal(await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx), undefined);
   assert.equal(calls, 0);
   assert.equal((await hooks.beforeAgentRun({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx)).outcome, "block");
+});
+
+
+async function assertReplyMediaRevisionBlocked(replyMedia, runId) {
+  let calls = 0;
+  const hooks = createAnhDuongCoreHooks({
+    env: ENV,
+    fetchImpl: async () => {
+      calls += 1;
+      throw new Error("blocked reply media must not reach Core");
+    },
+    realpathImpl: (value) => value,
+    statImpl: () => ({ isFile: () => true }),
+  });
+  const ctx = telegramContext(runId);
+  ctx.channelContext = { chat: { replyMedia } };
+  const prompt = "Thay cô gái bằng người khác";
+  assert.equal(await hooks.beforePromptBuild({ prompt, messages: [] }, ctx), undefined);
+  assert.equal(calls, 0);
+  assert.equal((await hooks.beforeAgentRun({ prompt, messages: [] }, ctx)).outcome, "block");
+}
+
+test("single invalid reply image fails closed", async () => {
+  await assertReplyMediaRevisionBlocked([
+    { path: "/home/node/.openclaw/media/inbound/guessable.jpg", contentType: "image/jpeg" },
+  ], "run-single-invalid-reply");
+});
+
+test("mixed valid and invalid reply images fail closed before deduplication", async () => {
+  await assertReplyMediaRevisionBlocked([
+    {
+      path: "/home/node/.openclaw/media/inbound/a---11111111-1111-4111-8111-111111111111.jpg",
+      contentType: "image/jpeg",
+    },
+    { path: "/home/node/.openclaw/media/inbound/guessable.jpg", contentType: "image/jpeg" },
+  ], "run-mixed-reply-media");
+});
+
+test("multiple invalid reply images fail closed", async () => {
+  await assertReplyMediaRevisionBlocked([
+    { path: "/home/node/.openclaw/media/inbound/guess-a.jpg", contentType: "image/jpeg" },
+    { path: "/home/node/.openclaw/media/inbound/guess-b.jpg", contentType: "image/png" },
+  ], "run-all-invalid-reply-media");
+});
+
+test("duplicate reply image entries remain ambiguous and fail closed", async () => {
+  const path =
+    "/home/node/.openclaw/media/inbound/a---11111111-1111-4111-8111-111111111111.jpg";
+  await assertReplyMediaRevisionBlocked([
+    { path, contentType: "image/jpeg" },
+    { path, contentType: "image/jpeg" },
+  ], "run-duplicate-reply-media");
+});
+
+test("reply media with zero image entries stays ordinary revision input", async () => {
+  let calls = 0;
+  let preparedBody;
+  const hooks = createAnhDuongCoreHooks({
+    env: ENV,
+    fetchImpl: async (_url, init) => {
+      calls += 1;
+      preparedBody = JSON.parse(init.body);
+      return new Response(JSON.stringify(responseFixture(preparedBody.request_id, { route: "direct" })), {
+        status: 200,
+      });
+    },
+  });
+  const ctx = telegramContext("run-zero-image-reply-media");
+  ctx.channelContext = {
+    chat: { replyMedia: [{ path: "/tmp/voice.ogg", contentType: "audio/ogg" }] },
+  };
+  const prompt = "Thay cô gái bằng người khác";
+  await hooks.beforePromptBuild({ prompt, messages: [] }, ctx);
+  assert.equal(calls, 1);
+  assert.equal(preparedBody.reference_image, undefined);
+  assert.equal(preparedBody.text, prompt);
 });

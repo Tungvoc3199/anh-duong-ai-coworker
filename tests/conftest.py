@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from types import TracebackType
 from typing import Any
@@ -80,8 +81,15 @@ class InlineClient:
 
 
 def pytest_configure(config: pytest.Config) -> None:
+    os.environ.setdefault(
+        "ANH_DUONG_ASYNC_IDENTITY_HMAC_SECRET",
+        "test-only-identity-hmac-key-0123456789abcdef",
+    )
     import fastapi.testclient
 
+    from app.config import get_settings
+
+    get_settings.cache_clear()
     fastapi.testclient.TestClient = InlineClient
 
 

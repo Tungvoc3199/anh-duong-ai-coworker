@@ -328,33 +328,41 @@ export function createAnhDuongCoreHooks({
   function trustedTelegramReplyImageReference(ctx) {
     const replyMedia = ctx?.channelContext?.chat?.replyMedia;
     if (!Array.isArray(replyMedia)) return { status: "none" };
+    const imageEntries = replyMedia.filter(
+      (item) => typeof item?.contentType === "string" &&
+        item.contentType.toLowerCase().startsWith("image/"),
+    );
+    if (imageEntries.length === 0) return { status: "none" };
+    if (imageEntries.length !== 1) return { status: "ambiguous" };
+
+    const item = imageEntries[0];
+    if (typeof item?.path !== "string" || item.path.includes("\0")) {
+      return { status: "invalid" };
+    }
     const mediaRoot = "/home/node/.openclaw/media/inbound";
     const uuidImageId = /^(?:[\p{L}\p{N}._-]+---)?[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:png|jpe?g|webp|gif)$/iu;
-    const candidates = replyMedia.flatMap((item) => {
-      if (typeof item?.path !== "string" || typeof item?.contentType !== "string") return [];
-      if (!item.contentType.toLowerCase().startsWith("image/") || item.path.includes("\0")) return [];
-      const resolved = posixPath.resolve(item.path);
-      const relative = posixPath.relative(mediaRoot, resolved);
-      if (!relative || relative !== posixPath.basename(relative)) return [];
-      try {
-        const canonicalRoot = realpathImpl(mediaRoot);
-        const canonicalPath = realpathImpl(resolved);
-        const canonicalRelative = posixPath.relative(canonicalRoot, canonicalPath);
-        if (!canonicalRelative || canonicalRelative !== posixPath.basename(canonicalRelative)) return [];
-        if (canonicalPath !== resolved || !statImpl(canonicalPath).isFile()) return [];
-        const mediaId = posixPath.basename(resolved);
-        if (!uuidImageId.test(mediaId)) return [];
-        return [`media://inbound/${encodeURIComponent(mediaId)}`];
-      } catch {
-        return [];
+    const resolved = posixPath.resolve(item.path);
+    const relative = posixPath.relative(mediaRoot, resolved);
+    if (!relative || relative !== posixPath.basename(relative)) return { status: "invalid" };
+    try {
+      const canonicalRoot = realpathImpl(mediaRoot);
+      const canonicalPath = realpathImpl(resolved);
+      const canonicalRelative = posixPath.relative(canonicalRoot, canonicalPath);
+      if (!canonicalRelative || canonicalRelative !== posixPath.basename(canonicalRelative)) {
+        return { status: "invalid" };
       }
-    });
-    const uniqueCandidates = [...new Set(candidates)];
-    if (uniqueCandidates.length === 0) return { status: "none" };
-    if (uniqueCandidates.length === 1) {
-      return { status: "single", referenceImage: uniqueCandidates[0] };
+      if (canonicalPath !== resolved || !statImpl(canonicalPath).isFile()) {
+        return { status: "invalid" };
+      }
+      const mediaId = posixPath.basename(resolved);
+      if (!uuidImageId.test(mediaId)) return { status: "invalid" };
+      return {
+        status: "single",
+        referenceImage: `media://inbound/${encodeURIComponent(mediaId)}`,
+      };
+    } catch {
+      return { status: "invalid" };
     }
-    return { status: "ambiguous" };
   }
 
   function imageRevisionPrompt(text, ctx) {
@@ -367,8 +375,14 @@ export function createAnhDuongCoreHooks({
       return { prompt: text, referenceImage: undefined };
     }
     const resolution = trustedTelegramReplyImageReference(ctx);
-    if (resolution.status === "ambiguous") {
-      return { prompt: text, referenceImage: undefined, ambiguousReference: true };
+    if (resolution.status === "ambiguous" || resolution.status === "invalid") {
+      return {
+        prompt: text,
+        referenceImage: undefined,
+        ambiguousReference: true,
+        referenceFailureClass:
+          resolution.status === "invalid" ? "invalid_reply_media" : "ambiguous_reply_media",
+      };
     }
     if (resolution.status !== "single") {
       return { prompt: text, referenceImage: undefined };
@@ -491,18 +505,19 @@ export function createAnhDuongCoreHooks({
     const revision = imageRevisionPrompt(contextualPrompt, ctx);
     const corePrompt = revision.prompt;
     if (revision.ambiguousReference) {
+      const referenceFailureClass = revision.referenceFailureClass ?? "ambiguous_reply_media";
       const ambiguousRunId = ctx?.runId;
       if (typeof ambiguousRunId === "string" && ambiguousRunId.length > 0) {
         states.set(ambiguousRunId, {
           status: "failed",
-          failureClass: "ambiguous_reply_media",
+          failureClass: referenceFailureClass,
           expiresAt: now() + STATE_TTL_MS,
         });
       }
       safeLog(logger, "warn", {
         event: "anh_duong_core_prepare",
         outcome: "failure",
-        failure_class: "ambiguous_reply_media",
+        failure_class: referenceFailureClass,
       });
       return undefined;
     }
