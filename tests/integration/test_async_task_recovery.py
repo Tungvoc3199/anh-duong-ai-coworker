@@ -15,6 +15,7 @@ from app.async_tasks import (
     AsyncTaskRepository,
     recover_stale_runs,
 )
+from app.async_tasks.models import NotificationStatus
 from app.audit import AuditWriter
 from app.db.base import Base
 from app.db.models import ProjectRow, TaskRow
@@ -217,7 +218,7 @@ def test_stale_recovery_is_risk_and_uncertainty_aware(
         assert task.status == TaskStatus.BLOCKED.value
 
 
-def test_recovery_requeues_legacy_approval_blocked_runs_when_policy_allows(
+def test_restart_preserves_blocked_approvals_and_sent_notifications(
     session_factory: sessionmaker[Session],
     tmp_path: Path,
 ) -> None:
@@ -225,6 +226,9 @@ def test_recovery_requeues_legacy_approval_blocked_runs_when_policy_allows(
         task_id, run_id = _seed_blocked_approval_run(
             session,
             suffix="approval",
+        )
+        AsyncTaskRepository(session).mark_notification(
+            run_id, status=NotificationStatus.SENT, now=NOW
         )
         session.commit()
 
@@ -242,13 +246,23 @@ def test_recovery_requeues_legacy_approval_blocked_runs_when_policy_allows(
         run = AsyncTaskRepository(session).get(run_id)
         task = session.get(TaskRow, task_id)
 
-    assert summary.policy_unblocked == 1
-    assert run.status is AsyncRunStatus.PENDING
-    assert run.last_error_code is None
-    assert run.last_error_message is None
-    assert run.notification_status is not None
+    assert summary.policy_unblocked == 0
+    assert run.status is AsyncRunStatus.BLOCKED
+    assert run.last_error_code == "approval_required"
+    assert run.notification_status.value == "sent"
     assert task is not None
-    assert task.status == TaskStatus.QUEUED.value
+    assert task.status == TaskStatus.BLOCKED.value
+
+    again = recover_stale_runs(
+        session_factory, now=NOW + timedelta(minutes=1),
+        policy_gate=AsyncTaskPolicyGate((Path("/mnt/f/AIOS"),)),
+    )
+    assert again.policy_unblocked == 0
+    with session_factory() as session:
+        unchanged = AsyncTaskRepository(session).get(run_id)
+    assert unchanged.status is AsyncRunStatus.BLOCKED
+    assert unchanged.notification_status.value == "sent"
+    assert unchanged.version == run.version
 
 
 def test_recovery_does_not_requeue_inconsistent_plain_allowed_blocked_run(

@@ -106,31 +106,10 @@ def recover_stale_runs(
                         ),
                     )
 
-        if policy_gate is not None:
-            task_service = TaskService(
-                TaskRepository(session),
-                audit_writer,
-            )
-            for run in repository.list_legacy_approval_blocked_runs():
-                request = AsyncTaskCreate.model_validate_json(
-                    run.request_json
-                )
-                decision = policy_gate.evaluate(request)
-                if decision.reason_code != "allowed_with_step_gates":
-                    continue
-                recovered = repository.manual_retry(
-                    run.id,
-                    now=timestamp,
-                )
-                task_service.transition(
-                    recovered.task_id,
-                    TaskStatus.QUEUED,
-                    result_summary=(
-                        "Legacy approval block requeued after "
-                        "policy allowed step-level execution."
-                    ),
-                )
-                policy_unblocked += 1
+        # A blocked approval is a durable owner decision boundary, not a
+        # crashed lease. Restart must not manual_retry it or reset its sent
+        # notification. Explicit approval/continuation APIs own that transition.
+        # Keep policy_gate/policy_unblocked in the public contract for callers.
 
         session.commit()
 
