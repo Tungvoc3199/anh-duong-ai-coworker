@@ -19,6 +19,12 @@ TERMINAL_RUN_STATUSES = {
     AsyncRunStatus.CANCELLED,
 }
 _IMAGE_PROFILE = "visualforge-v0.2+openclaw-image"
+_IMAGE_TASK_CONSTRAINTS = frozenset({
+    "one_image_max",
+    "subscription_quota_only",
+    "no_paid_fallback",
+    "retry_delivery_without_regeneration",
+})
 
 
 class OpenClawNotifier:
@@ -186,6 +192,19 @@ class OpenClawNotifier:
         return media_path, "image/png"
 
     def _message(self, run: AsyncTaskRun) -> str:
+        if (
+            run.status in {
+                AsyncRunStatus.FAILED,
+                AsyncRunStatus.BLOCKED,
+                AsyncRunStatus.CANCELLED,
+            }
+            and self._is_image_task(run)
+        ):
+            return (
+                "Em chưa tạo hoặc chỉnh sửa được ảnh ở lượt này. "
+                "Tác vụ đã kết thúc và không còn xử lý. Anh có thể thử lại."
+            )
+
         summary = ""
         artifacts: list[str] = []
         verification: list[str] = []
@@ -219,6 +238,24 @@ class OpenClawNotifier:
             lines.extend(["", "Artifacts:", *artifacts[:10]])
 
         return "\n".join(lines)[:4000]
+
+    @staticmethod
+    def _is_image_task(run: AsyncTaskRun) -> bool:
+        if not run.request_json:
+            return False
+        try:
+            request = json.loads(run.request_json)
+        except json.JSONDecodeError:
+            return False
+        if not isinstance(request, dict):
+            return False
+        raw_constraints = request.get("constraints")
+        if not isinstance(raw_constraints, list):
+            return False
+        constraints = {
+            item for item in raw_constraints if isinstance(item, str)
+        }
+        return _IMAGE_TASK_CONSTRAINTS.issubset(constraints)
 
     def _http_error(
         self,

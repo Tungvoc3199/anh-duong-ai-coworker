@@ -15,6 +15,7 @@ const GATE_HOOK_TIMEOUT_MS = 2_000;
 const MESSAGE_HOOK_TIMEOUT_MS = 2_000;
 const WORKFLOW_PROGRESS_TTL_MS = 5 * 60_000;
 const ORIGINAL_TURN_TTL_MS = 5 * 60_000;
+const ORIGINAL_TURN_FRESH_WINDOW_MS = 30_000;
 const DEFAULT_POLL_MS = 2_000;
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "blocked", "cancelled"]);
 
@@ -108,7 +109,7 @@ export function createPluginHandlers({
           ? metadata.mediaTypes
           : metadata.mediaType ? [metadata.mediaType] : []);
     const queue = originalTurns.get(key) ?? [];
-    queue.push({ text, mediaPaths, mediaTypes, expiresAt: Date.now() + ORIGINAL_TURN_TTL_MS });
+    queue.push({ text, mediaPaths, mediaTypes, receivedAt: Date.now(), expiresAt: Date.now() + ORIGINAL_TURN_TTL_MS });
     originalTurns.set(key, queue.slice(-8));
   }
   function resolveOriginalTurn({ sessionKey, senderId, rawPrompt }) {
@@ -119,7 +120,11 @@ export function createPluginHandlers({
     if (!queue.length) return undefined;
     const matching = typeof rawPrompt === "string" ? queue.filter((item) => rawPrompt.includes(item.text)) : [];
     if (matching.length === 1) return matching[0];
-    if (matching.length > 1) return undefined;
+    if (matching.length > 1) return { ambiguous: true };
+    const current = Date.now();
+    const fresh = queue.filter((item) => Number.isFinite(item.receivedAt) && current >= item.receivedAt && current - item.receivedAt <= ORIGINAL_TURN_FRESH_WINDOW_MS);
+    if (fresh.length === 1) return fresh[0];
+    if (fresh.length > 1) return { ambiguous: true };
     return queue.length === 1 ? queue[0] : undefined;
   }
   const hooks = createAnhDuongCoreHooks({

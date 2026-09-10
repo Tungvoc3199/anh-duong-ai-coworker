@@ -1837,3 +1837,60 @@ test("direct uploaded Telegram image preserves raw instruction and maps media to
   assert.match(injection.prependContext, /capability: visual_image_generate/);
   assert.doesNotMatch(injection.prependContext, /capability: planning/);
 });
+
+test("markerless Vision prompt resolves the single fresh original Telegram image turn", async () => {
+  const sessionKey = "agent:main:telegram:direct:7535966424";
+  const senderId = "7535966424";
+  const mediaId = "55555555-5555-4555-8555-555555555555.jpg";
+  const mediaPath = `/home/node/.openclaw/media/inbound/${mediaId}`;
+  const referenceImage = `media://inbound/${mediaId}`;
+  const currentInstruction = "Đổi sang áo màu ghi cho a";
+  const markerlessVisionPrompt = "Vision context: clothing is visible in the supplied image.";
+  let preparedBody;
+  let nowMs = 1_000_000;
+  const originalDateNow = Date.now;
+  Date.now = () => nowMs;
+  try {
+    const handlers = createPluginHandlers({
+      env: ENV,
+      fetchImpl: async (_url, init) => {
+        preparedBody = JSON.parse(init.body);
+        return new Response(JSON.stringify(responseFixture(preparedBody.request_id, {
+          route: "workflow",
+          capability: "visual_image_generate",
+          workflowOverrides: { goal: preparedBody.text, reference_image: preparedBody.reference_image },
+        })), { status: 200 });
+      },
+      realpathImpl: (value) => value,
+      statImpl: () => ({ isFile: () => true }),
+    });
+    handlers.messageReceived({
+      content: "Tin nhắn cũ trong cùng session",
+      sessionKey,
+      senderId,
+      metadata: { provider: "telegram", originatingChannel: "telegram" },
+    }, { channelId: "telegram", sessionKey, senderId, conversationId: senderId });
+    nowMs += 40_000;
+    handlers.messageReceived({
+      content: currentInstruction,
+      sessionKey,
+      senderId,
+      metadata: {
+        provider: "telegram",
+        originatingChannel: "telegram",
+        mediaPath,
+        mediaType: "image/jpeg",
+      },
+    }, { channelId: "telegram", sessionKey, senderId, conversationId: senderId });
+    const ctx = telegramContext();
+    delete ctx.runId;
+    ctx.sessionKey = sessionKey;
+    ctx.senderId = senderId;
+    ctx.chatId = senderId;
+    await handlers.beforePromptBuild({ prompt: markerlessVisionPrompt, messages: [] }, ctx);
+    assert.equal(preparedBody.text, `Tạo ảnh chỉnh sửa từ ảnh tham chiếu. Yêu cầu hiện tại: ${currentInstruction}`);
+    assert.equal(preparedBody.reference_image, referenceImage);
+  } finally {
+    Date.now = originalDateNow;
+  }
+});
