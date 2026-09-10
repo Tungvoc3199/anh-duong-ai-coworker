@@ -97,12 +97,16 @@ export function createPluginHandlers({
       ? (Array.isArray(metadata.replyMediaPaths) && metadata.replyMediaPaths.length
           ? metadata.replyMediaPaths
           : metadata.replyMediaPath ? [metadata.replyMediaPath] : [])
-      : [];
+      : (Array.isArray(metadata.mediaPaths) && metadata.mediaPaths.length
+          ? metadata.mediaPaths
+          : metadata.mediaPath ? [metadata.mediaPath] : []);
     const mediaTypes = isReply
       ? (Array.isArray(metadata.replyMediaTypes) && metadata.replyMediaTypes.length
           ? metadata.replyMediaTypes
           : metadata.replyMediaType ? [metadata.replyMediaType] : [])
-      : [];
+      : (Array.isArray(metadata.mediaTypes) && metadata.mediaTypes.length
+          ? metadata.mediaTypes
+          : metadata.mediaType ? [metadata.mediaType] : []);
     const queue = originalTurns.get(key) ?? [];
     queue.push({ text, mediaPaths, mediaTypes, expiresAt: Date.now() + ORIGINAL_TURN_TTL_MS });
     originalTurns.set(key, queue.slice(-8));

@@ -1723,3 +1723,117 @@ for (const override of [
     assert.notEqual(submitted.source_origin,"telegram_user");
   });
 }
+
+test("direct uploaded Telegram image preserves raw instruction and maps media to reference_image", async () => {
+  const mediaId = "44444444-4444-4444-8444-444444444444.jpg";
+  const mediaPath = `/home/node/.openclaw/media/inbound/${mediaId}`;
+  const referenceImage = `media://inbound/${mediaId}`;
+  const rawInstruction = "Đổi sang áo màu ghi cho a";
+  const sessionKey = "agent:main:telegram:direct:7535966424";
+  let preparedBody;
+  let submittedBody;
+  let prepareCalls = 0;
+  let submitCalls = 0;
+  let runProbeCalls = 0;
+
+  const fetchImpl = async (url, init) => {
+    const body = init?.body ? JSON.parse(init.body) : undefined;
+    if (url.endsWith("/prepare")) {
+      prepareCalls += 1;
+      preparedBody = body;
+      const isImageRevision = body.reference_image === referenceImage;
+      return new Response(JSON.stringify(responseFixture(body.request_id, isImageRevision
+        ? {
+            route: "workflow",
+            capability: "visual_image_generate",
+            workflowOverrides: {
+              goal: body.text,
+              reference_image: body.reference_image,
+              approval_required: false,
+            },
+          }
+        : {            route: "workflow",
+            capability: "planning",
+            workflowOverrides: {
+              goal: body.text,
+              approval_required: true,
+            },
+          })), { status: 200 });
+    }
+    if (url.endsWith("/api/async-tasks")) {
+      submitCalls += 1;
+      submittedBody = body;
+      return new Response(JSON.stringify({
+        task_id: "task_upload_once",
+        run_id: "run_upload_once",
+        status: "pending",
+        message: "ACCEPTED",
+        replayed: false,
+      }), { status: 202 });
+    }
+    if (url.endsWith("/api/async-tasks/run_upload_once")) {
+      runProbeCalls += 1;
+      return new Response(JSON.stringify({ status: "running" }), { status: 200 });
+    }
+    throw new Error(`unexpected URL ${url}`);
+  };
+
+  const handlers = createPluginHandlers({
+    env: ENV,
+    fetchImpl,
+    workflowProgressDelayMs: 0,    realpathImpl: (value) => value,
+    statImpl: () => ({ isFile: () => true }),
+  });
+
+  handlers.messageReceived(
+    {
+      content: rawInstruction,
+      sessionKey,
+      senderId: "7535966424",
+      messageId: "upload-1",
+      metadata: {
+        provider: "telegram",
+        originatingChannel: "telegram",
+        mediaPath,
+        mediaType: "image/jpeg",
+        mediaPaths: [mediaPath],
+        mediaTypes: ["image/jpeg"],
+      },
+    },
+    {
+      channelId: "telegram",
+      sessionKey,
+      senderId: "7535966424",
+      conversationId: "7535966424",
+    },
+  );
+
+  const ctx = telegramContext("55555555-5555-4555-8555-555555555555");
+  ctx.trigger = "user";
+  ctx.sessionKey = sessionKey;
+  ctx.senderId = "7535966424";  ctx.chatId = "7535966424";
+
+  const injection = await handlers.beforePromptBuild(
+    { prompt: "Vision context only: the uploaded photo shows a person wearing a shirt.", messages: [] },
+    ctx,
+  );
+  const first = await handlers.beforeAgentReply({ cleanedBody: rawInstruction }, ctx);
+  const duplicate = await handlers.beforeAgentReply({ cleanedBody: rawInstruction }, ctx);
+
+  assert.equal(prepareCalls, 1);
+  assert.equal(submitCalls, 1);
+  assert.equal(runProbeCalls, 1);
+  assert.equal(first.handled, true);
+  assert.deepEqual(duplicate, {
+    handled: true,
+    reason: "anh_duong_workflow_duplicate_hook",
+  });
+  assert.equal(
+    preparedBody.text,
+    `Tạo ảnh chỉnh sửa từ ảnh tham chiếu. Yêu cầu hiện tại: ${rawInstruction}`,
+  );
+  assert.equal(preparedBody.reference_image, referenceImage);
+  assert.equal(submittedBody.reference_image, referenceImage);
+  assert.match(injection.prependContext, /capability: visual_image_generate/);
+  assert.doesNotMatch(injection.prependContext, /capability: planning/);
+});
