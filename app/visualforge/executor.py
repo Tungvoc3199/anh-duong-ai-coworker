@@ -133,6 +133,133 @@ class VisualForgeRoutingExecutor:
         compiled: VisualForgeCompiledPrompt,
         has_reference_image: bool,
     ) -> VisualForgeCompiledPrompt:
+        normalized_brief = VisualPromptParser._normalize(spec.brief)
+        person_subject_markers = (
+            "co gai",
+            "phu nu",
+            "nguoi mau",
+            "nguoi dan ong",
+            "chang trai",
+            "woman",
+            "women",
+            "girl",
+            "girls",
+            "man",
+            "men",
+            "boy",
+            "boys",
+            "person",
+            "people",
+            "portrait",
+            "chan dung",
+        )
+        styled_clothing_markers = (
+            "wearing",
+            "outfit",
+            "trang phuc",
+            "ao dai",
+            "fashion",
+            "thoi trang",
+        )
+        explicit_product_focus_markers = (
+            "san pham",
+            "product",
+            "packshot",
+            "marketplace",
+            "shopee",
+            "lazada",
+            "quang cao",
+            "advertising",
+            "advertisement",
+        )
+        padded_brief = f" {normalized_brief} "
+        person_subject = any(
+            f" {marker} " in padded_brief for marker in person_subject_markers
+        )
+        model_person_context_markers = (
+            "wearing",
+            "standing",
+            "sitting",
+            "posing",
+            "smiling",
+            "walking",
+            "looking",
+            "dressed",
+            "holding",
+            "carrying",
+        )
+        person_subject = person_subject or (
+            " model " in padded_brief
+            and any(f" {marker} " in padded_brief for marker in model_person_context_markers)
+        )
+        styled_person_request = any(
+            marker in normalized_brief for marker in styled_clothing_markers
+        )
+        strong_product_focus = any(
+            f" {marker} " in padded_brief for marker in explicit_product_focus_markers
+        )
+        padded_raw_brief = f" {spec.brief.casefold()} "
+        raw_product_context_markers = (
+            " chai ",
+            " hộp ",
+            " lon ",
+            " tuýp ",
+            " lọ ",
+            " hũ ",
+            " gói ",
+            " thỏi ",
+        )
+        product_context_markers = (
+            " bottle ",
+            " box ",
+            " can of ",
+            " tube ",
+            " jar ",
+            " pouch ",
+            " packet ",
+            " package ",
+            " nuoc hoa ",
+            " perfume ",
+            " serum ",
+            " skincare ",
+            " my pham ",
+            " cosmetic ",
+            " iphone ",
+            " dien thoai ",
+            " phone ",
+            " laptop ",
+        )
+        brief_tokens = normalized_brief.split()
+        modal_can_predecessors = {
+            "i",
+            "you",
+            "he",
+            "she",
+            "we",
+            "they",
+            "who",
+            "that",
+            "which",
+            "woman",
+            "man",
+            "girl",
+            "boy",
+            "person",
+            "model",
+            "people",
+        }
+        packaged_can_context = any(
+            token == "can"
+            and index > 0
+            and brief_tokens[index - 1] not in modal_can_predecessors
+            for index, token in enumerate(brief_tokens)
+        )
+        explicit_product_focus = (
+            strong_product_focus
+            or any(marker in padded_raw_brief for marker in raw_product_context_markers)
+            or any(marker in padded_brief for marker in product_context_markers)
+            or packaged_can_context
+        )
         lines = [
             spec.brief.strip(),
             (
@@ -145,17 +272,79 @@ class VisualForgeRoutingExecutor:
             lines.append(
                 "Use the provided reference image as the source of truth. Preserve subject "
                 "identity, composition, background, camera framing, lighting, object count, "
-                "and every unmentioned attribute. Change only what the current request "
-                "explicitly asks to change."
+                "and every unmentioned attribute. When present in the reference, preserve "
+                "product shape, packaging, logos, and visible labels. Change only what the "
+                "current request explicitly asks to change."
             )
         else:
             lines.append(
                 "If the current request does not explicitly specify a style, use a neutral, "
                 "natural visual treatment and do not add an unrelated house style."
             )
+            if styled_person_request:
+                lines.append(
+                    "When a person is shown wearing styled clothing, coordinate footwear, "
+                    "accessories, hair, and makeup with the garment, occasion, cultural "
+                    "context, and setting. For traditional or culturally specific clothing, "
+                    "keep those choices appropriate to the garment and setting. Keep additions "
+                    "restrained and plausible unless the current request asks for a bolder look."
+                )
         compiler_constraints = compiled.sections.get("constraints_negative_details", "")
-        if compiler_constraints.strip():
-            lines.append(f"Compiler constraints: {compiler_constraints.strip()}")
+        product_constraint_markers = (
+            "product shape",
+            "packaging",
+            "certifications",
+            "discounts",
+            "product as",
+            "visible labels",
+            "awards",
+            "claims",
+        )
+        filtered_constraints = compiler_constraints.strip()
+        # Product-template constraints can be stale on person/revision requests. Reference
+        # fidelity is carried by the conditional source-of-truth contract above instead;
+        # only an explicit current product focus may retain template product constraints.
+        if (
+            filtered_constraints
+            and (person_subject or has_reference_image)
+            and not explicit_product_focus
+        ):
+            safe_clause_recovery = (
+                ("safe area", "Keep the primary subject inside the safe area"),
+                ("unsupported copy", "Do not add unsupported copy"),
+                ("extra logos", "Do not add extra logos"),
+                ("composition", "Preserve the requested composition"),
+                ("framing", "Preserve the requested framing"),
+            )
+            kept_clauses = []
+            for clause in filtered_constraints.split("."):
+                clause = clause.strip()
+                if not clause:
+                    continue
+                normalized_clause = VisualPromptParser._normalize(clause)
+                padded_clause = f" {normalized_clause} "
+                logo_fidelity_clause = (
+                    (" logo " in padded_clause or " logos " in padded_clause)
+                    and any(
+                        f" {verb} " in padded_clause
+                        for verb in ("preserve", "keep", "match")
+                    )
+                    and (" exact " in padded_clause or " brand " in padded_clause)
+                )
+                if (
+                    any(marker in normalized_clause for marker in product_constraint_markers)
+                    or logo_fidelity_clause
+                ):
+                    for marker, replacement in safe_clause_recovery:
+                        if marker in normalized_clause and replacement not in kept_clauses:
+                            kept_clauses.append(replacement)
+                    continue
+                kept_clauses.append(clause)
+            filtered_constraints = ". ".join(kept_clauses)
+            if kept_clauses:
+                filtered_constraints += "."
+        if filtered_constraints:
+            lines.append(f"Compiler constraints: {filtered_constraints}")
         if spec.required_text:
             lines.append(f"Visible text must be exactly: {spec.required_text}")
         if spec.aspect_ratio:

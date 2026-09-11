@@ -327,3 +327,918 @@ async def test_completed_image_like_run_without_verified_media_never_claims_succ
         "gpt-5.5",
     ):
         assert internal not in message.casefold()
+
+@pytest.mark.asyncio
+async def test_portrait_generation_drops_unrelated_product_only_compiler_constraints() -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Preserve exact product shape, packaging hierarchy, logos, "
+                            "and visible labels. "
+                            "Do not invent certifications, awards, discounts, or claims. "
+                            "Keep the product as the clearest focal point."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+    goal = "Tạo ảnh cô gái Việt Nam 20 tuổi mặc áo dài trắng đứng bên hồ sen"
+
+    await executor.execute(_image_request(goal))
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    for unrelated in ("product shape", "packaging", "certifications", "discounts", "product as"):
+        assert unrelated not in prompt
+
+
+@pytest.mark.asyncio
+async def test_fresh_person_generation_requests_coherent_accessories_and_footwear() -> None:
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=PoisonVisualDNAComposer(),
+        image_generator=generator,
+    )
+
+    await executor.execute(
+        _image_request("Tạo ảnh cô gái Việt Nam mặc áo dài trắng thanh lịch bên hồ sen")
+    )
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "accessor" in prompt
+    assert "footwear" in prompt or "shoes" in prompt
+    assert "hair" in prompt
+    assert "makeup" in prompt
+    assert "occasion" in prompt
+    assert "setting" in prompt
+
+
+@pytest.mark.asyncio
+async def test_real_product_generation_keeps_product_compiler_constraints() -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Preserve exact product shape, packaging hierarchy, logos, "
+                            "and visible labels. "
+                            "Do not invent certifications, awards, discounts, or claims."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+
+    await executor.execute(
+        _image_request("Tạo ảnh quảng cáo chai nước hoa Chanel")
+    )
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "product shape" in prompt
+    assert "packaging" in prompt
+    assert "visible labels" in prompt
+
+@pytest.mark.asyncio
+async def test_person_product_generation_with_explicit_product_focus_keeps_constraints() -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Preserve exact product shape, packaging hierarchy, logos, "
+                            "and visible labels. Do not invent certifications or claims."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+
+    await executor.execute(
+        _image_request("Tạo ảnh cô gái Việt Nam quảng cáo chai nước hoa Chanel")
+    )
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "product shape" in prompt
+    assert "packaging" in prompt
+    assert "visible labels" in prompt
+
+
+@pytest.mark.asyncio
+async def test_portrait_mixed_constraints_keep_generic_clauses_only() -> None:
+    class MixedConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Preserve exact product shape and packaging hierarchy. "
+                            "Keep the primary subject inside the safe area. "
+                            "Do not add unsupported copy or extra logos."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=MixedConstraintComposer(),
+        image_generator=generator,
+    )
+
+    await executor.execute(
+        _image_request("Tạo ảnh cô gái Việt Nam mặc áo dài trắng bên hồ sen")
+    )
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "product shape" not in prompt
+    assert "packaging" not in prompt
+    assert "safe area" in prompt
+    assert "unsupported copy" in prompt
+    assert "extra logos" in prompt
+
+
+@pytest.mark.asyncio
+async def test_person_holding_requested_product_keeps_product_fidelity_constraints() -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Preserve exact product shape, packaging hierarchy, logos, "
+                            "and visible labels."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(_image_request("Tạo ảnh cô gái cầm chai nước hoa Chanel"))
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "product shape" in prompt
+    assert "packaging" in prompt
+    assert "visible labels" in prompt
+
+
+@pytest.mark.asyncio
+async def test_portrait_mixed_single_clause_keeps_safe_area_without_product_bleed() -> None:
+    class MixedConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Preserve exact product shape and keep the primary subject "
+                            "inside the safe area."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=MixedConstraintComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(
+        _image_request("Tạo ảnh cô gái Việt Nam mặc áo dài trắng bên hồ sen")
+    )
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "product shape" not in prompt
+    assert "safe area" in prompt
+
+
+@pytest.mark.asyncio
+async def test_orange_clothing_does_not_masquerade_as_requested_object_focus() -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Preserve exact product shape and packaging hierarchy."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(
+        _image_request("Tạo ảnh cô gái Việt Nam mặc áo dài màu cam bên hồ sen")
+    )
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "product shape" not in prompt
+    assert "packaging" not in prompt
+
+
+@pytest.mark.asyncio
+async def test_unaccented_vietnamese_product_focus_keeps_product_constraints() -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Preserve exact product shape, packaging hierarchy, logos, "
+                            "and visible labels."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(
+        _image_request("Tao anh co gai su dung chai nuoc hoa Chanel")
+    )
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "product shape" in prompt
+    assert "packaging" in prompt
+    assert "visible labels" in prompt
+
+
+@pytest.mark.asyncio
+async def test_productive_portrait_does_not_trigger_product_focus_by_substring() -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Preserve exact product shape and packaging hierarchy."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(
+        _image_request("Tạo ảnh chân dung một productive woman tại bàn làm việc")
+    )
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "product shape" not in prompt
+    assert "packaging" not in prompt
+
+
+@pytest.mark.asyncio
+async def test_person_holding_natural_prop_does_not_keep_product_constraints() -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Preserve exact product shape, packaging hierarchy, logos, "
+                            "and visible labels."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(_image_request("Tạo ảnh cô gái cầm bó hoa sen bên hồ"))
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "product shape" not in prompt
+    assert "packaging" not in prompt
+
+@pytest.mark.asyncio
+async def test_person_beside_requested_product_keeps_product_fidelity_constraints() -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Preserve exact product shape, packaging hierarchy, logos, "
+                            "and visible labels."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(_image_request("Tạo ảnh cô gái bên chai nước hoa Chanel"))
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "product shape" in prompt
+    assert "packaging" in prompt
+    assert "visible labels" in prompt
+
+@pytest.mark.asyncio
+async def test_portrait_drops_separate_product_label_and_claim_clauses() -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Keep logos and visible labels exact. "
+                            "Do not invent awards or claims. "
+                            "Keep the primary subject inside the safe area."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(_image_request("Tạo ảnh cô gái Việt Nam mặc áo dài trắng bên hồ sen"))
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "visible labels" not in prompt
+    assert "awards" not in prompt
+    assert "claims" not in prompt
+    assert "safe area" in prompt
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "goal",
+    (
+        "Tạo ảnh cô gái Việt Nam mặc giày cao gót bên hồ sen",
+        "Tạo ảnh cô gái Việt Nam đeo túi thanh lịch bên hồ sen",
+        "Tạo ảnh cô gái Việt Nam đeo đồng hồ thanh lịch bên hồ sen",
+    ),
+)
+async def test_portrait_wardrobe_accessories_do_not_trigger_product_constraints(goal: str) -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Preserve exact product shape and packaging hierarchy. "
+                            "Keep logos and visible labels exact."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(_image_request(goal))
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "product shape" not in prompt
+    assert "packaging" not in prompt
+    assert "visible labels" not in prompt
+
+@pytest.mark.asyncio
+async def test_portrait_camera_direction_does_not_trigger_product_constraints() -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Preserve exact product shape and packaging hierarchy."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(_image_request("Tạo ảnh cô gái Việt Nam nhìn vào camera bên hồ sen"))
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "product shape" not in prompt
+    assert "packaging" not in prompt
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "goal",
+    (
+        "Tạo ảnh cô gái mặc áo dài trắng phù hợp với bối cảnh hồ sen",
+        "Tạo ảnh cô gái đang chải tóc bên hồ sen",
+    ),
+)
+async def test_vietnamese_accent_collisions_do_not_trigger_product_constraints(goal: str) -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Preserve exact product shape and packaging hierarchy."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(_image_request(goal))
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "product shape" not in prompt
+    assert "packaging" not in prompt
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "goal",
+    (
+        "Tạo ảnh cô gái cầm lon Coca-Cola",
+        "Create an image of a model holding a can of Coke",
+    ),
+)
+async def test_common_packaged_product_forms_keep_product_fidelity_constraints(goal: str) -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Preserve exact product shape, packaging hierarchy, logos, "
+                            "and visible labels."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(_image_request(goal))
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "product shape" in prompt
+    assert "packaging" in prompt
+    assert "visible labels" in prompt
+
+
+@pytest.mark.asyncio
+async def test_portrait_drops_separate_product_brand_logo_fidelity_clause() -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Preserve exact brand logos. Preserve exact product shape."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(_image_request("Tạo ảnh cô gái mặc áo dài trắng bên hồ sen"))
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "brand logos" not in prompt
+    assert "product shape" not in prompt
+
+
+@pytest.mark.asyncio
+async def test_portrait_preserves_generic_logo_watermark_text_artifact_ban() -> None:
+    class GenericSafetyComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Do not add logos, watermarks, or text artifacts."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=GenericSafetyComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(_image_request("Tạo ảnh cô gái mặc áo dài trắng bên hồ sen"))
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "logos" in prompt
+    assert "watermarks" in prompt
+    assert "text artifacts" in prompt
+
+@pytest.mark.asyncio
+async def test_plain_person_prompt_does_not_inject_wardrobe_styling_guidance() -> None:
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=PoisonVisualDNAComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(_image_request("Tạo ảnh cô gái đứng bên hồ sen"))
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "coordinate footwear" not in prompt
+    assert "accessories, hair, and makeup" not in prompt
+
+
+@pytest.mark.asyncio
+async def test_explicit_styled_clothing_keeps_wardrobe_coherence_guidance() -> None:
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=PoisonVisualDNAComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(_image_request("Tạo ảnh cô gái mặc áo dài trắng bên hồ sen"))
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "coordinate footwear" in prompt
+    assert "accessories, hair, and makeup" in prompt
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "goal",
+    (
+        "Create an image of a model wearing a white dress",
+        "Create an image of a person by a lotus lake",
+        "Create an image of a man standing by a lotus lake",
+        "Create an image of a boy standing by a lotus lake",
+    ),
+)
+async def test_common_english_person_prompts_filter_stale_product_constraints(goal: str) -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Preserve exact product shape and packaging hierarchy. "
+                            "Keep visible labels exact."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(_image_request(goal))
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "product shape" not in prompt
+    assert "packaging" not in prompt
+    assert "visible labels" not in prompt
+
+@pytest.mark.asyncio
+async def test_reference_revision_uses_reference_fidelity_without_stale_product_dna() -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Preserve exact product shape and packaging hierarchy. "
+                            "Keep visible labels exact. "
+                            "Keep the product as the clearest focal point. "
+                            "Preserve promotional discounts and badge claims."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(
+        _image_request(
+            "Tạo ảnh chỉnh sửa từ ảnh tham chiếu. Yêu cầu hiện tại: Làm người mẫu mỉm cười",
+            reference_image="media://inbound/11111111-1111-4111-8111-111111111111.jpg",
+        )
+    )
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert (
+        "when present in the reference, preserve product shape, packaging, "
+        "logos, and visible labels"
+        in prompt
+    )
+    assert "packaging hierarchy" not in prompt
+    assert "clearest focal point" not in prompt
+    assert "promotional discounts" not in prompt
+    assert "badge claims" not in prompt
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "goal",
+    (
+        "Create an image of a model holding a Coke can",
+        "Create an image of a woman holding a Coke can",
+    ),
+)
+async def test_brand_before_packaged_form_keeps_product_fidelity_constraints(goal: str) -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Preserve exact product shape and packaging hierarchy. "
+                            "Keep visible labels exact."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(_image_request(goal))
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "product shape" in prompt
+    assert "packaging" in prompt
+    assert "visible labels" in prompt
+
+@pytest.mark.asyncio
+async def test_model_holding_natural_prop_filters_stale_product_constraints() -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Preserve exact product shape and packaging hierarchy."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(_image_request("Create an image of a model holding lotus flowers"))
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "product shape" not in prompt
+    assert "packaging" not in prompt
+
+
+@pytest.mark.asyncio
+async def test_modal_can_does_not_trigger_product_context() -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": "Preserve exact product shape.",
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(
+        _image_request("Create an image of a woman who can dance by a lotus lake")
+    )
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "product shape" not in prompt
+
+@pytest.mark.asyncio
+async def test_modal_can_with_holding_natural_prop_does_not_trigger_product_context() -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": "Preserve exact product shape.",
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(
+        _image_request("Create an image of a woman holding lotus flowers who can dance")
+    )
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "product shape" not in prompt
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "goal",
+    (
+        "Create an image of a woman holding a Coke can splashing water",
+        "Create an image of a woman holding a Coke can label visible",
+    ),
+)
+async def test_described_packaged_can_keeps_product_fidelity_constraints(goal: str) -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Preserve exact product shape and packaging hierarchy. "
+                            "Keep visible labels exact."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(_image_request(goal))
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "product shape" in prompt
+    assert "packaging" in prompt
+    assert "visible labels" in prompt
+
+
+@pytest.mark.asyncio
+async def test_non_person_reference_revision_filters_stale_product_dna() -> None:
+    class ProductConstraintComposer(PoisonVisualDNAComposer):
+        async def compose(self, spec: Any) -> VisualForgeCompiledPrompt:
+            compiled = await super().compose(spec)
+            return compiled.model_copy(
+                update={
+                    "sections": {
+                        **compiled.sections,
+                        "constraints_negative_details": (
+                            "Preserve exact product shape and packaging hierarchy. "
+                            "Keep the product as the clearest focal point. "
+                            "Preserve promotional discounts and badge claims."
+                        ),
+                    }
+                }
+            )
+
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=ProductConstraintComposer(),
+        image_generator=generator,
+    )
+    await executor.execute(
+        _image_request(
+            "Tạo ảnh chỉnh sửa từ ảnh tham chiếu. Yêu cầu hiện tại: Đổi bầu trời sang hoàng hôn",
+            reference_image="media://inbound/22222222-2222-4222-8222-222222222222.jpg",
+        )
+    )
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "use the provided reference image as the source of truth" in prompt
+    assert "packaging hierarchy" not in prompt
+    assert "clearest focal point" not in prompt
+    assert "promotional discounts" not in prompt
+    assert "badge claims" not in prompt
