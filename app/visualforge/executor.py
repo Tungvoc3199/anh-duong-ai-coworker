@@ -59,6 +59,12 @@ class VisualForgeRoutingExecutor:
         try:
             spec = self.parser.parse(request.goal)
             compiled = await self.client.compose(spec)
+            if capability.capability is CapabilityKind.VISUAL_IMAGE_GENERATE:
+                compiled = self._request_scoped_image_prompt(
+                    spec,
+                    compiled=compiled,
+                    has_reference_image=request.reference_image is not None,
+                )
         except (VisualPromptParseError, VisualForgeRuntimeError) as error:
             raise OpenClawTransportError(
                 error.code,
@@ -121,18 +127,62 @@ class VisualForgeRoutingExecutor:
         )
 
     @staticmethod
+    def _request_scoped_image_prompt(
+        spec: VisualPromptSpec,
+        *,
+        compiled: VisualForgeCompiledPrompt,
+        has_reference_image: bool,
+    ) -> VisualForgeCompiledPrompt:
+        lines = [
+            spec.brief.strip(),
+            (
+                "Treat this request as self-contained. Use only the current request as "
+                "the visual instruction; do not import subjects, brands, props, copy, "
+                "color palettes, motifs, or templates from unrelated prompts or VisualDNA."
+            ),
+        ]
+        if has_reference_image:
+            lines.append(
+                "Use the provided reference image as the source of truth. Preserve subject "
+                "identity, composition, background, camera framing, lighting, object count, "
+                "and every unmentioned attribute. Change only what the current request "
+                "explicitly asks to change."
+            )
+        else:
+            lines.append(
+                "If the current request does not explicitly specify a style, use a neutral, "
+                "natural visual treatment and do not add an unrelated house style."
+            )
+        compiler_constraints = compiled.sections.get("constraints_negative_details", "")
+        if compiler_constraints.strip():
+            lines.append(f"Compiler constraints: {compiler_constraints.strip()}")
+        if spec.required_text:
+            lines.append(f"Visible text must be exactly: {spec.required_text}")
+        if spec.aspect_ratio:
+            lines.append(f"Aspect ratio: {spec.aspect_ratio}")
+        prompt = "\n".join(lines)
+        return VisualForgeCompiledPrompt(
+            prompt=prompt,
+            adapter=compiled.adapter,
+            required_text=spec.required_text,
+            provenance_notes=compiled.provenance_notes,
+            sections={
+                "task_subject": spec.brief.strip(),
+                "composition_mode": "request_scoped_neutral",
+                "reference_policy": (
+                    "preserve_unmentioned" if has_reference_image else "none"
+                ),
+            },
+        )
+
+    @staticmethod
     def _image_result(
         request: OpenClawExecutionRequest,
         spec: VisualPromptSpec,
         compiled: VisualForgeCompiledPrompt,
         artifact: OpenClawImageArtifact,
     ) -> OpenClawExecutionResult:
-        summary = (
-            "Ảnh đã tạo xong bằng VisualForge + "
-            f"{artifact.model}. Một ảnh PNG đã được xác minh và sẵn sàng gửi Telegram."
-        )
-        if spec.required_text:
-            summary += f" Exact text: {spec.required_text}"
+        summary = "Ảnh đã tạo xong."
         return OpenClawExecutionResult(
             outcome="completed",
             summary=summary[:3800],

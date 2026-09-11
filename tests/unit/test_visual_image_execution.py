@@ -461,13 +461,13 @@ async def test_visual_image_executor_compiles_then_generates_once(tmp_path: Path
 
     assert delegate.requests == []
     assert len(composer.specs) == 1
-    assert image_generator.calls == [
-        {
-            "prompt": "COMPILED IMAGE PROMPT WITH SAFE AREA",
-            "run_id": "run_img_exec",
-            "aspect_ratio": "9:16",
-        }
-    ]
+    assert len(image_generator.calls) == 1
+    generated = image_generator.calls[0]
+    assert "Tạo ảnh TikTok serum 9:16" in generated["prompt"]
+    for stale in ("Chupa", "lollipop", "billboard", "neon Mumbai"):
+        assert stale not in generated["prompt"]
+    assert generated["run_id"] == "run_img_exec"
+    assert generated["aspect_ratio"] == "9:16"
     assert result.outcome == "completed"
     assert result.provider == "openai"
     assert result.model == "cx/gpt-5.5-image"
@@ -565,7 +565,7 @@ async def test_notifier_reuses_verified_media_and_idempotency_key() -> None:
     assert first["idempotencyKey"] == "notify:run_img_exec:completed"
     assert second["media"] == first["media"]
     assert second["idempotencyKey"] == first["idempotencyKey"]
-    assert "GPT-Image-2" in first["message"]
+    assert first["message"] == "Ảnh đã tạo xong."
 
 @pytest.mark.asyncio
 async def test_native_generator_remote_protocol_failure_is_uncertain(tmp_path: Path) -> None:

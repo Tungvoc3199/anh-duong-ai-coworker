@@ -10,7 +10,9 @@ from app.async_tasks.models import (
     AsyncTaskRun,
 )
 from app.audit import SecretRedactor
+from app.capabilities import CapabilityKind, CapabilityRouter
 from app.openclaw.models import OpenClawTransportError
+from app.routing import FastRouter
 
 TERMINAL_RUN_STATUSES = {
     AsyncRunStatus.COMPLETED,
@@ -81,7 +83,7 @@ class OpenClawNotifier:
             "action": "send",
             "channel": "telegram",
             "target": run.source_chat_id,
-            "message": self._message(run),
+            "message": self._message(run, image_media_present=media is not None),
             "idempotencyKey": idempotency_key,
         }
         if media is not None:
@@ -191,19 +193,29 @@ class OpenClawNotifier:
             )
         return media_path, "image/png"
 
-    def _message(self, run: AsyncTaskRun) -> str:
-        if (
-            run.status in {
+    def _message(
+        self,
+        run: AsyncTaskRun,
+        *,
+        image_media_present: bool = False,
+    ) -> str:
+        if self._is_image_task(run):
+            if run.status is AsyncRunStatus.COMPLETED:
+                if image_media_present:
+                    return "Ảnh đã tạo xong."
+                return (
+                    "Em chưa gửi được ảnh ở lượt này. "
+                    "Tác vụ đã kết thúc và không còn xử lý."
+                )
+            if run.status in {
                 AsyncRunStatus.FAILED,
                 AsyncRunStatus.BLOCKED,
                 AsyncRunStatus.CANCELLED,
-            }
-            and self._is_image_task(run)
-        ):
-            return (
-                "Em chưa tạo hoặc chỉnh sửa được ảnh ở lượt này. "
-                "Tác vụ đã kết thúc và không còn xử lý. Anh có thể thử lại."
-            )
+            }:
+                return (
+                    "Em chưa tạo hoặc chỉnh sửa được ảnh ở lượt này. "
+                    "Tác vụ đã kết thúc và không còn xử lý. Anh có thể thử lại."
+                )
 
         summary = ""
         artifacts: list[str] = []
@@ -241,21 +253,47 @@ class OpenClawNotifier:
 
     @staticmethod
     def _is_image_task(run: AsyncTaskRun) -> bool:
-        if not run.request_json:
-            return False
-        try:
-            request = json.loads(run.request_json)
-        except json.JSONDecodeError:
-            return False
-        if not isinstance(request, dict):
-            return False
+        result: dict[str, object] = {}
+        if run.result_json:
+            try:
+                parsed_result = json.loads(run.result_json)
+            except json.JSONDecodeError:
+                parsed_result = {}
+            if isinstance(parsed_result, dict):
+                result = parsed_result
+
+        if result.get("profile") == _IMAGE_PROFILE:
+            return True
+        artifacts = result.get("artifacts")
+        if isinstance(artifacts, dict) and isinstance(artifacts.get("image"), dict):
+            return True
+
+        request: dict[str, object] = {}
+        if run.request_json:
+            try:
+                parsed_request = json.loads(run.request_json)
+            except json.JSONDecodeError:
+                parsed_request = {}
+            if isinstance(parsed_request, dict):
+                request = parsed_request
+
+        if isinstance(request.get("reference_image"), str) and request["reference_image"]:
+            return True
+
         raw_constraints = request.get("constraints")
-        if not isinstance(raw_constraints, list):
+        if isinstance(raw_constraints, list):
+            constraints = {
+                item for item in raw_constraints if isinstance(item, str)
+            }
+            if _IMAGE_TASK_CONSTRAINTS.issubset(constraints):
+                return True
+
+        goal = request.get("goal") if isinstance(request.get("goal"), str) else run.goal
+        if not isinstance(goal, str) or not goal.strip():
             return False
-        constraints = {
-            item for item in raw_constraints if isinstance(item, str)
-        }
-        return _IMAGE_TASK_CONSTRAINTS.issubset(constraints)
+        route = FastRouter().route(goal)
+        capability = CapabilityRouter().route(route, goal)
+        return capability.capability is CapabilityKind.VISUAL_IMAGE_GENERATE
 
     def _http_error(
         self,
