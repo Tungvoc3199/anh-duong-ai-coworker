@@ -104,6 +104,8 @@ async def test_clean_text_to_image_prompt_does_not_import_unrequested_visual_dna
     for stale in ("chupa", "lollipop", "candy", "billboard", "fmcg", "mumbai"):
         assert stale not in prompt.casefold()
     assert result.artifacts["visual_prompt"] == prompt
+    assert result.artifacts["template"] == "request-scoped-image"
+    assert result.artifacts["provenance_notes"] == []
 
 
 @pytest.mark.asyncio
@@ -118,7 +120,7 @@ async def test_clean_image_revision_preserves_reference_without_unrelated_visual
     reference = "media://inbound/11111111-1111-4111-8111-111111111111.jpg"
     goal = "Tạo ảnh chỉnh sửa từ ảnh tham chiếu. Yêu cầu hiện tại: Đổi váy sang màu vàng"
 
-    await executor.execute(_image_request(goal, reference_image=reference))
+    result = await executor.execute(_image_request(goal, reference_image=reference))
 
     assert len(generator.calls) == 1
     call = generator.calls[0]
@@ -128,6 +130,8 @@ async def test_clean_image_revision_preserves_reference_without_unrelated_visual
     assert "preserve" in prompt.casefold() or "giữ nguyên" in prompt.casefold()
     for stale in ("chupa", "lollipop", "candy", "billboard", "fmcg", "mumbai"):
         assert stale not in prompt.casefold()
+    assert result.artifacts["template"] == "request-scoped-reference-revision"
+    assert result.artifacts["provenance_notes"] == []
 
 
 def _notification_run(

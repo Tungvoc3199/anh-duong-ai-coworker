@@ -354,7 +354,7 @@ class VisualForgeRoutingExecutor:
             prompt=prompt,
             adapter=compiled.adapter,
             required_text=spec.required_text,
-            provenance_notes=compiled.provenance_notes,
+            provenance_notes=(),
             sections={
                 "task_subject": spec.brief.strip(),
                 "composition_mode": "request_scoped_neutral",
@@ -378,7 +378,11 @@ class VisualForgeRoutingExecutor:
             artifacts={
                 "image": artifact.as_dict(),
                 "visual_prompt": compiled.prompt,
-                "template": spec.template,
+                "template": (
+                    "request-scoped-reference-revision"
+                    if request.reference_image is not None
+                    else "request-scoped-image"
+                ),
                 "adapter": compiled.adapter,
                 "required_text": compiled.required_text,
                 "aspect_ratio": spec.aspect_ratio,
