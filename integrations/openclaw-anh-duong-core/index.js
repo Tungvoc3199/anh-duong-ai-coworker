@@ -183,8 +183,8 @@ export function createPluginHandlers({
       if (run.notification_status === "sent") {
         try { await deleteWorkflowProgress({ chatId: progress.chatId, messageId }); safeLog(api?.logger, "info", { event: "anh_duong_core_workflow_progress_cleanup", outcome: "deleted", request_id: progress.requestId }); }
         catch { safeLog(api?.logger, "warn", { event: "anh_duong_core_workflow_progress_cleanup", outcome: "failure", request_id: progress.requestId }); }
+        return;
       }
-      return;
     }
   }
   async function messageSent(event, ctx) {
