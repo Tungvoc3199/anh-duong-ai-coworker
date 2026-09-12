@@ -478,12 +478,30 @@ export function createAnhDuongCoreHooks({
     return candidates.length === 1 ? candidates[0] : undefined;
   }
 
+  function approvalContinuationContext(text, ctx) {
+    const originalTurn = resolveOriginalTurn?.({
+      sessionKey: ctx?.sessionKey ?? ctx?.sessionId,
+      senderId: ctx?.senderId,
+      rawPrompt: text,
+    });
+    if (!originalTurn || originalTurn.ambiguous) return undefined;
+    return {
+      replyToId: originalTurn.replyToId,
+      replyToBody: originalTurn.replyToBody,
+    };
+  }
+
   async function beforePromptBuild(event, ctx) {
     sweep();
     if (isTelegram(ctx)) {
       const approvalText = event?.prompt ?? event?.cleanedBody;
       const approval = parseApprovalIntent(approvalText);
-      const continuation = !approval && parseApprovalContinuation(approvalText);
+      const continuation =
+        !approval &&
+        parseApprovalContinuation(
+          approvalText,
+          approvalContinuationContext(approvalText, ctx),
+        );
       if (approval || continuation) {
         const approvalRunId = resolveTurnRunId(ctx, approvalText, now());
         const existingApproval = approvalRunId ? states.get(approvalRunId) : undefined;
@@ -739,7 +757,11 @@ export function createAnhDuongCoreHooks({
     const isApprovalReply =
       isTelegram(ctx) &&
       !explicitlyDisabled &&
-      (Boolean(parseApprovalIntent(replyPrompt)) || parseApprovalContinuation(replyPrompt));
+      (Boolean(parseApprovalIntent(replyPrompt)) ||
+        parseApprovalContinuation(
+          replyPrompt,
+          approvalContinuationContext(replyPrompt, ctx),
+        ));
     if (isApprovalReply) {
       const approvalResult = await beforePromptBuild(
         { prompt: replyPrompt, messages: [] },

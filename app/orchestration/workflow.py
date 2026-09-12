@@ -19,6 +19,8 @@ from app.safety_intent import (
     has_unsafe_operational_guidance_followup,
     is_read_only_core_status_intent,
     is_read_only_status_intent,
+    negated_effect_scopes,
+    normalize_semantic_text,
 )
 
 _OPERATIONAL_GUIDANCE_MARKERS = (
@@ -37,6 +39,66 @@ _OPERATIONAL_GUIDANCE_MARKERS = (
     "where is",
     "which command",
     "what command",
+)
+
+_FORBIDDEN_EFFECT_MARKERS = (
+    "auth bypass",
+    "bypass auth",
+    "disable audit",
+    "tắt audit",
+    "self-approve",
+    "self approve",
+    "tự phê duyệt",
+    "exfiltrate secret",
+    "lộ secret",
+    "leak secret",
+    "privilege escalation",
+    "leo quyền",
+)
+
+_APPROVAL_EFFECT_MARKERS: tuple[tuple[str, str, RiskLevel], ...] = (
+    ("alter_database_schema", "migration", RiskLevel.SENSITIVE),
+    ("alter_database_schema", "migrate", RiskLevel.SENSITIVE),
+    ("alter_database_schema", "schema", RiskLevel.SENSITIVE),
+    ("alter_database_schema", "db schema", RiskLevel.SENSITIVE),
+    ("alter_database_schema", "database schema", RiskLevel.SENSITIVE),
+    ("restart_service", "restart", RiskLevel.SENSITIVE),
+    ("restart_service", "khởi động lại", RiskLevel.SENSITIVE),
+    ("restart_service", "container restart", RiskLevel.SENSITIVE),
+    ("modify_runtime_config", "runtime config", RiskLevel.SENSITIVE),
+    ("modify_runtime_config", "security change", RiskLevel.SENSITIVE),
+    ("modify_runtime_config", "change provider", RiskLevel.SENSITIVE),
+    ("modify_runtime_config", "change model", RiskLevel.SENSITIVE),
+    ("modify_runtime_config", "change router", RiskLevel.SENSITIVE),
+    ("modify_runtime_config", "đổi provider", RiskLevel.SENSITIVE),
+    ("modify_runtime_config", "đổi model", RiskLevel.SENSITIVE),
+    ("modify_runtime_config", "đổi router", RiskLevel.SENSITIVE),
+    ("install_package", "install package", RiskLevel.SENSITIVE),
+    ("install_package", "cài package", RiskLevel.SENSITIVE),
+    ("commit_git", "git commit", RiskLevel.SENSITIVE),
+    ("commit_git", "commit", RiskLevel.SENSITIVE),
+    ("push_git", "git push", RiskLevel.HIGH_RISK),
+    ("push_git", "push", RiskLevel.HIGH_RISK),
+    ("merge_git", "git merge", RiskLevel.HIGH_RISK),
+    ("merge_git", "merge", RiskLevel.HIGH_RISK),
+    ("deploy", "deploy", RiskLevel.HIGH_RISK),
+    ("publish", "publish", RiskLevel.HIGH_RISK),
+    ("publish", "đăng", RiskLevel.HIGH_RISK),
+    ("send_external_data", "send externally", RiskLevel.HIGH_RISK),
+    ("send_external_data", "gửi ra ngoài", RiskLevel.HIGH_RISK),
+    ("send_email", "send email", RiskLevel.HIGH_RISK),
+    ("incur_cost", "pay", RiskLevel.HIGH_RISK),
+    ("incur_cost", "mua", RiskLevel.HIGH_RISK),
+    ("incur_cost", "cost", RiskLevel.HIGH_RISK),
+    ("change_permissions", "sudo", RiskLevel.HIGH_RISK),
+    ("change_permissions", "as root", RiskLevel.HIGH_RISK),
+    ("change_permissions", "run as root", RiskLevel.HIGH_RISK),
+    ("change_permissions", "change permission", RiskLevel.HIGH_RISK),
+    ("change_permissions", "change permissions", RiskLevel.HIGH_RISK),
+    ("change_permissions", "chmod", RiskLevel.HIGH_RISK),
+    ("delete_data", "delete", RiskLevel.HIGH_RISK),
+    ("delete_data", "rm -rf", RiskLevel.HIGH_RISK),
+    ("delete_data", "xóa", RiskLevel.HIGH_RISK),
 )
 
 
@@ -103,10 +165,10 @@ class WorkflowResolver:
         owner_authorized = (
             self._owner_authorizes(request)
             and (
-                decision.kind in {DecisionKind.ALLOW, DecisionKind.REQUIRE_APPROVAL}
+                decision.kind is DecisionKind.ALLOW
                 or (decision.kind is DecisionKind.ESCALATE and decision.rule_id == "action.unknown")
             )
-            and decision.effective_risk_level < RiskLevel.FORBIDDEN
+            and decision.effective_risk_level < RiskLevel.SENSITIVE
         )
         if owner_authorized:
             decision = PolicyDecision(
@@ -263,9 +325,92 @@ class WorkflowResolver:
                 )
             )
             return "view_status", RiskLevel.READ_ONLY, constraints
+
+        forbidden_action = WorkflowResolver._forbidden_action(
+            text, safety.normalized_text
+        )
+        if forbidden_action is not None:
+            return forbidden_action, RiskLevel.FORBIDDEN, ()
+
+        approval_action = WorkflowResolver._approval_action(
+            text, folded, safety.normalized_text
+        )
+        if approval_action is not None:
+            return approval_action
         if capability is CapabilityKind.PLANNING:
             return "create_plan", RiskLevel.SAFE_WRITE, ()
         return f"workflow_{capability.value}", None, ()
+
+    @staticmethod
+    def _forbidden_action(raw_text: str, normalized: str) -> str | None:
+        negated_scopes = negated_effect_scopes(raw_text)
+        padded_normalized = f" {normalized} "
+        for marker in _FORBIDDEN_EFFECT_MARKERS:
+            normalized_marker = normalize_semantic_text(marker)
+            if f" {normalized_marker} " not in padded_normalized:
+                continue
+            if any(
+                f" {normalized_marker} " in f" {scope} "
+                for scope in negated_scopes
+            ):
+                continue
+            return "bypass_auth"
+        return None
+
+    @staticmethod
+    def _approval_action(
+        raw_text: str, folded: str, normalized: str
+    ) -> tuple[str, RiskLevel, tuple[str, ...]] | None:
+        negated_scopes = negated_effect_scopes(raw_text)
+
+        def pattern_is_negated(pattern: str) -> bool:
+            return any(re.search(pattern, scope) for scope in negated_scopes)
+
+        permission_pattern = r"\b(?:doi|thay) quyen\b|\bchange permissions?\b"
+        if re.search(permission_pattern, normalized) and not pattern_is_negated(permission_pattern):
+            return "change_permissions", RiskLevel.HIGH_RISK, ()
+
+        password_pattern = (
+            r"\b(?:can|nhap|yeu cau) mat khau\b|"
+            r"\bpassword (?:required|needed)\b|"
+            r"\bneeds? password\b"
+        )
+        if re.search(password_pattern, normalized) and not pattern_is_negated(password_pattern):
+            return "change_permissions", RiskLevel.HIGH_RISK, ()
+
+        external_send_pattern = (
+            r"\bgui\b.{0,80}\bra ngoai\b|"
+            r"\bsend\b.{0,80}\b(?:outside|externally)\b"
+        )
+        external_send_negated = pattern_is_negated(external_send_pattern) or any(
+            (
+                scope.startswith((
+                    "khong gui",
+                    "khong duoc gui",
+                    "khong can gui",
+                    "khong nen gui",
+                ))
+                and (" ra " in f" {scope} " or scope.endswith(" ra"))
+            )
+            for scope in negated_scopes
+        )
+        if re.search(external_send_pattern, normalized) and not external_send_negated:
+            return "send_external_data", RiskLevel.HIGH_RISK, ()
+
+        padded_normalized = f" {normalized} "
+        for action, marker, risk_level in _APPROVAL_EFFECT_MARKERS:
+            if action == "send_external_data" and external_send_negated:
+                continue
+            normalized_marker = normalize_semantic_text(marker)
+            if f" {normalized_marker} " not in padded_normalized:
+                continue
+            if any(
+                f" {normalized_marker} " in f" {scope} "
+                for scope in negated_scopes
+            ):
+                continue
+            return action, risk_level, ()
+        return None
 
     @staticmethod
     def _idempotency_key(request: CoreRequest) -> str | None:

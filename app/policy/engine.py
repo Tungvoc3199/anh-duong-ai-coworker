@@ -28,6 +28,7 @@ ACTION_RISK_CATALOG: dict[str, RiskLevel] = {
     "create_draft": RiskLevel.SAFE_WRITE,
     "run_tests": RiskLevel.SAFE_WRITE,
     "create_local_branch": RiskLevel.SAFE_WRITE,
+    "commit_git": RiskLevel.SENSITIVE,
     "restart_service": RiskLevel.SENSITIVE,
     "modify_runtime_config": RiskLevel.SENSITIVE,
     "install_package": RiskLevel.SENSITIVE,

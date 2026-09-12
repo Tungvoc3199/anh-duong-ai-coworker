@@ -274,10 +274,10 @@ def test_workflow_context_uses_effective_policy_for_approval_task() -> None:
     assert prepared.workflow.approval_required is True
     context = prepared.context.rendered_context
     assert "Runtime Policy:" in context
-    assert "- effective_risk_level: 0" in context
+    assert "- effective_risk_level: 3" in context
     assert "- approval_required: true" in context
-    assert "- policy_rule_id: action.unknown" in context
-    assert "- policy_decision: escalate" in context
+    assert "- policy_rule_id: risk.high.require_explicit_approval" in context
+    assert "- policy_decision: require_approval" in context
 
 
 @pytest.mark.parametrize(

@@ -331,6 +331,7 @@ export function parseApprovalIntent(text) {
 const APPROVAL_CONTINUATION_PHRASES = new Set([
   "duyet nhe",
   "duyet di",
+  "lam di",
   "dong y",
   "ok duyet",
   "okay duyet",
@@ -350,9 +351,25 @@ function normalizeApprovalContinuation(text) {
     .replace(/\s+/g, " ");
 }
 
-export function parseApprovalContinuation(text) {
+function isReplyToApprovalQuestion(context) {
+  const replyToId = context?.replyToId;
+  const hasReplyId =
+    (typeof replyToId === "string" && replyToId.trim().length > 0) ||
+    (typeof replyToId === "number" && Number.isFinite(replyToId));
+  if (!hasReplyId || typeof context?.replyToBody !== "string") return false;
+  const replyBody = normalizeApprovalContinuation(context.replyToBody);
+  return (
+    replyBody.includes("anh xac nhan cho em duoc duyet buoc nay chu?") &&
+    replyBody.includes("hanh dong:") &&
+    replyBody.includes("anh huong:")
+  );
+}
+
+export function parseApprovalContinuation(text, context) {
   if (typeof text !== "string") return false;
-  return APPROVAL_CONTINUATION_PHRASES.has(normalizeApprovalContinuation(text));
+  const normalized = normalizeApprovalContinuation(text);
+  if (APPROVAL_CONTINUATION_PHRASES.has(normalized)) return true;
+  return normalized === "ok" && isReplyToApprovalQuestion(context);
 }
 
 export async function resolveApproval({ config, approvalId, payload, fetchImpl = fetch }) {

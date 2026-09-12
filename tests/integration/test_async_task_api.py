@@ -298,6 +298,44 @@ def test_resolve_latest_approval_is_scoped_and_resumes_same_run(
     assert replay.status_code == 409
 
 
+def test_non_owner_cannot_resolve_latest_telegram_approval(
+    engine: Engine,
+    tmp_path: Path,
+) -> None:
+    app = create_app(
+        settings=_settings(tmp_path).model_copy(update={"owner_telegram_id": "123456789"}),
+        engine=engine,
+    )
+    payload = _payload(tmp_path)
+    payload.update({
+        "goal": "Publish the image to Facebook",
+        "risk_level": 2,
+        "approval_required": True,
+        "workspace": str(tmp_path),
+        "source_channel": "telegram",
+        "source_chat_id": "chat-owner",
+        "source_session_id": "session-owner",
+        "source_message_id": "message-owner",
+        "idempotency_key": "telegram:message-owner",
+    })
+    with TestClient(app) as client:
+        created = client.post("/api/async-tasks", headers=_headers(), json=payload)
+        response = client.post(
+            "/api/async-tasks/approvals/resolve-latest",
+            headers=_headers(),
+            json={
+                "source_chat_id": "chat-owner",
+                "source_session_id": "session-owner",
+                "resolved_by": "987654321",
+                "approved": True,
+            },
+        )
+
+    assert created.status_code == 202
+    assert response.status_code == 409
+    assert "owner" in response.json()["detail"].lower()
+
+
 def test_telegram_replay_with_changed_reference_returns_409(
     engine: Engine, tmp_path: Path,
 ) -> None:

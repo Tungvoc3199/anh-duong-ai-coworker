@@ -48,10 +48,12 @@ class AsyncTaskService:
         task_service: TaskService,
         repository: AsyncTaskRepository,
         policy_gate: AsyncTaskPolicyGate,
+        owner_telegram_id: str | None = None,
     ) -> None:
         self.task_service = task_service
         self.repository = repository
         self.policy_gate = policy_gate
+        self.owner_telegram_id = owner_telegram_id
 
     def resolve_approval(
         self,
@@ -66,6 +68,11 @@ class AsyncTaskService:
         if approval is None:
             raise ValueError("Approval not found.")
         current_run = self.repository.get(approval.workflow_id)
+        self._require_owner_approval_actor(
+            current_run.request_json,
+            resolved_by=resolved_by,
+            approved=approved,
+        )
         if approved and current_run.status not in {
             AsyncRunStatus.PENDING,
             AsyncRunStatus.BLOCKED,
@@ -119,6 +126,26 @@ class AsyncTaskService:
             action=approval.action,
         )
         return self.repository.get(approval.workflow_id)
+
+    def _require_owner_approval_actor(
+        self,
+        request_json: str,
+        *,
+        resolved_by: str,
+        approved: bool,
+    ) -> None:
+        owner = self.owner_telegram_id
+        if not approved or owner is None:
+            return
+        try:
+            source_channel = json.loads(request_json).get("source_channel")
+        except (TypeError, ValueError):
+            source_channel = None
+        if source_channel != "telegram":
+            return
+        allowed = {owner, f"telegram:{owner}"}
+        if resolved_by not in allowed:
+            raise ValueError("Only the configured Telegram owner can approve this action.")
 
     def create(
         self,

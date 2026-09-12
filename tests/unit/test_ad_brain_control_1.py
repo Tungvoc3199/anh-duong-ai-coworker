@@ -61,8 +61,8 @@ def test_operational_guidance_with_positive_mutation_never_becomes_readonly_view
         CapabilityKind.SYSTEM_OPERATION,
     )
 
-    assert action == "workflow_system_operation"
-    assert risk is None
+    assert action == "deploy"
+    assert risk is RiskLevel.HIGH_RISK
 
 
 def test_operational_guidance_unknown_followup_action_never_becomes_readonly() -> None:

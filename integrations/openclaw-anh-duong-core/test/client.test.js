@@ -435,12 +435,26 @@ test("parseApprovalIntent returns undefined for non-approve or malformed text", 
 });
 
 test("parseApprovalContinuation accepts bounded natural Telegram approvals", () => {
-  for (const phrase of ["Duyệt nhé", "duyệt đi", "Đồng ý", "OK duyệt"]) {
+  for (const phrase of ["Duyệt nhé", "duyệt đi", "Đồng ý", "OK duyệt", "làm đi"]) {
     assert.equal(parseApprovalContinuation(phrase), true, phrase);
   }
   for (const phrase of ["Tạo ảnh", "ok", "Duyệt việc tạo ảnh để đăng Facebook"]) {
     assert.equal(parseApprovalContinuation(phrase), false, phrase);
   }
+});
+
+test("bare ok requires a reply to the bot approval question", () => {
+  const approvalReply = {
+    replyToId: "5851",
+    replyToBody:
+      "Anh xác nhận cho em được duyệt bước này chứ? Hành động: restart OpenClaw. Ảnh hưởng: bot sẽ gián đoạn vài giây.",
+  };
+  assert.equal(parseApprovalContinuation("ok"), false);
+  assert.equal(parseApprovalContinuation("ok", approvalReply), true);
+  assert.equal(
+    parseApprovalContinuation("ok", { replyToId: "5850", replyToBody: "Ảnh đã tạo xong." }),
+    false,
+  );
 });
 
 test("resolveLatestApproval uses the Telegram-scoped continuation endpoint", async () => {

@@ -753,6 +753,11 @@ def _negated_scopes(text: str) -> list[str]:
     return scopes
 
 
+def negated_effect_scopes(text: str) -> tuple[str, ...]:
+    """Return clause-aware scopes explicitly negated by the user."""
+    return tuple(_negated_scopes(text))
+
+
 def _strip_clause_prefixes(normalized_clause: str) -> str:
     tokens = normalized_clause.split()
     while tokens and tokens[0] in {"please", "imperative", "chi", "only"}:

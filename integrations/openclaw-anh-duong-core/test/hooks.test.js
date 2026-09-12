@@ -1021,6 +1021,38 @@ test("natural Telegram approval resolves the latest scoped approval exactly once
   assert.equal(calls.length, 1);
 });
 
+test("bare ok resumes approval only when replying to the approval question", async () => {
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push({ url, init });
+    assert.equal(url, "http://core.local:8790/api/async-tasks/approvals/resolve-latest");
+    return new Response(JSON.stringify({ id: "run-blocked", status: "pending" }), { status: 200 });
+  };
+  const handlers = createPluginHandlers({ env: ENV, fetchImpl });
+  const ctx = telegramContext("approval-contextual-ok");
+  handlers.messageReceived(
+    {
+      content: "ok",
+      sessionKey: ctx.sessionKey,
+      senderId: ctx.senderId,
+      replyToId: "5851",
+      replyToBody:
+        "Anh xác nhận cho em được duyệt bước này chứ? Hành động: restart OpenClaw. Ảnh hưởng: bot sẽ gián đoạn vài giây.",
+      metadata: { provider: "telegram", originatingChannel: "telegram" },
+    },
+    { channelId: "telegram", sessionKey: ctx.sessionKey, senderId: ctx.senderId, replyToId: "5851" },
+  );
+
+  const result = await handlers.beforeAgentReply({ cleanedBody: "ok" }, ctx);
+
+  assert.deepEqual(result, {
+    handled: true,
+    reply: { text: "Em đã nhận duyệt và tiếp tục đúng tác vụ đang chờ." },
+    reason: "anh_duong_approval_resumed",
+  });
+  assert.equal(calls.length, 1);
+});
+
 test("image Telegram follow-up reuses one prepared intent and submits it once", async () => {
   const calls = [];
   let submitted;

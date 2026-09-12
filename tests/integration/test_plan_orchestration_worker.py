@@ -574,6 +574,10 @@ async def test_approval_gate_waits_for_owner_without_calling_executor(
     assert executor.requests == []
     assert run.status is AsyncRunStatus.BLOCKED
     assert run.last_error_code == "approval_required"
+    assert run.last_error_message is not None
+    assert "Owner approval is required before this plan action" not in run.last_error_message
+    assert "duyệt" in run.last_error_message.casefold()
+    assert "ảnh hưởng" in run.last_error_message.casefold()
     assert task.status is TaskStatus.BLOCKED
     assert PlanNodeScheduler().state_for(plan, "approval") is PlanNodeState.PENDING
 

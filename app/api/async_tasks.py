@@ -133,6 +133,7 @@ def create_async_task(
                 audit_writer=_audit(request),
             ),
             policy_gate=_policy(request),
+            owner_telegram_id=request.app.state.settings.owner_telegram_id,
         )
         try:
             accepted = service.create(payload)
@@ -157,6 +158,7 @@ def resolve_async_approval(
             task_service=TaskService(TaskRepository(session), _audit(request)),
             repository=AsyncTaskRepository(session, audit_writer=_audit(request)),
             policy_gate=_policy(request),
+            owner_telegram_id=request.app.state.settings.owner_telegram_id,
         )
         try:
             service.resolve_approval(
@@ -188,6 +190,7 @@ def resolve_latest_async_approval(
             task_service=TaskService(TaskRepository(session), _audit(request)),
             repository=repository,
             policy_gate=_policy(request),
+            owner_telegram_id=request.app.state.settings.owner_telegram_id,
         )
         try:
             run = service.resolve_latest_approval(

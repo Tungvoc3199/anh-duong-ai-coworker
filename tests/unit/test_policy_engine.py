@@ -156,3 +156,12 @@ def test_forbidden_flag_on_unknown_action_is_denied(
 
     assert decision.kind is DecisionKind.DENY
     assert decision.rule_id == "risk.forbidden.deny"
+
+
+def test_commit_git_requires_single_action_approval(tmp_path: Path) -> None:
+    decision = _engine(tmp_path).evaluate(PolicyAction(name="commit_git"))
+
+    assert decision.kind is DecisionKind.REQUIRE_APPROVAL
+    assert decision.effective_risk_level is RiskLevel.SENSITIVE
+    assert decision.rule_id == "risk.sensitive.require_approval"
+    assert decision.approval_scope is ApprovalScope.SINGLE_ACTION

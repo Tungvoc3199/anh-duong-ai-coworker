@@ -771,7 +771,12 @@ class AsyncTaskWorker:
                 run_id,
                 task_id,
                 error_code="approval_required",
-                reason="Matching owner approval is required before this plan action.",
+                reason=(
+                    "Anh xác nhận cho em được duyệt bước này chứ? "
+                    f"Hành động: {request.goal}. "
+                    "Ảnh hưởng: tác vụ sẽ tiếp tục đúng bước đang chờ; "
+                    "nếu không duyệt thì em sẽ giữ trạng thái dừng."
+                ),
             )
             return "terminal"
         if approval.status == "approved":
@@ -790,7 +795,12 @@ class AsyncTaskWorker:
             reason = "Owner approval was denied."
         else:
             code = "approval_required"
-            reason = "Owner approval is required before this plan action."
+            reason = (
+                "Anh xác nhận cho em được duyệt bước này chứ? "
+                f"Hành động: {request.goal}. "
+                "Ảnh hưởng: tác vụ sẽ tiếp tục đúng bước đang chờ; "
+                "nếu không duyệt thì em sẽ giữ trạng thái dừng."
+            )
         self._block_planned_run(run_id, task_id, error_code=code, reason=reason)
         return "terminal"
 

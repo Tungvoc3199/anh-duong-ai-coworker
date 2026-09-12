@@ -108,8 +108,18 @@ export function createPluginHandlers({
       : (Array.isArray(metadata.mediaTypes) && metadata.mediaTypes.length
           ? metadata.mediaTypes
           : metadata.mediaType ? [metadata.mediaType] : []);
+    const replyToId = event?.replyToId ?? ctx?.replyToId ?? metadata.replyToId;
+    const replyToBody = event?.replyToBody ?? metadata.replyToBody;
     const queue = originalTurns.get(key) ?? [];
-    queue.push({ text, mediaPaths, mediaTypes, receivedAt: Date.now(), expiresAt: Date.now() + ORIGINAL_TURN_TTL_MS });
+    queue.push({
+      text,
+      mediaPaths,
+      mediaTypes,
+      replyToId,
+      replyToBody,
+      receivedAt: Date.now(),
+      expiresAt: Date.now() + ORIGINAL_TURN_TTL_MS,
+    });
     originalTurns.set(key, queue.slice(-8));
   }
   function resolveOriginalTurn({ sessionKey, senderId, rawPrompt }) {
