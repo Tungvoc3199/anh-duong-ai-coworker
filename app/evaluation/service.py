@@ -192,17 +192,17 @@ class EvaluationTelemetryService:
             latest_workflow_by_task.setdefault(row.task_id, row)
         approvals_by_task: dict[str, list[ApprovalRow]] = {task_id: [] for task_id in task_ids}
         if task_ids:
-            for row in self.session.scalars(
+            for approval_row in self.session.scalars(
                 select(ApprovalRow).where(ApprovalRow.task_id.in_(task_ids))
             ):
-                approvals_by_task.setdefault(row.task_id, []).append(row)
+                approvals_by_task.setdefault(approval_row.task_id, []).append(approval_row)
         goals: list[GoalTelemetry] = []
         for run in runs:
             task = tasks.get(run.task_id)
             if task is None:
                 continue
             workflow = workflow_by_id.get(run.id) or latest_workflow_by_task.get(run.task_id)
-            metrics = self._goal_metrics(
+            goal_metrics = self._goal_metrics(
                 run,
                 task,
                 approvals_by_task.get(run.task_id, []),
@@ -210,7 +210,10 @@ class EvaluationTelemetryService:
             )
             goals.append(
                 GoalTelemetry(
-                    run_id=run.id, task_id=run.task_id, status=run.status, metrics=metrics
+                    run_id=run.id,
+                    task_id=run.task_id,
+                    status=run.status,
+                    metrics=goal_metrics,
                 )
             )
         completed = [goal for goal in goals if goal.status == "completed"]
@@ -287,11 +290,16 @@ class EvaluationTelemetryService:
                 reason="No durable retry or replan recovery opportunity exists.",
             )
 
-        elapsed = sorted(
-            float(goal.metrics["elapsed_seconds"].value)
-            for goal in completed
-            if goal.metrics["elapsed_seconds"].support is not MetricSupport.UNSUPPORTED
-        )
+        elapsed: list[float] = []
+        for goal in completed:
+            elapsed_datum = goal.metrics["elapsed_seconds"]
+            if (
+                elapsed_datum.support is MetricSupport.UNSUPPORTED
+                or elapsed_datum.value is None
+            ):
+                continue
+            elapsed.append(float(elapsed_datum.value))
+        elapsed.sort()
         if elapsed:
             index = max(0, math.ceil(0.95 * len(elapsed)) - 1)
             metrics["p95_completion_seconds"] = _derived(

@@ -74,8 +74,8 @@ class OutcomeJudge:
         checks: list[CriterionJudgement] = []
         saw_unmet = False
         for criterion in plan.definition_of_done.criteria:
-            item = by_criterion.get(self._normalize(criterion))
-            if item is None:
+            criterion_item = by_criterion.get(self._normalize(criterion))
+            if criterion_item is None:
                 checks.append(
                     CriterionJudgement(
                         criterion=criterion,
@@ -85,7 +85,9 @@ class OutcomeJudge:
                     )
                 )
                 continue
-            if item.status == "verified" and any(ref.strip() for ref in item.evidence_refs):
+            if criterion_item.status == "verified" and any(
+                ref.strip() for ref in criterion_item.evidence_refs
+            ):
                 checks.append(
                     CriterionJudgement(
                         criterion=criterion,
@@ -95,15 +97,18 @@ class OutcomeJudge:
                     )
                 )
                 continue
-            saw_unmet = saw_unmet or item.status == "unmet"
-            reason = item.explanation or (
+            saw_unmet = saw_unmet or criterion_item.status == "unmet"
+            reason = criterion_item.explanation or (
                 "Verified status lacked evidence references."
-                if item.status == "verified"
+                if criterion_item.status == "verified"
                 else "Criterion is not verified."
             )
             checks.append(
                 CriterionJudgement(
-                    criterion=criterion, satisfied=False, status=item.status, reason=reason
+                    criterion=criterion,
+                    satisfied=False,
+                    status=criterion_item.status,
+                    reason=reason,
                 )
             )
 

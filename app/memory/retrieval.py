@@ -11,6 +11,8 @@ _FTS_TOKEN_PATTERN = re.compile(r"[^\W_]+", flags=re.UNICODE)
 
 
 class MemorySearchRepository(Protocol):
+    def get(self, memory_id: str) -> Memory: ...
+
     def search_fts(
         self,
         query: str,

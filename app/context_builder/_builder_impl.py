@@ -233,7 +233,7 @@ class ContextBuilder:
             original_block_tokens = self._token_estimator.estimate(
                 self._render_memory_block(memory, original_body)
             )
-            best_body: str | None = None
+            best_budget_body: str | None = None
             low = 0
             high = max(len(original_body) - 1, 0)
             while low <= high:
@@ -242,12 +242,12 @@ class ContextBuilder:
                 memory_bodies[memory.memory.id] = candidate
                 _, _, candidate_tokens = assemble()
                 if candidate_tokens <= usable_tokens:
-                    best_body = candidate
+                    best_budget_body = candidate
                     low = midpoint + 1
                 else:
                     high = midpoint - 1
 
-            if best_body is None:
+            if best_budget_body is None:
                 memory_bodies.pop(memory.memory.id, None)
                 removed = memories.pop()
                 change = self._dropped_memory_change(removed, "memory_budget")
@@ -256,9 +256,9 @@ class ContextBuilder:
                     dropped_by_reason.get(change.reason, 0) + change.original_estimated_tokens
                 )
             else:
-                memory_bodies[memory.memory.id] = best_body
+                memory_bodies[memory.memory.id] = best_budget_body
                 final_block_tokens = self._token_estimator.estimate(
-                    self._render_memory_block(memory, best_body)
+                    self._render_memory_block(memory, best_budget_body)
                 )
                 truncated_items.append(
                     ContextItemChange(
@@ -606,8 +606,12 @@ class ContextBuilder:
             unique_memories.append(memory_result)
         memories = unique_memories
 
-        def dedupe_tuple(values, section, source_prefix):
-            kept = []
+        def dedupe_tuple(
+            values: Sequence[str],
+            section: ContextSectionKind,
+            source_prefix: str,
+        ) -> tuple[str, ...]:
+            kept: list[str] = []
             for index, value in enumerate(values):
                 redacted = self._text(value)
                 if redacted in memory_bodies_seen:
@@ -621,7 +625,11 @@ class ContextBuilder:
                 kept.append(value)
             return tuple(kept)
 
-        def dedupe_optional(value, section, source_ref):
+        def dedupe_optional(
+            value: str | None,
+            section: ContextSectionKind,
+            source_ref: str,
+        ) -> str | None:
             if not value:
                 return value
             redacted = self._text(value)
@@ -633,7 +641,11 @@ class ContextBuilder:
             memory_bodies_seen[redacted] = source_ref
             return value
 
-        def dedupe_history(values, section, source_prefix):
+        def dedupe_history(
+            values: Sequence[tuple[int, str]],
+            section: ContextSectionKind,
+            source_prefix: str,
+        ) -> list[tuple[int, str]]:
             kept: list[tuple[int, str]] = []
             for index, value in values:
                 redacted = self._text(value)

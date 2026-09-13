@@ -317,14 +317,14 @@ class OpenClawImageGenerator:
                 deadline=deadline,
             )
 
-        media_path = metadata.get("media_path")
-        if not isinstance(media_path, str) or not media_path:
+        response_media_path = metadata.get("media_path")
+        if not isinstance(response_media_path, str) or not response_media_path:
             raise self._error(
                 "image_output_missing",
                 "Native image tool returned no managed image path.",
                 uncertain=True,
             )
-        host_path, media_path = self._map_response_path(media_path, run_id)
+        host_path, media_path = self._map_response_path(response_media_path, run_id)
         if not host_path.exists():
             existing = self._existing_artifact(run_id)
             if existing is not None:
