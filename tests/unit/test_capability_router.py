@@ -23,6 +23,7 @@ def test_capability_kind_contains_exact_v1_contract() -> None:
         "core_status_read",
         "planning",
         "visual_prompt_compose",
+        "visual_analysis",
         "visual_image_generate",
         "file_operation",
         "code_operation",

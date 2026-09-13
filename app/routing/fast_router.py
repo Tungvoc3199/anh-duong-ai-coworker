@@ -5,6 +5,7 @@ import unicodedata
 from collections.abc import Iterable
 
 from app.routing.models import FastRoute, RouteDecision
+from app.visual_interaction import VisualInteractionContract, VisualOperation
 
 _WORKFLOW_PHRASES = (
     "lap ke hoach",
@@ -240,7 +241,11 @@ _SIMPLE_ARITHMETIC_PATTERN = re.compile(
 class FastRouter:
     """Deterministic domain router with fail-closed workflow fallback."""
 
-    def route(self, request: str) -> RouteDecision:
+    def route(
+        self,
+        request: str,
+        visual_interaction: VisualInteractionContract | None = None,
+    ) -> RouteDecision:
         normalized = self._normalize(request)
         if not normalized:
             if _QUESTION_ONLY_PATTERN.fullmatch(request) is not None:
@@ -261,6 +266,46 @@ class FastRouter:
                 rule_id="routing.direct.follow_up",
                 reason="The message is a conversational follow-up without a new objective.",
             )
+
+        if visual_interaction is not None:
+            if visual_interaction.clarification_required:
+                return RouteDecision(
+                    route=FastRoute.DIRECT,
+                    rule_id="routing.direct.visual_clarification",
+                    reason="The visual operation needs a concrete image target before execution.",
+                )
+            if visual_interaction.operation in {
+                VisualOperation.ANALYZE,
+                VisualOperation.EXTRACT,
+                VisualOperation.VERIFY,
+                VisualOperation.COMPARE,
+                VisualOperation.SEARCH,
+                VisualOperation.DERIVE_CONTENT,
+            }:
+                return RouteDecision(
+                    route=FastRoute.DIRECT,
+                    rule_id="routing.direct.visual_analysis",
+                    reason=(
+                        "The visual operation is read-only and requires no "
+                        "image mutation workflow."
+                    ),
+                )
+            if visual_interaction.operation in {
+                VisualOperation.GENERATE,
+                VisualOperation.EDIT,
+                VisualOperation.TRANSFORM,
+                VisualOperation.ANNOTATE,
+                VisualOperation.FILE_ACTION,
+                VisualOperation.EXTERNAL_ACTION,
+            }:
+                return RouteDecision(
+                    route=FastRoute.WORKFLOW,
+                    rule_id="routing.workflow.visual_operation",
+                    reason=(
+                        "The visual operation requires workflow execution or "
+                        "an external side effect."
+                    ),
+                )
 
         if self._contains_any(normalized, _WORKFLOW_DIRECTIVE_PHRASES):
             return RouteDecision(

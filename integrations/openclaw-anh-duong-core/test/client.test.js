@@ -481,3 +481,66 @@ test("resolveLatestApproval uses the Telegram-scoped continuation endpoint", asy
   assert.equal(run.id, "run_same");
   assert.equal(run.status, "pending");
 });
+
+
+test("protected runtime overlay maps a recent referent without changing prompt text", () => {
+  const recentReferent = { kind: "url", value: "https://example.com/item" };
+  const request = buildCoreRequest({
+    prompt: "xem cái này giúp anh",
+    runId: "overlay-recent-referent",
+    senderId: "123456789",
+    recentReferent,
+  });
+  assert.equal(request.text, "xem cái này giúp anh");
+  assert.deepEqual(request.recent_referent, recentReferent);
+});
+
+test("protected runtime overlay accepts web_read prepared responses", () => {
+  const prepared = preparedFixture("tg-web-read");
+  prepared.route_decision = { route: "web_read", rule_id: "route-web-read", reason: "fixture" };
+  prepared.capability_decision = {
+    capability: "web_research_read",
+    source_route: "web_read",
+    reason_code: "capability.web_read",
+    matched_signals: [],
+  };
+  const validated = validatePreparedRequest(prepared, "tg-web-read");
+  assert.equal(validated.route_decision.route, "web_read");
+  assert.equal(validated.capability_decision.capability, "web_research_read");
+});
+
+
+test("visual request mapping keeps instruction and image provenance separate", () => {
+  const referenceImage = "media://inbound/source---11111111-1111-4111-8111-111111111111.jpg";
+  const request = buildCoreRequest({
+    prompt: "phân tích lỗi trong ảnh a gửi đi",
+    runId: "visual-current-upload",
+    senderId: "123456789",
+    imageSource: "current_upload",
+    referenceImage,
+  });
+  assert.equal(request.text, "phân tích lỗi trong ảnh a gửi đi");
+  assert.equal(request.image_source, "current_upload");
+  assert.equal(request.reference_image, referenceImage);
+});
+
+test("prepared visual_analysis response validates strict visual contract axes", () => {
+  const prepared = preparedFixture("visual-analysis-contract");
+  prepared.capability_decision.capability = "visual_analysis";
+  prepared.visual_interaction = {
+    raw_instruction: "phân tích lỗi trong ảnh a gửi đi",
+    operation: "analyze",
+    image_role: "evidence",
+    image_source: "replied_image",
+    output: "text",
+    constraints: ["no_generate"],
+    side_effect: "none",
+    reference_image: "media://inbound/source---11111111-1111-4111-8111-111111111111.jpg",
+    clarification_required: false,
+  };
+  assert.equal(validatePreparedRequest(prepared, "visual-analysis-contract").visual_interaction.operation, "analyze");
+
+  const malformed = structuredClone(prepared);
+  malformed.visual_interaction.operation = "regenerate";
+  assert.throws(() => validatePreparedRequest(malformed, "visual-analysis-contract"));
+});

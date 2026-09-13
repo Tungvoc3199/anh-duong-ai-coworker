@@ -32,6 +32,7 @@ from app.persona import PersonaSnapshot
 from app.projects import Project, ProjectNotFound, ProjectStatus
 from app.routing import FastRoute, FastRouter
 from app.tasks import Task, TaskNotFound, TaskStatus
+from app.visual_interaction import build_visual_interaction_contract
 
 
 class ProjectReader(Protocol):
@@ -94,10 +95,19 @@ class CoreRequestPipeline:
 
     def prepare(self, request: CoreRequest) -> PreparedRequest:
         persona = self._persona_loader()
-        route_decision = self._fast_router.route(request.text)
+        visual_interaction = build_visual_interaction_contract(
+            request.text,
+            image_source=request.image_source,
+            reference_image=request.reference_image,
+        )
+        route_decision = self._fast_router.route(
+            request.text,
+            visual_interaction=visual_interaction,
+        )
         capability_decision = self._capability_router.route(
             route_decision,
             request.text,
+            visual_interaction=visual_interaction,
         )
 
         task = self._load_task(request.task_id)
@@ -165,6 +175,7 @@ class CoreRequestPipeline:
             ),
             route_decision=route_decision,
             capability_decision=capability_decision,
+            visual_interaction=visual_interaction,
             context=context,
             project_id=project.id if project is not None else request.project_id,
             task_id=request.task_id,

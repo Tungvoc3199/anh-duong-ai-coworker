@@ -34,6 +34,7 @@ from app.projects import (
 )
 from app.routing import FastRoute, FastRouter
 from app.tasks import Task, TaskNotFound, TaskPriority, TaskStatus
+from app.visual_interaction import VisualImageSource, VisualOperation
 
 NOW = datetime(2026, 8, 1, 3, 0, tzinfo=UTC)
 
@@ -1267,3 +1268,23 @@ def test_real_telegram_image_goal_does_not_require_approval() -> None:
     for item in ("one_image_max", "subscription_quota_only", "no_paid_fallback",
                  "retry_delivery_without_regeneration"):
         assert item in prepared.workflow.constraints
+
+
+def test_visual_analysis_pipeline_builds_and_exposes_current_turn_contract() -> None:
+    reference = "media://inbound/visual---11111111-1111-4111-8111-111111111111.jpg"
+    prepared = _pipeline().prepare(
+        CoreRequest(
+            text="phân tích lỗi trong ảnh, k tạo lại ảnh",
+            image_source=VisualImageSource.REPLIED_IMAGE,
+            reference_image=reference,
+        )
+    )
+
+    assert prepared.visual_interaction is not None
+    assert prepared.visual_interaction.operation is VisualOperation.ANALYZE
+    assert prepared.visual_interaction.image_source is VisualImageSource.REPLIED_IMAGE
+    assert prepared.visual_interaction.reference_image == reference
+    assert prepared.route_decision.route is FastRoute.DIRECT
+    assert prepared.capability_decision.capability is CapabilityKind.VISUAL_ANALYSIS
+    assert prepared.execution_required is False
+    assert prepared.workflow is None

@@ -26,11 +26,22 @@ export const APPROVAL_ACKNOWLEDGMENT =
 
 function appendCapabilityPolicy(prepared, preparedContext) {
   const route = prepared?.route_decision?.route;
+  const capability = prepared?.capability_decision?.capability;
+  if (capability === "visual_analysis") {
+    const operation = prepared?.visual_interaction?.operation;
+    if (operation === "search") {
+      return `${preparedContext}\ntool_policy: visual_search_read_only\nallowed_tools: web_search, web_fetch\nevidence_policy: Use only public read-only web evidence. Do not create or edit images, write files, send messages, publish, or mutate runtime state.`;
+    }
+    return `${preparedContext}\ntool_policy: no_tools\nevidence_policy: Analyze only the visual evidence described by Core. Do not call tools, create or edit images, send photos, or claim unavailable pixels were inspected.`;
+  }
   if (route === "direct") {
     return `${preparedContext}\ntool_policy: no_tools\nevidence_policy: Do not call tools. If any tool attempt is blocked, do not claim that a tool was executed, checked, searched, read, or verified.`;
   }
   if (route === "core_read") {
     return `${preparedContext}\ntool_policy: no_tools\nevidence_policy: Answer only from the prepared current Core context. Do not call tools or claim evidence outside that context.`;
+  }
+  if (route === "web_read") {
+    return `${preparedContext}\ntool_policy: web_read_tools_only\nallowed_tools: web_search, web_fetch, x_search\nevidence_policy: Use only public read-only web evidence. Do not call browser, messaging, runtime, file-write, or mutation tools.`;
   }
   if (route === "memory") {
     return `${preparedContext}\ntool_policy: memory_tools_only\nallowed_tools: memory_search, memory_get\nevidence_policy: Use memory tool results as historical memory evidence. Do not present historical operational facts as current runtime truth unless current Core context explicitly verifies them.`;
@@ -171,12 +182,15 @@ function corePromptForTelegramReply(cleanedBody) {
   const envelopeMatch = envelopeBody.match(imageEnvelope);
   if (envelopeMatch?.[1] !== undefined) {
     let caption = envelopeMatch[1].trim();
-    const telegramMeta = /^\[Telegram[^\]]*\]\s*[^:\n]*:\s*([\s\S]*)$/;
+    const telegramMeta = /^\[Telegram[^\]]*\]\s*(?:[^:\n]*:\s*)?([\s\S]*)$/;
     const metaMatch = caption.match(telegramMeta);
     if (metaMatch?.[1] !== undefined) {
       caption = metaMatch[1].trim();
+      if (caption.startsWith("**") && caption.endsWith("**") && caption.length > 4) {
+        caption = caption.slice(2, -2).trim();
+      }
     }
-    caption = caption.replace(/\.\s*$/, "").trim();
+    caption = caption.trim();
     if (caption.length > 0) {
       return caption;
     }
@@ -217,6 +231,50 @@ export function createAnhDuongCoreHooks({
         states.delete(runId);
       }
     }
+  }
+
+  function findClaimablePreAgentState(ctx, prompt) {
+    const sessionKey = ctx?.sessionKey ?? ctx?.sessionId;
+    if (
+      typeof sessionKey !== "string" ||
+      sessionKey.length === 0 ||
+      typeof prompt !== "string" ||
+      prompt.length === 0
+    ) {
+      return undefined;
+    }
+
+    let candidate;
+    for (const [stateRunId, state] of states) {
+      if (
+        state.status !== "prepared" ||
+        state.provisionalSource !== "before_agent_reply" ||
+        state.prepared.route_decision.route === "workflow" ||
+        state.prompt !== prompt ||
+        state.sessionKey !== sessionKey
+      ) {
+        continue;
+      }
+      if (
+        typeof ctx?.chatId === "string" &&
+        typeof state.chatId === "string" &&
+        ctx.chatId !== state.chatId
+      ) {
+        continue;
+      }
+      if (
+        typeof ctx?.senderId === "string" &&
+        typeof state.senderId === "string" &&
+        ctx.senderId !== state.senderId
+      ) {
+        continue;
+      }
+      if (candidate) {
+        return undefined;
+      }
+      candidate = { runId: stateRunId, state };
+    }
+    return candidate;
   }
 
   function findPreparedDirectState(ctx, cleanedBody) {
@@ -278,60 +336,34 @@ export function createAnhDuongCoreHooks({
     return candidate;
   }
 
-  const VISUAL_IMAGE_FOLLOW_UPS = new Set([
-    "day",
-    "ok lam di",
-    "tao di",
-    "e tu tao di",
-    "lam di",
-    "nhu cai nay",
-    "lam lai",
-  ]);
-
-  function normalizeFollowUp(text) {
-    return text
-      .normalize("NFD")
-      .replace(/[đĐ]/g, "d")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      .trim()
-      .replace(/\s+/g, " ");
+  function messageText(message) {
+    if (typeof message?.content === "string") return message.content;
+    if (!Array.isArray(message?.content)) return undefined;
+    const parts = message.content
+      .map((part) => (typeof part?.text === "string" ? part.text : ""))
+      .filter(Boolean);
+    return parts.length > 0 ? parts.join("\n") : undefined;
   }
 
-  function isVisualImageFollowUp(text) {
-    if (typeof text !== "string") return false;
-    const normalized = normalizeFollowUp(text);
-    return (
-      VISUAL_IMAGE_FOLLOW_UPS.has(normalized) ||
-      /\b(?:lam|tao|trien khai)\b.*\b(?:phuong an|mau|cai nay|dang bai|fb|facebook)\b/.test(normalized)
-    );
-  }
-
-  function recentAssistantVisualContext(messages) {
+  function recentUserUrl(messages, currentText) {
     if (!Array.isArray(messages)) return undefined;
-    const recentMessages = messages.slice(-6);
-    for (const message of [...recentMessages].reverse()) {
-      if (message?.role !== "assistant" || typeof message?.content !== "string") continue;
-      const text = message.content.trim();
-      const normalized = normalizeFollowUp(text);
-      const hasVisualSignal =
-        /hình ảnh/iu.test(text) ||
-        /\b(?:photo|picture|poster|banner|thumbnail)\b/i.test(text) ||
-        /\b(?:create|generate|make|design|render)\s+(?:an?\s+|the\s+)?image\b/i.test(text) ||
-        /(?:^|[^\p{L}\p{N}_])(?:tạo|làm|chốt|thiết kế|prompt)\s+(?:1\s+|một\s+)?(?:ảnh(?!\s+hưởng(?:$|[^\p{L}\p{N}_]))|hình ảnh|poster|banner|thumbnail)(?=$|[^\p{L}\p{N}_])/iu.test(text) ||
-        /(?:^|[^\p{L}\p{N}_])ảnh\s+(?:dọc|ngang|vuông|thời trang|quảng cáo|minh họa|sản phẩm|facebook|tiktok|reels|bìa|cover)(?=$|[^\p{L}\p{N}_])/iu.test(text);
-      if (hasVisualSignal) {
-        return text.slice(0, 4000);
+    for (const message of [...messages.slice(-8)].reverse()) {
+      if (message?.role !== "user") continue;
+      const text = messageText(message);
+      if (typeof text !== "string" || text.trim() === String(currentText ?? "").trim()) continue;
+      const matches = text.match(/https?:\/\/[^\s<>"']+/giu) ?? [];
+      for (const raw of [...matches].reverse()) {
+        const value = raw.replace(/[.,!?;:]+$/u, "");
+        if (value.length === 0 || value.length > 2048) continue;
+        try {
+          const parsed = new URL(value);
+          if ((parsed.protocol === "http:" || parsed.protocol === "https:") && !parsed.username && !parsed.password) {
+            return { kind: "url", value };
+          }
+        } catch {}
       }
     }
     return undefined;
-  }
-
-  function contextualVisualImagePrompt(text, messages) {
-    if (!isVisualImageFollowUp(text)) return text;
-    const context = recentAssistantVisualContext(messages);
-    if (!context) return text;
-    return `Tạo ảnh theo phương án đã chốt. Ngữ cảnh trước đó: ${context}\nYêu cầu hiện tại: ${text}`;
   }
 
   function trustedTelegramReplyImageReference(ctx, originalTurn) {
@@ -340,50 +372,43 @@ export function createAnhDuongCoreHooks({
     const replyMedia = preservedPaths.length > 0
       ? preservedPaths.map((path, index) => ({ path, contentType: preservedTypes[index] }))
       : ctx?.channelContext?.chat?.replyMedia;
-    if (!Array.isArray(replyMedia)) return { status: "none" };
-    if (replyMedia.length === 0) return { status: "none" };
-    const imageSuffix = /\.(?:png|jpe?g|webp|gif)$/i;
-    if (replyMedia.some((item) =>
-      typeof item?.path !== "string" || item.path.includes("\0") ||
-      typeof item?.contentType !== "string" ||
-      (!item.contentType.toLowerCase().startsWith("image/") && imageSuffix.test(item.path))
-    )) return { status: "invalid" };
-    const imageEntries = replyMedia.filter(
-      (item) => item.contentType.toLowerCase().startsWith("image/"),
-    );
-    if (imageEntries.length === 0) return { status: "none" };
-    if (imageEntries.length !== 1 || replyMedia.length !== 1) {
-      return { status: "ambiguous" };
-    }
+    if (!Array.isArray(replyMedia) || replyMedia.length === 0) return { status: "none" };
 
-    const item = imageEntries[0];
-    if (typeof item?.path !== "string" || item.path.includes("\0")) {
-      return { status: "invalid" };
+    const imageSuffix = /\.(?:png|jpe?g|webp|gif)$/i;
+    for (const item of replyMedia) {
+      if (typeof item?.path !== "string" || item.path.includes("\0") || typeof item?.contentType !== "string") {
+        return { status: "invalid" };
+      }
+      if (!item.contentType.toLowerCase().startsWith("image/") && imageSuffix.test(item.path)) {
+        return { status: "invalid" };
+      }
     }
+    const imageEntries = replyMedia.filter((item) => item.contentType.toLowerCase().startsWith("image/"));
+    if (imageEntries.length === 0) return { status: "none" };
+    if (imageEntries.length !== replyMedia.length) return { status: "invalid" };
+
     const mediaRoot = "/home/node/.openclaw/media/inbound";
     const uuidImageId = /^(?:[\p{L}\p{N}._-]+---)?[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:png|jpe?g|webp|gif)$/iu;
-    const resolved = posixPath.resolve(item.path);
-    const relative = posixPath.relative(mediaRoot, resolved);
-    if (!relative || relative !== posixPath.basename(relative)) return { status: "invalid" };
-    try {
-      const canonicalRoot = realpathImpl(mediaRoot);
-      const canonicalPath = realpathImpl(resolved);
-      const canonicalRelative = posixPath.relative(canonicalRoot, canonicalPath);
-      if (!canonicalRelative || canonicalRelative !== posixPath.basename(canonicalRelative)) {
+    const references = [];
+    for (const item of imageEntries) {
+      const resolved = posixPath.resolve(item.path);
+      const relative = posixPath.relative(mediaRoot, resolved);
+      if (!relative || relative !== posixPath.basename(relative)) return { status: "invalid" };
+      try {
+        const canonicalRoot = realpathImpl(mediaRoot);
+        const canonicalPath = realpathImpl(resolved);
+        const canonicalRelative = posixPath.relative(canonicalRoot, canonicalPath);
+        if (!canonicalRelative || canonicalRelative !== posixPath.basename(canonicalRelative)) return { status: "invalid" };
+        if (canonicalPath !== resolved || !statImpl(canonicalPath).isFile()) return { status: "invalid" };
+        const mediaId = posixPath.basename(resolved);
+        if (!uuidImageId.test(mediaId)) return { status: "invalid" };
+        references.push(`media://inbound/${encodeURIComponent(mediaId)}`);
+      } catch {
         return { status: "invalid" };
       }
-      if (canonicalPath !== resolved || !statImpl(canonicalPath).isFile()) {
-        return { status: "invalid" };
-      }
-      const mediaId = posixPath.basename(resolved);
-      if (!uuidImageId.test(mediaId)) return { status: "invalid" };
-      return {
-        status: "single",
-        referenceImage: `media://inbound/${encodeURIComponent(mediaId)}`,
-      };
-    } catch {
-      return { status: "invalid" };
     }
+    if (references.length > 1) return { status: "ambiguous" };
+    return { status: "single", referenceImage: references[0] };
   }
 
   function trustedCurrentPromptImageReference(rawPrompt) {
@@ -391,66 +416,64 @@ export function createAnhDuongCoreHooks({
     const markerPrefix = "[media attached:";
     const markerLines = rawPrompt.split("\n").filter((line) => line.startsWith(markerPrefix));
     if (markerLines.length === 0) return { status: "none" };
-    if (markerLines.length !== 1) return { status: "ambiguous" };
-    const match = markerLines[0].match(/^\[media attached: (.+) \(([^()]+)\)\]$/);
-    if (!match) return { status: "invalid" };
-    const stagedPath = match[1];
-    const contentType = match[2].toLowerCase();
-    if (!contentType.startsWith("image/")) return { status: "none" };
-    const stagedRoot = "/home/node/.openclaw/workspace/media/inbound";
-    const resolvedStaged = posixPath.resolve(stagedPath);
-    const stagedRelative = posixPath.relative(stagedRoot, resolvedStaged);
-    const parts = stagedRelative.split("/");
-    if (parts.length !== 2 || !parts[0].startsWith("openclaw-staged-") || !parts[1]) {
-      return { status: "invalid" };
+
+    const parsed = [];
+    for (const line of markerLines) {
+      const match = line.match(/^\[media attached: (.+) \(([^()]+)\)\]$/);
+      if (!match) return { status: "invalid" };
+      parsed.push({ stagedPath: match[1], contentType: match[2].toLowerCase() });
     }
-    const mediaId = parts[1];
-    const uuidImageId = /^(?:[\p{L}\p{N}._-]+---)?[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:png|jpe?g|webp|gif)$/iu;
-    if (!uuidImageId.test(mediaId)) return { status: "invalid" };
+    const imageEntries = parsed.filter((item) => item.contentType.startsWith("image/"));
+    if (imageEntries.length === 0) return { status: "none" };
+    if (imageEntries.length !== parsed.length) return { status: "invalid" };
+
+    const stagedRoot = "/home/node/.openclaw/workspace/media/inbound";
     const mediaRoot = "/home/node/.openclaw/media/inbound";
-    const managedPath = posixPath.join(mediaRoot, mediaId);
-    try {
-      const canonicalRoot = realpathImpl(mediaRoot);
-      const canonicalPath = realpathImpl(managedPath);
-      if (canonicalPath !== managedPath || posixPath.dirname(canonicalPath) !== canonicalRoot) {
+    const uuidImageId = /^(?:[\p{L}\p{N}._-]+---)?[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:png|jpe?g|webp|gif)$/iu;
+    const references = [];
+    for (const item of imageEntries) {
+      const resolvedStaged = posixPath.resolve(item.stagedPath);
+      const stagedRelative = posixPath.relative(stagedRoot, resolvedStaged);
+      const parts = stagedRelative.split("/");
+      if (parts.length !== 2 || !parts[0].startsWith("openclaw-staged-") || !parts[1]) return { status: "invalid" };
+      const mediaId = parts[1];
+      if (!uuidImageId.test(mediaId)) return { status: "invalid" };
+      const managedPath = posixPath.join(mediaRoot, mediaId);
+      try {
+        const canonicalRoot = realpathImpl(mediaRoot);
+        const canonicalPath = realpathImpl(managedPath);
+        if (canonicalPath !== managedPath || posixPath.dirname(canonicalPath) !== canonicalRoot) return { status: "invalid" };
+        if (!statImpl(canonicalPath).isFile()) return { status: "invalid" };
+        references.push(`media://inbound/${encodeURIComponent(mediaId)}`);
+      } catch {
         return { status: "invalid" };
       }
-      if (!statImpl(canonicalPath).isFile()) return { status: "invalid" };
-      return { status: "single", referenceImage: `media://inbound/${encodeURIComponent(mediaId)}` };
-    } catch {
-      return { status: "invalid" };
     }
+    if (references.length > 1) return { status: "ambiguous" };
+    return { status: "single", referenceImage: references[0] };
   }
 
-  function imageRevisionPrompt(text, ctx, rawPrompt, originalTurn) {
-    if (typeof text !== "string") {
-      return { prompt: text, referenceImage: undefined };
+  function resolveVisualImageProvenance(ctx, rawPrompt, originalTurn) {
+    const preservedPaths = Array.isArray(originalTurn?.mediaPaths) ? originalTurn.mediaPaths : [];
+    const hasPreservedMedia = preservedPaths.length > 0;
+    const originalIsReply = originalTurn?.replyToId !== undefined && originalTurn?.replyToId !== null;
+    const contextHasReplyMedia = !hasPreservedMedia && Array.isArray(ctx?.channelContext?.chat?.replyMedia);
+    let source = originalIsReply || contextHasReplyMedia ? "replied_image" : "current_upload";
+    let resolution = trustedTelegramReplyImageReference(ctx, originalTurn);
+    if (resolution.status === "none") {
+      resolution = trustedCurrentPromptImageReference(rawPrompt);
+      source = "current_upload";
     }
-    const normalized = normalizeFollowUp(text);
-    const isRevision = /(?:^|\b)(?:thay|doi|sua|chinh|xoa|them|replace|change|edit|remove|add)(?:\b|$)/.test(normalized);
-    if (!isRevision) {
-      return { prompt: text, referenceImage: undefined };
+    if (resolution.status === "invalid") {
+      return { status: "invalid", imageSource: "none", referenceImage: undefined };
     }
-    const replyResolution = trustedTelegramReplyImageReference(ctx, originalTurn);
-    const resolution = replyResolution.status === "none"
-      ? trustedCurrentPromptImageReference(rawPrompt)
-      : replyResolution;
-    if (resolution.status === "ambiguous" || resolution.status === "invalid") {
-      return {
-        prompt: text,
-        referenceImage: undefined,
-        ambiguousReference: true,
-        referenceFailureClass:
-          resolution.status === "invalid" ? "invalid_reply_media" : "ambiguous_reply_media",
-      };
+    if (resolution.status === "ambiguous") {
+      return { status: "ambiguous", imageSource: "ambiguous", referenceImage: undefined };
     }
-    if (resolution.status !== "single") {
-      return { prompt: text, referenceImage: undefined };
+    if (resolution.status === "single") {
+      return { status: "single", imageSource: source, referenceImage: resolution.referenceImage };
     }
-    return {
-      prompt: `Tạo ảnh chỉnh sửa từ ảnh tham chiếu. Yêu cầu hiện tại: ${text}`,
-      referenceImage: resolution.referenceImage,
-    };
+    return { status: "none", imageSource: "none", referenceImage: undefined };
   }
 
   function isVisualImageWorkflowState(state) {
@@ -458,32 +481,6 @@ export function createAnhDuongCoreHooks({
       state?.prepared?.route_decision?.route === "workflow" &&
       state?.prepared?.capability_decision?.capability === "visual_image_generate"
     );
-  }
-
-  function stateBelongsToTelegramContext(state, ctx) {
-    const sessionKey = ctx?.sessionKey ?? ctx?.sessionId;
-    const sameSession =
-      typeof sessionKey === "string" &&
-      sessionKey.length > 0 &&
-      state.sessionKey === sessionKey;
-    const sameTelegramActor =
-      typeof ctx?.chatId === "string" &&
-      typeof ctx?.senderId === "string" &&
-      state.chatId === ctx.chatId &&
-      state.senderId === ctx.senderId;
-    return sameSession || sameTelegramActor;
-  }
-
-  function findReusableVisualImageState(ctx) {
-    const candidates = [];
-    for (const [runId, state] of states) {
-      if (!["prepared", "submitted"].includes(state.status)) continue;
-      if (!isVisualImageWorkflowState(state)) continue;
-      if (stateBelongsToTelegramContext(state, ctx)) {
-        candidates.push({ runId, state });
-      }
-    }
-    return candidates.length === 1 ? candidates[0] : undefined;
   }
 
   function approvalContinuationContext(text, ctx) {
@@ -499,7 +496,7 @@ export function createAnhDuongCoreHooks({
     };
   }
 
-  async function beforePromptBuild(event, ctx) {
+  async function beforePromptBuild(event, ctx, { provisionalSource } = {}) {
     sweep();
     if (isTelegram(ctx)) {
       const approvalText = event?.prompt ?? event?.cleanedBody;
@@ -577,6 +574,10 @@ export function createAnhDuongCoreHooks({
       senderId: ctx?.senderId,
       rawPrompt,
     });
+    if (originalTurn?.ambiguous === true) {
+      safeLog(logger, "warn", { event: "anh_duong_core_prepare", outcome: "failure", failure_class: "ambiguous_original_turn" });
+      return undefined;
+    }
     // Direct-owner provenance may come from either a native user hook with a UUID run id
     // or the trusted message_received snapshot for the same Telegram sender/session.
     // Never infer provenance from prompt text or a generated compatibility id alone.
@@ -612,14 +613,13 @@ export function createAnhDuongCoreHooks({
         ? retrySplit.basePrompt
         : rawPrompt);
     const parsedPrompt = corePromptForTelegramReply(promptForCore);
-    const contextualPrompt = contextualVisualImagePrompt(parsedPrompt, event?.messages);
-    const revision = imageRevisionPrompt(contextualPrompt, ctx, rawPrompt, originalTurn);
-    const corePrompt = revision.prompt;
-    if (revision.ambiguousReference) {
-      const referenceFailureClass = revision.referenceFailureClass ?? "ambiguous_reply_media";
-      const ambiguousRunId = ctx?.runId;
-      if (typeof ambiguousRunId === "string" && ambiguousRunId.length > 0) {
-        states.set(ambiguousRunId, {
+    const corePrompt = parsedPrompt;
+    const visualReference = resolveVisualImageProvenance(ctx, rawPrompt, originalTurn);
+    if (visualReference.status === "invalid") {
+      const referenceFailureClass = "invalid_reply_media";
+      const invalidRunId = ctx?.runId;
+      if (typeof invalidRunId === "string" && invalidRunId.length > 0) {
+        states.set(invalidRunId, {
           status: "failed",
           failureClass: referenceFailureClass,
           expiresAt: now() + STATE_TTL_MS,
@@ -664,28 +664,30 @@ export function createAnhDuongCoreHooks({
       return undefined;
     }
 
-    if (!revision.referenceImage && isVisualImageFollowUp(corePrompt)) {
-      const reusable = findReusableVisualImageState(ctx);
-      if (reusable && (!reusable.state.ownerSource || directUserTurn)) {
-        const reusedState = {
-          ...reusable.state,
-          prompt: corePrompt,
+    if (
+      provisionalSource === undefined &&
+      typeof ctx?.runId === "string" &&
+      ctx.runId.length > 0
+    ) {
+      const provisional = findClaimablePreAgentState(ctx, corePrompt);
+      if (provisional && provisional.runId !== runId) {
+        const claimedState = {
+          ...provisional.state,
+          provisionalSource: undefined,
           expiresAt: now() + STATE_TTL_MS,
         };
-        if (reusable.runId !== runId) {
-          states.delete(reusable.runId);
-        }
-        states.set(runId, reusedState);
+        states.delete(provisional.runId);
+        states.set(runId, claimedState);
         safeLog(logger, "info", {
           event: "anh_duong_core_prepare",
           outcome: "reused",
-          reason: "visual_image_follow_up",
-          request_id: reusable.state.requestId,
-          route: reusable.state.prepared.route_decision.route,
-          capability: reusable.state.prepared.capability_decision.capability,
-          source_run_id: reusable.runId,
+          reason: "pre_agent_prepare_claimed",
+          request_id: provisional.state.requestId,
+          route: provisional.state.prepared.route_decision.route,
+          capability: provisional.state.prepared.capability_decision.capability,
+          source_run_id: provisional.runId,
         });
-        return { prependContext: reusedState.preparedContext };
+        return { prependContext: claimedState.preparedContext };
       }
     }
 
@@ -727,9 +729,11 @@ export function createAnhDuongCoreHooks({
         senderId: ctx?.senderId,
         chatId: currentChatId,
         sessionKey: ctx?.sessionKey ?? ctx?.sessionId,
-        referenceImage: revision.referenceImage,
+        imageSource: visualReference.imageSource,
+        referenceImage: visualReference.referenceImage,
         ...(directUserTurn ? { sourceOrigin: "telegram_user" } : {}),
         ...(trustedInboundTurn ? { sourceMessageId: originalTurn.sourceMessageId } : {}),
+        recentReferent: recentUserUrl(event?.messages, corePrompt),
       });
       requestId = request.request_id;
       const prepared = await prepareCoreRequest({ config, request, fetchImpl });
@@ -744,6 +748,7 @@ export function createAnhDuongCoreHooks({
         sessionKey: ctx?.sessionKey ?? ctx?.sessionId,
         chatId: ctx?.chatId,
         senderId: ctx?.senderId,
+        provisionalSource,
         expiresAt: now() + STATE_TTL_MS,
       });
       safeLog(logger, "info", {
@@ -829,9 +834,14 @@ export function createAnhDuongCoreHooks({
       return undefined;
     }
 
+    const provisionalSource =
+      typeof ctx?.runId === "string" && ctx.runId.length > 0
+        ? undefined
+        : "before_agent_reply";
     await beforePromptBuild(
       { prompt: corePrompt, messages: [] },
       ctx?.runId === runId ? ctx : { ...ctx, runId },
+      { provisionalSource },
     );
     const state = states.get(runId);
     if (state?.status === "submitted") {
@@ -1029,6 +1039,30 @@ export function createAnhDuongCoreHooks({
       return undefined;
     }
     const route = state.prepared.route_decision.route;
+    const capability = state.prepared.capability_decision?.capability;
+    if (capability === "visual_analysis") {
+      const toolName = event?.toolName ?? ctx?.toolName;
+      const operation = state.prepared.visual_interaction?.operation;
+      if (operation === "search" && (toolName === "web_search" || toolName === "web_fetch")) {
+        return undefined;
+      }
+      return {
+        block: true,
+        blockReason: operation === "search"
+          ? "anh_duong_visual_search_read_only_tools"
+          : "anh_duong_visual_analysis_no_tools",
+      };
+    }
+    if (route === "web_read") {
+      const toolName = event?.toolName ?? ctx?.toolName;
+      if (toolName === "web_search" || toolName === "web_fetch" || toolName === "x_search") {
+        return undefined;
+      }
+      return {
+        block: true,
+        blockReason: "anh_duong_web_read_turn_web_tools_only",
+      };
+    }
     if (route === "memory") {
       const toolName = event?.toolName ?? ctx?.toolName;
       if (toolName === "memory_search" || toolName === "memory_get") {

@@ -16,6 +16,7 @@ from app.context_builder.models import ContextBundle
 from app.image_reference import validate_managed_image_reference
 from app.policy import DecisionKind, RiskLevel
 from app.routing.models import RouteDecision
+from app.visual_interaction import VisualImageSource, VisualInteractionContract
 
 
 class CoreRequest(BaseModel):
@@ -34,6 +35,7 @@ class CoreRequest(BaseModel):
     source_chat_id: str | None = Field(default=None, max_length=128)
     source_session_id: str | None = Field(default=None, max_length=128)
     source_message_id: str | None = Field(default=None, max_length=128)
+    image_source: VisualImageSource = VisualImageSource.NONE
     reference_image: str | None = Field(default=None, max_length=2048)
 
     @field_validator("text")
@@ -74,6 +76,23 @@ class CoreRequest(BaseModel):
         if not normalized:
             raise ValueError("value cannot be blank")
         return normalized
+
+    @model_validator(mode="after")
+    def validate_image_source_pairing(self) -> CoreRequest:
+        concrete = {
+            VisualImageSource.CURRENT_UPLOAD,
+            VisualImageSource.REPLIED_IMAGE,
+            VisualImageSource.RECENT_ARTIFACT,
+            VisualImageSource.EXPLICIT_REFERENCE,
+        }
+        if self.image_source in concrete and self.reference_image is None:
+            raise ValueError("concrete image source requires reference_image")
+        if (
+            self.image_source in {VisualImageSource.NONE, VisualImageSource.AMBIGUOUS}
+            and self.reference_image is not None
+        ):
+            raise ValueError("none or ambiguous image source cannot carry reference_image")
+        return self
 
 
 class PersonaReference(BaseModel):
@@ -136,6 +155,7 @@ class PreparedRequest(BaseModel):
     persona: PersonaReference
     route_decision: RouteDecision
     capability_decision: CapabilityDecision
+    visual_interaction: VisualInteractionContract | None = None
     context: ContextBundle
     project_id: str | None = None
     task_id: str | None = None

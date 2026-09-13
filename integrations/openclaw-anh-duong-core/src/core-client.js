@@ -2,14 +2,16 @@ import { createHash } from "node:crypto";
 
 import { CoreIntegrationError } from "./config.js";
 
-const ROUTES = new Set(["direct", "memory", "core_read", "workflow"]);
+const ROUTES = new Set(["direct", "memory", "core_read", "web_read", "workflow"]);
 const CAPABILITIES = new Set([
   "conversational_response",
   "memory_search",
   "project_read",
   "task_read",
   "core_status_read",
+  "web_research_read",
   "visual_prompt_compose",
+  "visual_analysis",
   "visual_image_generate",
   "planning",
   "file_operation",
@@ -80,7 +82,7 @@ function requireNullableString(value, requestId, options) {
   return value === null ? null : requireString(value, requestId, options);
 }
 
-export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey, referenceImage, sourceOrigin, sourceMessageId }) {
+export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey, imageSource, referenceImage, sourceOrigin, sourceMessageId, recentReferent }) {
   if (typeof prompt !== "string" || prompt.trim().length === 0 || prompt.length > 20_000) {
     throw validationError();
   }
@@ -112,10 +114,41 @@ export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey, 
       ? { source_session_id: sessionKey }
       : {}),
     source_message_id: resolvedSourceMessageId,
+    ...(typeof imageSource === "string" && imageSource.length > 0
+      ? { image_source: imageSource }
+      : {}),
     ...(typeof referenceImage === "string" && referenceImage.length > 0
       ? { reference_image: referenceImage }
       : {}),
+    ...(recentReferent ? { recent_referent: recentReferent } : {}),
   };
+}
+
+const VISUAL_OPERATIONS = new Set(["converse", "analyze", "extract", "verify", "compare", "search", "derive_content", "generate", "edit", "transform", "annotate", "file_action", "external_action"]);
+const VISUAL_IMAGE_ROLES = new Set(["evidence", "edit_target", "subject_reference", "style_reference", "composition_reference", "data_source"]);
+const VISUAL_IMAGE_SOURCES = new Set(["current_upload", "replied_image", "recent_artifact", "explicit_reference", "none", "ambiguous"]);
+const VISUAL_OUTPUTS = new Set(["text", "structured_data", "image", "file", "external_effect"]);
+const VISUAL_CONSTRAINTS = new Set(["no_generate", "no_edit", "preserve_identity", "preserve_background", "preserve_text"]);
+const VISUAL_SIDE_EFFECTS = new Set(["none", "save", "overwrite", "delete", "send", "publish"]);
+
+function validateVisualInteraction(value, requestId) {
+  const visual = requireObject(value, requestId);
+  requireString(visual.raw_instruction, requestId, { maxLength: 20_000 });
+  if (!VISUAL_OPERATIONS.has(requireString(visual.operation, requestId))) throw validationError(requestId);
+  if (visual.image_role !== null && visual.image_role !== undefined && !VISUAL_IMAGE_ROLES.has(requireString(visual.image_role, requestId))) throw validationError(requestId);
+  const imageSource = requireString(visual.image_source, requestId);
+  if (!VISUAL_IMAGE_SOURCES.has(imageSource)) throw validationError(requestId);
+  if (!VISUAL_OUTPUTS.has(requireString(visual.output, requestId))) throw validationError(requestId);
+  const constraints = requireStringArray(visual.constraints, requestId);
+  if (constraints.some((item) => !VISUAL_CONSTRAINTS.has(item))) throw validationError(requestId);
+  if (!VISUAL_SIDE_EFFECTS.has(requireString(visual.side_effect, requestId))) throw validationError(requestId);
+  const reference = visual.reference_image;
+  if (reference !== null && reference !== undefined) requireString(reference, requestId, { maxLength: 2048 });
+  requireBoolean(visual.clarification_required, requestId);
+  const concrete = new Set(["current_upload", "replied_image", "recent_artifact", "explicit_reference"]);
+  if (concrete.has(imageSource) && (typeof reference !== "string" || !reference.startsWith("media://"))) throw validationError(requestId);
+  if ((imageSource === "none" || imageSource === "ambiguous") && reference !== null && reference !== undefined) throw validationError(requestId);
+  return visual;
 }
 
 function validateWorkflowEnvelope(value, requestId) {
@@ -190,6 +223,13 @@ export function validatePreparedRequest(value, expectedRequestId) {
   }
   requireString(capabilityDecision.reason_code, expectedRequestId);
   requireStringArray(capabilityDecision.matched_signals, expectedRequestId);
+
+  if (root.visual_interaction !== null && root.visual_interaction !== undefined) {
+    validateVisualInteraction(root.visual_interaction, expectedRequestId);
+  }
+  if (capability === "visual_analysis" && (root.visual_interaction === null || root.visual_interaction === undefined)) {
+    throw validationError(expectedRequestId);
+  }
 
   const context = requireObject(root.context, expectedRequestId);
   requireString(context.rendered_context, expectedRequestId);

@@ -8,6 +8,7 @@ from app.capabilities.intent_contract import build_visual_intent_contract
 from app.capabilities.models import CapabilityDecision, CapabilityKind
 from app.routing.fast_router import FastRouter
 from app.routing.models import FastRoute, RouteDecision
+from app.visual_interaction import VisualInteractionContract, VisualOperation
 
 _TASK_SIGNALS = ("task", "nhiem vu")
 _PROJECT_SIGNALS = ("project", "du an")
@@ -270,9 +271,10 @@ class CapabilityRouter:
         self,
         route_decision: RouteDecision,
         request: str,
+        visual_interaction: VisualInteractionContract | None = None,
     ) -> CapabilityDecision:
         normalized = self._normalize(request)
-        if FastRouter().route(request) != route_decision:
+        if FastRouter().route(request, visual_interaction=visual_interaction) != route_decision:
             return self._decision(
                 CapabilityKind.UNKNOWN_WORKFLOW,
                 route_decision.route,
@@ -280,6 +282,25 @@ class CapabilityRouter:
             )
 
         if route_decision.route is FastRoute.DIRECT:
+            if (
+                visual_interaction is not None
+                and not visual_interaction.clarification_required
+                and visual_interaction.operation
+                in {
+                    VisualOperation.ANALYZE,
+                    VisualOperation.EXTRACT,
+                    VisualOperation.VERIFY,
+                    VisualOperation.COMPARE,
+                    VisualOperation.SEARCH,
+                    VisualOperation.DERIVE_CONTENT,
+                }
+            ):
+                return self._decision(
+                    CapabilityKind.VISUAL_ANALYSIS,
+                    route_decision.route,
+                    "capability.direct.visual_analysis",
+                    (f"visual:operation:{visual_interaction.operation.value}",),
+                )
             return self._decision(
                 CapabilityKind.CONVERSATIONAL_RESPONSE,
                 route_decision.route,
@@ -302,6 +323,33 @@ class CapabilityRouter:
             )
         if route_decision.route is FastRoute.CORE_READ:
             return self._route_core_read(route_decision.route, normalized)
+        if visual_interaction is not None:
+            if visual_interaction.operation is VisualOperation.EXTERNAL_ACTION:
+                return self._decision(
+                    CapabilityKind.EXTERNAL_COMMUNICATION,
+                    route_decision.route,
+                    "capability.workflow.visual_external_action",
+                    ("visual:operation:external_action",),
+                )
+            if visual_interaction.operation is VisualOperation.FILE_ACTION:
+                return self._decision(
+                    CapabilityKind.FILE_OPERATION,
+                    route_decision.route,
+                    "capability.workflow.visual_file_action",
+                    ("visual:operation:file_action",),
+                )
+            if visual_interaction.operation in {
+                VisualOperation.GENERATE,
+                VisualOperation.EDIT,
+                VisualOperation.TRANSFORM,
+                VisualOperation.ANNOTATE,
+            }:
+                return self._decision(
+                    CapabilityKind.VISUAL_IMAGE_GENERATE,
+                    route_decision.route,
+                    "capability.workflow.visual_image_generate",
+                    (f"visual:operation:{visual_interaction.operation.value}",),
+                )
         return self._route_workflow(route_decision.route, normalized, request)
 
     def _route_core_read(

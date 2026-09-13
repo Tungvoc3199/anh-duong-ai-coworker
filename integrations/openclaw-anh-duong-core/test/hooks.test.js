@@ -1053,116 +1053,62 @@ test("bare ok resumes approval only when replying to the approval question", asy
   assert.equal(calls.length, 1);
 });
 
-test("image Telegram follow-up reuses one prepared intent and submits it once", async () => {
-  const calls = [];
-  let submitted;
-  const fetchImpl = async (url, init) => {
-    calls.push(url);
-    const body = init?.body ? JSON.parse(init.body) : undefined;
-    if (url.endsWith("/prepare")) {
+
+test("visual follow-up is re-prepared and never inherits prior generation capability", async () => {
+  const bodies = [];
+  const hooks = createAnhDuongCoreHooks({
+    env: ENV,
+    fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      bodies.push(body);
+      const explicitGenerate = body.text === "Tạo cho a một ảnh serum tỷ lệ 9:16";
       return new Response(JSON.stringify(responseFixture(body.request_id, {
-        route: "workflow",
-        capability: "visual_image_generate",
-        workflowOverrides: { goal: "Tạo đúng một ảnh serum tỷ lệ 9:16." },
+        route: explicitGenerate ? "workflow" : "direct",
+        capability: explicitGenerate ? "visual_image_generate" : undefined,
+        workflowOverrides: explicitGenerate ? { goal: body.text } : {},
       })), { status: 200 });
-    }
-    if (url.endsWith("/api/async-tasks")) {
-      submitted = body;
-      return new Response(JSON.stringify({
-        task_id: "task-image",
-        run_id: "run-image",
-        status: "pending",
-        message: "ACCEPTED",
-        replayed: false,
-      }), { status: 202 });
-    }
-    return new Response(JSON.stringify({ status: "running" }), { status: 200 });
-  };
-  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl, workflowProgressDelayMs: 0 });
+    },
+  });
   const firstCtx = telegramContext("run-image-request");
   await hooks.beforePromptBuild({ prompt: "Tạo cho a một ảnh serum tỷ lệ 9:16", messages: [] }, firstCtx);
   await hooks.agentEnd({}, firstCtx);
   const followupCtx = telegramContext("run-image-followup");
   const injection = await hooks.beforePromptBuild({ prompt: "Đây", messages: [] }, followupCtx);
-
-  assert.match(injection.prependContext, /capability: visual_image_generate/);
-  assert.equal(calls.filter((url) => url.endsWith("/prepare")).length, 1);
-  const reply = await hooks.beforeAgentReply({ cleanedBody: "Đây" }, followupCtx);
-  assert.equal(reply.handled, true);
-  assert.equal(reply.reason, "anh_duong_workflow_progress_after_threshold");
-  assert.equal(submitted.goal, "Tạo đúng một ảnh serum tỷ lệ 9:16.");
-  assert.equal(calls.filter((url) => url.endsWith("/api/async-tasks")).length, 1);
-  assert.equal(calls.filter((url) => url.endsWith("/api/async-tasks/run-image")).length, 1);
-
-  const duplicateCtx = telegramContext("run-image-duplicate");
-  const duplicateInjection = await hooks.beforePromptBuild(
-    { prompt: "Ok làm đi", messages: [] },
-    duplicateCtx,
-  );
-  assert.match(duplicateInjection.prependContext, /capability: visual_image_generate/);
-  const duplicate = await hooks.beforeAgentReply({ cleanedBody: "Ok làm đi" }, duplicateCtx);
-  assert.deepEqual(duplicate, {
-    handled: true,
-    reason: "anh_duong_workflow_duplicate_hook",
-  });
-  assert.equal(calls.filter((url) => url.endsWith("/api/async-tasks")).length, 1);
+  assert.match(injection.prependContext, /capability: conversational_response/);
+  assert.equal(bodies.length, 2);
+  assert.equal(bodies[1].text, "Đây");
 });
 
-test("natural follow-up uses recent assistant visual context for one-turn image generation", async () => {
+
+test("recent assistant visual prose never rewrites a new user instruction", async () => {
   const prompts = [];
-  const fetchImpl = async (_url, init) => {
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl: async (_url, init) => {
     const body = JSON.parse(init.body);
     prompts.push(body.text);
-    const isImage = body.text.startsWith("Tạo ảnh theo phương án đã chốt");
-    return new Response(JSON.stringify(responseFixture(body.request_id, {
-      route: isImage ? "workflow" : "direct",
-      capability: isImage ? "visual_image_generate" : undefined,
-      workflowOverrides: isImage ? { goal: body.text } : {},
-    })), { status: 200 });
-  };
-  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+    return new Response(JSON.stringify(responseFixture(body.request_id, { route: "direct" })), { status: 200 });
+  }});
   const ctx = telegramContext("run-natural-image-followup");
-  const messages = [{
-    role: "assistant",
-    content: "Được anh, chốt ảnh dọc Facebook 4:5, nền xanh navy, tiêu đề AIOS — Đang xây dựng một AI Coworker thực sự.",
-  }];
-  const prepared = await hooks.beforePromptBuild({
-    prompt: "E làm theo phương án này đi để đăng bài fb",
-    messages,
-  }, ctx);
-
-  assert.match(prepared.prependContext, /capability: visual_image_generate/);
-  assert.equal(prompts.length, 1);
-  assert.match(prompts[0], /^Tạo ảnh theo phương án đã chốt/);
-  assert.match(prompts[0], /Facebook 4:5/);
-  assert.match(prompts[0], /E làm theo phương án này đi để đăng bài fb/);
+  const messages = [{ role: "assistant", content: "Được anh, chốt ảnh dọc Facebook 4:5, nền xanh navy." }];
+  const userText = "E làm theo phương án này đi để đăng bài fb";
+  const prepared = await hooks.beforePromptBuild({ prompt: userText, messages }, ctx);
+  assert.match(prepared.prependContext, /capability: conversational_response/);
+  assert.deepEqual(prompts, [userText]);
+  assert.doesNotMatch(prompts[0], /Tạo ảnh theo phương án đã chốt/);
 });
 
-test("natural E tự tạo đi follow-up reuses recent assistant image context", async () => {
+
+test("E tự tạo đi does not inherit generation intent from assistant prose", async () => {
   const prompts = [];
-  const fetchImpl = async (_url, init) => {
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl: async (_url, init) => {
     const body = JSON.parse(init.body);
     prompts.push(body.text);
-    const isImage = body.text.startsWith("Tạo ảnh theo phương án đã chốt");
-    return new Response(JSON.stringify(responseFixture(body.request_id, {
-      route: isImage ? "workflow" : "direct",
-      capability: isImage ? "visual_image_generate" : undefined,
-      workflowOverrides: isImage ? { goal: body.text } : {},
-    })), { status: 200 });
-  };
-  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+    return new Response(JSON.stringify(responseFixture(body.request_id, { route: "direct" })), { status: 200 });
+  }});
   const ctx = telegramContext("run-natural-tu-tao-followup");
-  const messages = [{
-    role: "assistant",
-    content: "Ảnh thời trang nữ cao cấp, váy trắng hiện đại, studio tối giản, vertical 4:5.",
-  }];
-
+  const messages = [{ role: "assistant", content: "Ảnh thời trang nữ cao cấp, váy trắng hiện đại, vertical 4:5." }];
   const prepared = await hooks.beforePromptBuild({ prompt: "E tự tạo đi", messages }, ctx);
-
-  assert.match(prepared.prependContext, /capability: visual_image_generate/);
-  assert.equal(prompts.length, 1);
-  assert.match(prompts[0], /^Tạo ảnh theo phương án đã chốt/);
-  assert.match(prompts[0], /E tự tạo đi/);
+  assert.match(prepared.prependContext, /capability: conversational_response/);
+  assert.deepEqual(prompts, ["E tự tạo đi"]);
 });
 
 test("E tự tạo đi without recent visual context does not infer image generation", async () => {
@@ -1295,7 +1241,8 @@ test("E tự tạo đi does not reuse visual context older than the recent windo
   assert.equal(prompts[0], "E tự tạo đi");
 });
 
-test("Telegram reply-to-image revision carries one trusted reference image into async submission", async () => {
+
+test("Telegram reply-to-image revision preserves raw text and provenance", async () => {
   const mediaId = "reply-source---11111111-1111-4111-8111-111111111111.jpg";
   const referencePath = `/home/node/.openclaw/media/inbound/${mediaId}`;
   const referenceImage = `media://inbound/${mediaId}`;
@@ -1306,7 +1253,7 @@ test("Telegram reply-to-image revision carries one trusted reference image into 
     const body = init?.body ? JSON.parse(init.body) : undefined;
     if (url.endsWith("/prepare")) {
       preparedBody = body;
-      const isRevision = body.text.startsWith("Tạo ảnh") && body.text.includes(userText);
+      const isRevision = body.image_source === "replied_image" && body.reference_image === referenceImage;
       return new Response(JSON.stringify(responseFixture(body.request_id, {
         route: isRevision ? "workflow" : "direct",
         capability: isRevision ? "visual_image_generate" : undefined,
@@ -1315,37 +1262,23 @@ test("Telegram reply-to-image revision carries one trusted reference image into 
     }
     if (url.endsWith("/api/async-tasks")) {
       submitted = body;
-      return new Response(JSON.stringify({
-        task_id: "task-image-revision",
-        run_id: "run-image-revision",
-        status: "pending",
-        message: "ACCEPTED",
-        replayed: false,
-      }), { status: 202 });
+      return new Response(JSON.stringify({ task_id:"task-image-revision", run_id:"run-image-revision", status:"pending", message:"ACCEPTED", replayed:false }), { status: 202 });
     }
     return new Response(JSON.stringify({ status: "running" }), { status: 200 });
   };
   const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl, workflowProgressDelayMs: 0, realpathImpl: (value) => value, statImpl: () => ({ isFile: () => true }) });
   const ctx = telegramContext("run-image-revision");
-  ctx.channelContext = {
-    chat: {
-      id: "private-chat",
-      replyMedia: [{ path: referencePath, contentType: "image/jpeg" }],
-    },
-  };
-
+  ctx.channelContext = { chat: { id: "private-chat", replyMedia: [{ path: referencePath, contentType: "image/jpeg" }] } };
   const injection = await hooks.beforePromptBuild({ prompt: userText, messages: [] }, ctx);
   assert.match(injection.prependContext, /capability: visual_image_generate/);
+  assert.equal(preparedBody.text, userText);
+  assert.equal(preparedBody.image_source, "replied_image");
   assert.equal(preparedBody.reference_image, referenceImage);
-  assert.match(preparedBody.text, /^Tạo ảnh/);
-  assert.match(preparedBody.text, /Thay cô gái bằng cô gái 20 tuổi người Việt Nam/);
-
   const reply = await hooks.beforeAgentReply({ cleanedBody: userText }, ctx);
   assert.equal(reply.handled, true);
   assert.equal(submitted.reference_image, referenceImage);
-  assert.equal(submitted.goal, preparedBody.text);
+  assert.equal(submitted.goal, userText);
 });
-
 
 test("same-session referenced revision re-prepares instead of reusing stale visual state", async () => {
   const bodies = [];
@@ -1475,20 +1408,31 @@ test("revision rejects UUID substring without OpenClaw producer separator", asyn
 });
 
 
-test("ambiguous multi-image reply revision fails closed without Core submit", async () => {
+
+test("ambiguous multi-image reply reaches Core as clarification provenance", async () => {
   let calls = 0;
-  const fetchImpl = async () => { calls += 1; throw new Error("must not submit"); };
-  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl, realpathImpl: (value) => value, statImpl: () => ({ isFile: () => true }) });
+  let preparedBody;
+  const hooks = createAnhDuongCoreHooks({
+    env: ENV,
+    fetchImpl: async (_url, init) => {
+      calls += 1;
+      preparedBody = JSON.parse(init.body);
+      return new Response(JSON.stringify(responseFixture(preparedBody.request_id, { route: "direct" })), { status: 200 });
+    },
+    realpathImpl: (value) => value,
+    statImpl: () => ({ isFile: () => true }),
+  });
   const ctx = telegramContext("run-ambiguous-revision");
   ctx.channelContext = { chat: { replyMedia: [
     { path: "/home/node/.openclaw/media/inbound/a---11111111-1111-4111-8111-111111111111.jpg", contentType: "image/jpeg" },
     { path: "/home/node/.openclaw/media/inbound/b---22222222-2222-4222-8222-222222222222.jpg", contentType: "image/jpeg" },
   ] } };
-  assert.equal(await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx), undefined);
-  assert.equal(calls, 0);
-  assert.equal((await hooks.beforeAgentRun({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx)).outcome, "block");
+  const prepared = await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx);
+  assert.equal(calls, 1);
+  assert.equal(preparedBody.image_source, "ambiguous");
+  assert.equal(preparedBody.reference_image, undefined);
+  assert.match(prepared.prependContext, /route: direct/);
 });
-
 
 async function assertReplyMediaRevisionBlocked(replyMedia, runId) {
   let calls = 0;
@@ -1532,13 +1476,27 @@ test("multiple invalid reply images fail closed", async () => {
   ], "run-all-invalid-reply-media");
 });
 
-test("duplicate reply image entries remain ambiguous and fail closed", async () => {
-  const path =
-    "/home/node/.openclaw/media/inbound/a---11111111-1111-4111-8111-111111111111.jpg";
-  await assertReplyMediaRevisionBlocked([
-    { path, contentType: "image/jpeg" },
-    { path, contentType: "image/jpeg" },
-  ], "run-duplicate-reply-media");
+
+test("duplicate valid reply image entries reach Core as ambiguous provenance", async () => {
+  const pathValue = "/home/node/.openclaw/media/inbound/a---11111111-1111-4111-8111-111111111111.jpg";
+  let preparedBody;
+  const hooks = createAnhDuongCoreHooks({
+    env: ENV,
+    fetchImpl: async (_url, init) => {
+      preparedBody = JSON.parse(init.body);
+      return new Response(JSON.stringify(responseFixture(preparedBody.request_id, { route: "direct" })), { status: 200 });
+    },
+    realpathImpl: (value) => value,
+    statImpl: () => ({ isFile: () => true }),
+  });
+  const ctx = telegramContext("run-duplicate-reply-media");
+  ctx.channelContext = { chat: { replyMedia: [
+    { path: pathValue, contentType: "image/jpeg" },
+    { path: pathValue, contentType: "image/jpeg" },
+  ] } };
+  await hooks.beforePromptBuild({ prompt: "Thay cô gái bằng người khác", messages: [] }, ctx);
+  assert.equal(preparedBody.image_source, "ambiguous");
+  assert.equal(preparedBody.reference_image, undefined);
 });
 
 test("reply media with zero image entries stays ordinary revision input", async () => {
@@ -1624,24 +1582,37 @@ test("runtime staged Telegram image revision re-anchors current media into manag
   const injection = await hooks.beforePromptBuild({ prompt: rawPrompt, messages: [] }, ctx);
   assert.match(injection.prependContext, /capability: visual_image_generate/);
   assert.equal(preparedBody.reference_image, expected);
-  assert.match(preparedBody.text, /^Tạo ảnh chỉnh sửa từ ảnh tham chiếu\./);
-  assert.match(preparedBody.text, /Đổi áo cô gái thành màu đỏ/);
+  assert.equal(preparedBody.text, userText);
+  assert.equal(preparedBody.image_source, "current_upload");
   const reply = await hooks.beforeAgentReply({ cleanedBody: userText }, ctx);
   assert.equal(reply.handled, true);
   assert.equal(submitted.reference_image, expected);
 });
 
 
-test("multiple current staged images fail closed before Core prepare", async () => {
+
+test("multiple current staged images reach Core as ambiguous provenance", async () => {
   let calls = 0;
-  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl:async()=>{ calls++; throw new Error("must not prepare"); }, realpathImpl:(v)=>v, statImpl:()=>({isFile:()=>true}) });
+  let preparedBody;
+  const hooks = createAnhDuongCoreHooks({
+    env: ENV,
+    fetchImpl: async (_url, init) => {
+      calls += 1;
+      preparedBody = JSON.parse(init.body);
+      return new Response(JSON.stringify(responseFixture(preparedBody.request_id, { route: "direct" })), { status: 200 });
+    },
+    realpathImpl: (v) => v,
+    statImpl: () => ({ isFile: () => true }),
+  });
   const a="11111111-1111-4111-8111-111111111111.jpg";
   const b="22222222-2222-4222-8222-222222222222.jpg";
   const root="/home/node/.openclaw/workspace/media/inbound/openclaw-staged-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const raw=`[media attached: ${root}/${a} (image/jpeg)]\n[media attached: ${root}/${b} (image/jpeg)]\n[Image]\nUser text:\nĐổi áo thành đỏ\nDescription:\nx`;
   const ctx=telegramContext("run-staged-multiple");
-  assert.equal(await hooks.beforePromptBuild({prompt:raw,messages:[]},ctx), undefined);
-  assert.equal(calls,0);
+  await hooks.beforePromptBuild({prompt:raw,messages:[]},ctx);
+  assert.equal(calls,1);
+  assert.equal(preparedBody.image_source,"ambiguous");
+  assert.equal(preparedBody.reference_image,undefined);
 });
 
 test("current staged image without canonical managed file fails closed", async () => {
@@ -1719,7 +1690,8 @@ test("17:35 Telegram reply snapshot preserves original instruction and replied i
 
   const injection = await handlers.beforePromptBuild({ prompt: enrichedPrompt, messages: [] }, ctx);
 
-  assert.equal(preparedBody.text, `Tạo ảnh chỉnh sửa từ ảnh tham chiếu. Yêu cầu hiện tại: ${userText}`);
+  assert.equal(preparedBody.text, userText);
+  assert.equal(preparedBody.image_source, "replied_image");
   assert.equal(preparedBody.reference_image, referenceImage);
   assert.match(injection.prependContext, /capability: visual_image_generate/);
 });
@@ -1994,10 +1966,8 @@ test("direct uploaded Telegram image preserves raw instruction and maps media to
     handled: true,
     reason: "anh_duong_workflow_duplicate_hook",
   });
-  assert.equal(
-    preparedBody.text,
-    `Tạo ảnh chỉnh sửa từ ảnh tham chiếu. Yêu cầu hiện tại: ${rawInstruction}`,
-  );
+  assert.equal(preparedBody.text, rawInstruction);
+  assert.equal(preparedBody.image_source, "current_upload");
   assert.equal(preparedBody.reference_image, referenceImage);
   assert.equal(submittedBody.reference_image, referenceImage);
   assert.match(injection.prependContext, /capability: visual_image_generate/);
@@ -2054,7 +2024,8 @@ test("markerless Vision prompt resolves the single fresh original Telegram image
     ctx.senderId = senderId;
     ctx.chatId = senderId;
     await handlers.beforePromptBuild({ prompt: markerlessVisionPrompt, messages: [] }, ctx);
-    assert.equal(preparedBody.text, `Tạo ảnh chỉnh sửa từ ảnh tham chiếu. Yêu cầu hiện tại: ${currentInstruction}`);
+    assert.equal(preparedBody.text, currentInstruction);
+    assert.equal(preparedBody.image_source, "current_upload");
     assert.equal(preparedBody.reference_image, referenceImage);
   } finally {
     Date.now = originalDateNow;
@@ -2077,4 +2048,244 @@ test("trusted Telegram inbound snapshot accepts provider-prefixed conversation i
   assert.equal(submitted.source_origin, "telegram_user");
   assert.equal(submitted.source_chat_id, "123456789");
   assert.equal(submitted.source_message_id, "5878");
+});
+
+
+test("protected runtime overlay allows only web tools on web_read turns", async () => {
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    return new Response(JSON.stringify(responseFixture(body.request_id, {
+      route: "web_read",
+      capability: "web_research_read",
+    })), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const ctx = telegramContext("run-web-read-overlay");
+  const prepared = await hooks.beforePromptBuild({ prompt: "tra cứu web giúp anh", messages: [] }, ctx);
+  assert.match(prepared.prependContext, /tool_policy: web_read_tools_only/);
+  const toolCtx = { ...ctx, toolName: "web_search" };
+  assert.equal(await hooks.beforeToolCall({ toolName: "web_search", params: {} }, toolCtx), undefined);
+  assert.deepEqual(await hooks.beforeToolCall({ toolName: "exec", params: {} }, { ...ctx, toolName: "exec" }), {
+    block: true,
+    blockReason: "anh_duong_web_read_turn_web_tools_only",
+  });
+});
+
+
+
+test("visual_analysis search allows only web_search and web_fetch", async () => {
+  const rawInstruction = "tìm ảnh tham khảo trên web";
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    const response = responseFixture(body.request_id, {
+      route: "direct",
+      capability: "visual_analysis",
+    });
+    response.visual_interaction = {
+      raw_instruction: rawInstruction,
+      operation: "search",
+      image_role: null,
+      image_source: "none",
+      output: "text",
+      constraints: [],
+      side_effect: "none",
+      reference_image: null,
+      clarification_required: false,
+    };
+    return new Response(JSON.stringify(response), { status: 200 });
+  };
+  const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl });
+  const ctx = telegramContext("run-visual-search-tool-guard");
+  const prepared = await hooks.beforePromptBuild({ prompt: rawInstruction, messages: [] }, ctx);
+  assert.match(prepared.prependContext, /allowed_tools: web_search, web_fetch/);
+  assert.doesNotMatch(prepared.prependContext, /x_search/);
+  assert.equal(
+    await hooks.beforeToolCall({ toolName: "web_search", params: {} }, { ...ctx, toolName: "web_search" }),
+    undefined,
+  );
+  assert.equal(
+    await hooks.beforeToolCall({ toolName: "web_fetch", params: {} }, { ...ctx, toolName: "web_fetch" }),
+    undefined,
+  );
+  assert.deepEqual(
+    await hooks.beforeToolCall({ toolName: "x_search", params: {} }, { ...ctx, toolName: "x_search" }),
+    { block: true, blockReason: "anh_duong_visual_search_read_only_tools" },
+  );
+});
+
+
+test("protected runtime overlay claims provisional before_agent_reply prepare exactly once", async () => {
+  let prepareCalls = 0;
+  const hooks = createAnhDuongCoreHooks({
+    env: ENV,
+    fetchImpl: async (_url, init) => {
+      prepareCalls += 1;
+      const body = JSON.parse(init.body);
+      return new Response(JSON.stringify(responseFixture(body.request_id)), { status: 200 });
+    },
+  });
+  const provisionalCtx = telegramContext();
+  delete provisionalCtx.runId;
+  await hooks.beforeAgentReply({ cleanedBody: "alo" }, provisionalCtx);
+  const nativeCtx = {
+    ...provisionalCtx,
+    runId: "11111111-1111-4111-8111-111111111111",
+  };
+  const prepared = await hooks.beforePromptBuild({ prompt: "alo", messages: [] }, nativeCtx);
+  assert.match(prepared.prependContext, /route: direct/);
+  assert.equal(prepareCalls, 1);
+});
+
+
+test("current uploaded image analysis preserves instruction and sends provenance separately", async () => {
+  const mediaId = "analysis---66666666-6666-4666-8666-666666666666.jpg";
+  const mediaPath = `/home/node/.openclaw/media/inbound/${mediaId}`;
+  const referenceImage = `media://inbound/${mediaId}`;
+  const rawInstruction = "e phân tích lỗi sai trong ảnh a gửi đi";
+  const sessionKey = "agent:main:telegram:direct:analysis";
+  let preparedBody;
+  const handlers = createPluginHandlers({
+    env: ENV,
+    realpathImpl: (value) => value,
+    statImpl: () => ({ isFile: () => true }),
+    fetchImpl: async (_url, init) => {
+      preparedBody = JSON.parse(init.body);
+      const response = responseFixture(preparedBody.request_id, {
+        route: "direct",
+        capability: "visual_analysis",
+      });
+      response.visual_interaction = {
+        raw_instruction: rawInstruction,
+        operation: "analyze",
+        image_role: "evidence",
+        image_source: "current_upload",
+        output: "text",
+        constraints: [],
+        side_effect: "none",
+        reference_image: referenceImage,
+        clarification_required: false,
+      };
+      return new Response(JSON.stringify(response), { status: 200 });
+    },
+  });
+  handlers.messageReceived({
+    content: rawInstruction,
+    sessionKey,
+    senderId: "7535966424",
+    messageId: "6100",
+    metadata: {
+      provider: "telegram",
+      originatingChannel: "telegram",
+      mediaPath,
+      mediaType: "image/jpeg",
+    },
+  }, {
+    channelId: "telegram",
+    sessionKey,
+    senderId: "7535966424",
+    conversationId: "7535966424",
+  });
+  const ctx = telegramContext("77777777-7777-4777-8777-777777777777");
+  ctx.trigger = "user";
+  ctx.sessionKey = sessionKey;
+  ctx.senderId = "7535966424";
+  ctx.chatId = "7535966424";
+
+  const injection = await handlers.beforePromptBuild({
+    prompt: "Vision context only: the upload contains visible defects.",
+    messages: [],
+  }, ctx);
+
+  assert.equal(preparedBody.text, rawInstruction);
+  assert.equal(preparedBody.image_source, "current_upload");
+  assert.equal(preparedBody.reference_image, referenceImage);
+  assert.doesNotMatch(preparedBody.text, /^Tạo ảnh/);
+  assert.match(injection.prependContext, /capability: visual_analysis/);
+  assert.match(injection.prependContext, /visual_operation: analyze/);
+});
+
+test("reply image edit preserves raw instruction and marks replied_image provenance", async () => {
+  const mediaId = "reply-edit---88888888-8888-4888-8888-888888888888.jpg";
+  const mediaPath = `/home/node/.openclaw/media/inbound/${mediaId}`;
+  const referenceImage = `media://inbound/${mediaId}`;
+  const rawInstruction = "đổi váy vàng";
+  const sessionKey = "agent:main:telegram:direct:reply-edit";
+  let preparedBody;
+  const handlers = createPluginHandlers({
+    env: ENV,
+    realpathImpl: (value) => value,
+    statImpl: () => ({ isFile: () => true }),
+    fetchImpl: async (_url, init) => {
+      preparedBody = JSON.parse(init.body);
+      const response = responseFixture(preparedBody.request_id, {
+        route: "workflow",
+        capability: "visual_image_generate",
+        workflowOverrides: { goal: rawInstruction, reference_image: referenceImage },
+      });
+      response.visual_interaction = {
+        raw_instruction: rawInstruction,
+        operation: "edit",
+        image_role: "edit_target",
+        image_source: "replied_image",
+        output: "image",
+        constraints: [],
+        side_effect: "none",
+        reference_image: referenceImage,
+        clarification_required: false,
+      };
+      return new Response(JSON.stringify(response), { status: 200 });
+    },
+  });
+  handlers.messageReceived({
+    content: rawInstruction,
+    sessionKey,
+    senderId: "7535966424",
+    messageId: "6200",
+    replyToId: "6199",
+    metadata: {
+      provider: "telegram",
+      originatingChannel: "telegram",
+      replyMediaPath: mediaPath,
+      replyMediaType: "image/jpeg",
+    },
+  }, {
+    channelId: "telegram",
+    sessionKey,
+    senderId: "7535966424",
+    conversationId: "7535966424",
+  });
+  const ctx = telegramContext("99999999-9999-4999-8999-999999999999");
+  ctx.trigger = "user";
+  ctx.sessionKey = sessionKey;
+  ctx.senderId = "7535966424";
+  ctx.chatId = "7535966424";
+
+  await handlers.beforePromptBuild({ prompt: rawInstruction, messages: [] }, ctx);
+
+  assert.equal(preparedBody.text, rawInstruction);
+  assert.equal(preparedBody.image_source, "replied_image");
+  assert.equal(preparedBody.reference_image, referenceImage);
+  assert.doesNotMatch(preparedBody.text, /^Tạo ảnh/);
+});
+
+test("vague visual follow-up always re-prepares instead of reusing prior generation capability", async () => {
+  let prepareCalls = 0;
+  const hooks = createAnhDuongCoreHooks({
+    env: ENV,
+    fetchImpl: async (_url, init) => {
+      prepareCalls += 1;
+      const body = JSON.parse(init.body);
+      return new Response(JSON.stringify(responseFixture(body.request_id, prepareCalls === 1
+        ? { route: "workflow", capability: "visual_image_generate" }
+        : { route: "direct", capability: "conversational_response" })), { status: 200 });
+    },
+  });
+  const first = telegramContext("run-visual-generate");
+  await hooks.beforePromptBuild({ prompt: "tạo một cô gái mặc váy vàng", messages: [] }, first);
+
+  const second = telegramContext("run-visual-follow-up");
+  const prepared = await hooks.beforePromptBuild({ prompt: "làm lại", messages: [] }, second);
+
+  assert.equal(prepareCalls, 2);
+  assert.match(prepared.prependContext, /capability: conversational_response/);
 });
