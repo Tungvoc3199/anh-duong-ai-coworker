@@ -124,7 +124,7 @@ class WorkflowResolver:
             and bool(request.source_session_id)
             and bool(
                 re.fullmatch(
-                    r"[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}",
+                    r"(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|[1-9][0-9]{0,19})",
                     request.source_message_id or "",
                     re.IGNORECASE,
                 )

@@ -80,7 +80,7 @@ function requireNullableString(value, requestId, options) {
   return value === null ? null : requireString(value, requestId, options);
 }
 
-export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey, referenceImage, sourceOrigin }) {
+export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey, referenceImage, sourceOrigin, sourceMessageId }) {
   if (typeof prompt !== "string" || prompt.trim().length === 0 || prompt.length > 20_000) {
     throw validationError();
   }
@@ -94,8 +94,10 @@ export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey, 
     typeof senderId === "string" && senderId.length > 0
       ? `telegram:${sha256(senderId)}`
       : "telegram:anonymous";
-  const sourceMessageId =
-    runId.length <= 128 ? runId : `message-${sha256(runId)}`;
+  const resolvedSourceMessageId =
+    typeof sourceMessageId === "string" && sourceMessageId.length > 0
+      ? sourceMessageId
+      : runId.length <= 128 ? runId : "message-" + sha256(runId);
 
   return {
     text: prompt,
@@ -109,7 +111,7 @@ export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey, 
     ...(typeof sessionKey === "string" && sessionKey.length > 0
       ? { source_session_id: sessionKey }
       : {}),
-    source_message_id: sourceMessageId,
+    source_message_id: resolvedSourceMessageId,
     ...(typeof referenceImage === "string" && referenceImage.length > 0
       ? { reference_image: referenceImage }
       : {}),

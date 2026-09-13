@@ -561,14 +561,6 @@ export function createAnhDuongCoreHooks({
       return undefined;
     }
 
-    // Only runtime hook metadata grants direct-user provenance. Never infer it
-    // from prompt text, recent message queues, or a generated compatibility id.
-    const nativeUserTurn = ctx?.trigger === "user"
-      && typeof ctx?.runId === "string"
-      && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ctx.runId)
-      && typeof ctx?.senderId === "string" && /^[1-9][0-9]*$/.test(ctx.senderId)
-      && typeof ctx?.chatId === "string" && ctx.chatId.length > 0
-      && typeof ctx?.sessionKey === "string" && ctx.sessionKey.length > 0;
     const rawPrompt = event?.prompt;
     const originalTurn = resolveOriginalTurn?.({
       runId: ctx?.runId,
@@ -577,6 +569,31 @@ export function createAnhDuongCoreHooks({
       senderId: ctx?.senderId,
       rawPrompt,
     });
+    // Direct-owner provenance may come from either a native user hook with a UUID run id
+    // or the trusted message_received snapshot for the same Telegram sender/session.
+    // Never infer provenance from prompt text or a generated compatibility id alone.
+    const currentChatId =
+      typeof ctx?.chatId === "string" || typeof ctx?.chatId === "number"
+        ? String(ctx.chatId)
+        : undefined;
+    const nativeUserTurn = ctx?.trigger === "user"
+      && typeof ctx?.runId === "string"
+      && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ctx.runId)
+      && typeof ctx?.senderId === "string" && /^[1-9][0-9]*$/.test(ctx.senderId)
+      && typeof ctx?.chatId === "string" && ctx.chatId.length > 0
+      && typeof ctx?.sessionKey === "string" && ctx.sessionKey.length > 0;
+    const trustedInboundTurn = ctx?.trigger === "user"
+      && originalTurn?.trustedTelegramInbound === true
+      && typeof originalTurn?.sourceMessageId === "string"
+      && /^[1-9][0-9]*$/.test(originalTurn.sourceMessageId)
+      && typeof originalTurn?.sourceChatId === "string"
+      && originalTurn.sourceChatId.length > 0
+      && typeof currentChatId === "string"
+      && currentChatId === originalTurn.sourceChatId
+      && typeof ctx?.senderId === "string"
+      && /^[1-9][0-9]*$/.test(ctx.senderId)
+      && typeof (ctx?.sessionKey ?? ctx?.sessionId) === "string";
+    const directUserTurn = nativeUserTurn || trustedInboundTurn;
     const originalInstruction = typeof originalTurn?.text === "string" && originalTurn.text.trim()
       ? originalTurn.text.trim()
       : undefined;
@@ -644,7 +661,7 @@ export function createAnhDuongCoreHooks({
 
     if (!revision.referenceImage && isVisualImageFollowUp(corePrompt)) {
       const reusable = findReusableVisualImageState(ctx);
-      if (reusable && (!reusable.state.ownerSource || nativeUserTurn)) {
+      if (reusable && (!reusable.state.ownerSource || directUserTurn)) {
         const reusedState = {
           ...reusable.state,
           prompt: corePrompt,
@@ -703,10 +720,11 @@ export function createAnhDuongCoreHooks({
         prompt: corePrompt,
         runId,
         senderId: ctx?.senderId,
-        chatId: ctx?.chatId,
-        sessionKey: ctx?.sessionKey,
+        chatId: currentChatId,
+        sessionKey: ctx?.sessionKey ?? ctx?.sessionId,
         referenceImage: revision.referenceImage,
-        ...(nativeUserTurn ? { sourceOrigin: "telegram_user" } : {}),
+        ...(directUserTurn ? { sourceOrigin: "telegram_user" } : {}),
+        ...(trustedInboundTurn ? { sourceMessageId: originalTurn.sourceMessageId } : {}),
       });
       requestId = request.request_id;
       const prepared = await prepareCoreRequest({ config, request, fetchImpl });
@@ -717,7 +735,7 @@ export function createAnhDuongCoreHooks({
         prepared,
         preparedContext,
         prompt: corePrompt,
-        ownerSource: nativeUserTurn,
+        ownerSource: directUserTurn,
         sessionKey: ctx?.sessionKey ?? ctx?.sessionId,
         chatId: ctx?.chatId,
         senderId: ctx?.senderId,

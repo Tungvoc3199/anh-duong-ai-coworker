@@ -110,6 +110,8 @@ export function createPluginHandlers({
           : metadata.mediaType ? [metadata.mediaType] : []);
     const replyToId = event?.replyToId ?? ctx?.replyToId ?? metadata.replyToId;
     const replyToBody = event?.replyToBody ?? metadata.replyToBody;
+    const sourceMessageId = event?.messageId ?? ctx?.messageId;
+    const sourceChatId = event?.chatId ?? ctx?.chatId ?? ctx?.conversationId;
     const queue = originalTurns.get(key) ?? [];
     queue.push({
       text,
@@ -117,6 +119,15 @@ export function createPluginHandlers({
       mediaTypes,
       replyToId,
       replyToBody,
+      sourceMessageId:
+        typeof sourceMessageId === "string" || typeof sourceMessageId === "number"
+          ? String(sourceMessageId)
+          : undefined,
+      sourceChatId:
+        typeof sourceChatId === "string" || typeof sourceChatId === "number"
+          ? String(sourceChatId)
+          : undefined,
+      trustedTelegramInbound: true,
       receivedAt: Date.now(),
       expiresAt: Date.now() + ORIGINAL_TURN_TTL_MS,
     });

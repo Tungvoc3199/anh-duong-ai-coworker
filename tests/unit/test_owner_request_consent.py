@@ -50,6 +50,30 @@ def test_live_owner_request_does_not_require_second_approval():
     assert "owner_request_authorized_current_goal" in result.constraints
 
 
+def test_owner_direct_request_accepts_real_telegram_message_id():
+    result = WorkflowResolver(owner_telegram_id=OWNER).resolve(
+        request=CoreRequest(
+            text="Fix the workspace",
+            channel="telegram",
+            actor=ACTOR,
+            source_chat_id=OWNER,
+            source_session_id="agent:main:telegram:direct:" + OWNER,
+            source_message_id="5878",
+        ).model_copy(update={"source_origin": "telegram_user"}),
+        request_id="owner-real-telegram-message-id",
+        normalized_text="Fix the workspace",
+        capability=CapabilityKind.UNKNOWN_WORKFLOW,
+        project=SimpleNamespace(
+            id="proj_owner",
+            path_wsl="/mnt/f/AIOS/project",
+            constraints=(),
+            priority=SimpleNamespace(value="normal"),
+        ),
+    )
+    assert result.approval_required is False
+    assert result.policy_rule_id == "owner.direct_request"
+
+
 def test_owner_harmless_bounded_shell_like_command_does_not_require_second_approval():
     result = WorkflowResolver(owner_telegram_id=OWNER).resolve(
         request=CoreRequest(

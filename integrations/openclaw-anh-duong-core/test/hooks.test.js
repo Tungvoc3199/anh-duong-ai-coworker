@@ -1724,6 +1724,140 @@ test("17:35 Telegram reply snapshot preserves original instruction and replied i
   assert.match(injection.prependContext, /capability: visual_image_generate/);
 });
 
+test("trusted Telegram inbound snapshot grants provenance across compat-generated run id", async () => {
+  let submitted;
+  const handlers = createPluginHandlers({ env: ENV, fetchImpl: async (_url, init) => {
+    submitted = JSON.parse(init.body);
+    return new Response(JSON.stringify(responseFixture(submitted.request_id)), { status: 200 });
+  }});
+  const sessionKey = "agent:main:telegram:direct:123456789";
+  handlers.messageReceived(
+    {
+      content: "Fix the workspace",
+      sessionKey,
+      senderId: "123456789",
+      messageId: "5878",
+      metadata: { provider: "telegram", originatingChannel: "telegram" },
+    },
+    {
+      channelId: "telegram",
+      sessionKey,
+      senderId: "123456789",
+      conversationId: "123456789",
+    },
+  );
+  const ctx = {
+    ...telegramContext("compat-generated"),
+    trigger: "user",
+    sessionKey,
+    senderId: "123456789",
+    chatId: "123456789",
+  };
+  await handlers.beforePromptBuild({ prompt: "Fix the workspace", messages: [] }, ctx);
+  assert.equal(submitted.source_origin, "telegram_user");
+  assert.equal(submitted.source_chat_id, "123456789");
+  assert.equal(submitted.source_session_id, sessionKey);
+  assert.equal(submitted.source_message_id, "5878");
+});
+
+test("trusted Telegram inbound snapshot forwards sessionId when sessionKey is absent", async () => {
+  let submitted;
+  const handlers = createPluginHandlers({ env: ENV, fetchImpl: async (_url, init) => {
+    submitted = JSON.parse(init.body);
+    return new Response(JSON.stringify(responseFixture(submitted.request_id)), { status: 200 });
+  }});
+  const sessionId = "agent:main:telegram:direct:123456789";
+  handlers.messageReceived(
+    {
+      content: "Fix the workspace",
+      sessionKey: sessionId,
+      senderId: "123456789",
+      messageId: "5878",
+      metadata: { provider: "telegram", originatingChannel: "telegram" },
+    },
+    { channelId: "telegram", sessionKey: sessionId, senderId: "123456789", conversationId: "123456789" },
+  );
+  const ctx = {
+    ...telegramContext("compat-generated"),
+    trigger: "user",
+    sessionKey: undefined,
+    sessionId,
+    senderId: "123456789",
+    chatId: "123456789",
+  };
+  await handlers.beforePromptBuild({ prompt: "Fix the workspace", messages: [] }, ctx);
+  assert.equal(submitted.source_origin, "telegram_user");
+  assert.equal(submitted.source_session_id, sessionId);
+});
+
+test("trusted Telegram inbound snapshot normalizes numeric chat id", async () => {
+  let submitted;
+  const handlers = createPluginHandlers({ env: ENV, fetchImpl: async (_url, init) => {
+    submitted = JSON.parse(init.body);
+    return new Response(JSON.stringify(responseFixture(submitted.request_id)), { status: 200 });
+  }});
+  const sessionKey = "agent:main:telegram:direct:123456789";
+  handlers.messageReceived(
+    { content: "Fix the workspace", sessionKey, senderId: "123456789", messageId: "5878", metadata: { provider: "telegram", originatingChannel: "telegram" } },
+    { channelId: "telegram", sessionKey, senderId: "123456789", chatId: 123456789 },
+  );
+  const ctx = { ...telegramContext("compat-generated"), trigger: "user", sessionKey, senderId: "123456789", chatId: 123456789 };
+  await handlers.beforePromptBuild({ prompt: "Fix the workspace", messages: [] }, ctx);
+  assert.equal(submitted.source_origin, "telegram_user");
+  assert.equal(submitted.source_chat_id, "123456789");
+});
+
+test("trusted Telegram inbound snapshot cannot grant provenance to a different chat", async () => {
+  let submitted;
+  const handlers = createPluginHandlers({ env: ENV, fetchImpl: async (_url, init) => {
+    submitted = JSON.parse(init.body);
+    return new Response(JSON.stringify(responseFixture(submitted.request_id)), { status: 200 });
+  }});
+  const sessionKey = "agent:main:telegram:direct:123456789";
+  handlers.messageReceived(
+    {
+      content: "Fix the workspace",
+      sessionKey,
+      senderId: "123456789",
+      messageId: "5878",
+      metadata: { provider: "telegram", originatingChannel: "telegram" },
+    },
+    {
+      channelId: "telegram",
+      sessionKey,
+      senderId: "123456789",
+      conversationId: "123456789",
+    },
+  );
+  const ctx = {
+    ...telegramContext("compat-generated"),
+    trigger: "user",
+    sessionKey,
+    senderId: "123456789",
+    chatId: "987654321",
+  };
+  await handlers.beforePromptBuild({ prompt: "Fix the workspace", messages: [] }, ctx);
+  assert.ok(submitted);
+  assert.notEqual(submitted.source_origin, "telegram_user");
+});
+
+test("trusted Telegram inbound snapshot cannot grant owner provenance to cron turn", async () => {
+  let submitted;
+  const handlers = createPluginHandlers({ env: ENV, fetchImpl: async (_url, init) => {
+    submitted = JSON.parse(init.body);
+    return new Response(JSON.stringify(responseFixture(submitted.request_id)), { status: 200 });
+  }});
+  const sessionKey = "agent:main:telegram:direct:123456789";
+  handlers.messageReceived(
+    { content: "Fix the workspace", sessionKey, senderId: "123456789", messageId: "5878", metadata: { provider: "telegram", originatingChannel: "telegram" } },
+    { channelId: "telegram", sessionKey, senderId: "123456789", conversationId: "123456789" },
+  );
+  const ctx = { ...telegramContext("compat-generated"), trigger: "cron", sessionKey, senderId: "123456789", chatId: "123456789" };
+  await handlers.beforePromptBuild({ prompt: "synthetic scheduled maintenance", messages: [] }, ctx);
+  assert.ok(submitted);
+  assert.notEqual(submitted.source_origin, "telegram_user");
+});
+
 test("native user trigger grants provenance without relying on missing inbound run mapping", async () => {
   let submitted;
   const handlers = createPluginHandlers({env:ENV,fetchImpl:async(_url,init)=>{
