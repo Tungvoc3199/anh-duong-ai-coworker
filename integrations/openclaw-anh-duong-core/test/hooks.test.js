@@ -2060,3 +2060,21 @@ test("markerless Vision prompt resolves the single fresh original Telegram image
     Date.now = originalDateNow;
   }
 });
+
+test("trusted Telegram inbound snapshot accepts provider-prefixed conversation id", async () => {
+  let submitted;
+  const handlers = createPluginHandlers({ env: ENV, fetchImpl: async (_url, init) => {
+    submitted = JSON.parse(init.body);
+    return new Response(JSON.stringify(responseFixture(submitted.request_id)), { status: 200 });
+  }});
+  const sessionKey = "agent:main:telegram:direct:123456789";
+  handlers.messageReceived(
+    { content: "Fix the workspace", sessionKey, senderId: "123456789", messageId: "5878", metadata: { provider: "telegram", originatingChannel: "telegram" } },
+    { channelId: "telegram", sessionKey, senderId: "123456789", conversationId: "telegram:123456789" },
+  );
+  const ctx = { ...telegramContext("compat-generated"), trigger: "user", sessionKey, senderId: "123456789", chatId: "123456789" };
+  await handlers.beforePromptBuild({ prompt: "Fix the workspace", messages: [] }, ctx);
+  assert.equal(submitted.source_origin, "telegram_user");
+  assert.equal(submitted.source_chat_id, "123456789");
+  assert.equal(submitted.source_message_id, "5878");
+});

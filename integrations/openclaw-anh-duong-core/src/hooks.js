@@ -64,6 +64,14 @@ function isTelegram(ctx) {
   return ctx?.messageProvider === "telegram" || ctx?.channel === "telegram";
 }
 
+function normalizeTelegramChatTarget(value) {
+  if (typeof value !== "string" && typeof value !== "number") return undefined;
+  const text = String(value).trim();
+  if (!text) return undefined;
+  const normalized = text.replace(/^telegram:/i, "");
+  return normalized.length > 0 ? normalized : undefined;
+}
+
 function resolveTurnRunId(ctx, prompt, currentTime) {
   const runId = ctx?.runId;
   if (typeof runId === "string" && runId.length > 0) {
@@ -572,10 +580,8 @@ export function createAnhDuongCoreHooks({
     // Direct-owner provenance may come from either a native user hook with a UUID run id
     // or the trusted message_received snapshot for the same Telegram sender/session.
     // Never infer provenance from prompt text or a generated compatibility id alone.
-    const currentChatId =
-      typeof ctx?.chatId === "string" || typeof ctx?.chatId === "number"
-        ? String(ctx.chatId)
-        : undefined;
+    const currentChatId = normalizeTelegramChatTarget(ctx?.chatId);
+    const originalChatId = normalizeTelegramChatTarget(originalTurn?.sourceChatId);
     const nativeUserTurn = ctx?.trigger === "user"
       && typeof ctx?.runId === "string"
       && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ctx.runId)
@@ -586,10 +592,9 @@ export function createAnhDuongCoreHooks({
       && originalTurn?.trustedTelegramInbound === true
       && typeof originalTurn?.sourceMessageId === "string"
       && /^[1-9][0-9]*$/.test(originalTurn.sourceMessageId)
-      && typeof originalTurn?.sourceChatId === "string"
-      && originalTurn.sourceChatId.length > 0
+      && typeof originalChatId === "string"
       && typeof currentChatId === "string"
-      && currentChatId === originalTurn.sourceChatId
+      && currentChatId === originalChatId
       && typeof ctx?.senderId === "string"
       && /^[1-9][0-9]*$/.test(ctx.senderId)
       && typeof (ctx?.sessionKey ?? ctx?.sessionId) === "string";
