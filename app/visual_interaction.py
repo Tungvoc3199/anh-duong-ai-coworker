@@ -284,6 +284,15 @@ def _visual_operation(
         ),
     ):
         return VisualOperation.EDIT
+    if has_visual_context and _contains_any(
+        text,
+        (
+            "dựng lại", "dung lai", "làm lại", "lam lai",
+            "tạo lại", "tao lai", "vẽ lại", "ve lai",
+            "recreate", "remake", "redraw", "rebuild",
+        ),
+    ):
+        return VisualOperation.GENERATE
     if _contains_any(text, ("tạo", "tao", "generate", "create", "make")) and (
         has_visual_noun
         or _contains_any(text, ("một cô gái", "mot co gai", "một người", "mot nguoi"))
@@ -398,6 +407,22 @@ def _needs_target(operation: VisualOperation) -> bool:
         VisualOperation.TRANSFORM,
         VisualOperation.ANNOTATE,
     }
+
+
+def should_bind_recent_visual_candidate(raw_instruction: str) -> bool:
+    lowered = raw_instruction.casefold()
+    base = build_visual_interaction_contract(lowered)
+    if base is not None and base.clarification_required:
+        return True
+    visual_noun = _contains_visual_noun(lowered)
+    return visual_noun and _contains_any(
+        lowered,
+        (
+            "dựng lại", "dung lai", "làm lại", "lam lai",
+            "tạo lại", "tao lai", "vẽ lại", "ve lai",
+            "recreate", "remake", "redraw", "rebuild",
+        ),
+    )
 
 
 def build_visual_interaction_contract(

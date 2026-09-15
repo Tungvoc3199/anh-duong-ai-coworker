@@ -37,6 +37,7 @@ class CoreRequest(BaseModel):
     source_message_id: str | None = Field(default=None, max_length=128)
     image_source: VisualImageSource = VisualImageSource.NONE
     reference_image: str | None = Field(default=None, max_length=2048)
+    recent_image_candidate: str | None = Field(default=None, max_length=2048)
 
     @field_validator("text")
     @classmethod
@@ -64,7 +65,7 @@ class CoreRequest(BaseModel):
             raise ValueError("identifier cannot be blank")
         return normalized
 
-    @field_validator("reference_image")
+    @field_validator("reference_image", "recent_image_candidate")
     @classmethod
     def normalize_reference_image(cls, value: str | None) -> str | None:
         return validate_managed_image_reference(value)

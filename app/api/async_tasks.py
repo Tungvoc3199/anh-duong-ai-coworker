@@ -107,12 +107,9 @@ def create_async_task(
     payload: AsyncTaskCreate,
     request: Request,
 ) -> AsyncTaskAccepted:
-    if not bool(
-        getattr(
-            request.app.state,
-            "accepting_async_tasks",
-            False,
-        )
+    if not (
+        bool(getattr(request.app.state, "accepting_async_tasks", False))
+        and bool(getattr(request.app.state, "async_runtime_ready", False))
     ):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

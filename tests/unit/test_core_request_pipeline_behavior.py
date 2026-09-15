@@ -1288,3 +1288,42 @@ def test_visual_analysis_pipeline_builds_and_exposes_current_turn_contract() -> 
     assert prepared.capability_decision.capability is CapabilityKind.VISUAL_ANALYSIS
     assert prepared.execution_required is False
     assert prepared.workflow is None
+
+
+def test_recent_visual_candidate_binds_for_reconstruction_continuation() -> None:
+    prepared = _pipeline(project_reader=ProjectReader((_project(),))).prepare(CoreRequest(
+        text="Vậy em dựng lại ảnh chuẩn chỉ cho anh được không",
+        recent_image_candidate="media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg",
+    ))
+    assert prepared.visual_interaction is not None
+    assert prepared.visual_interaction.operation is VisualOperation.GENERATE
+    assert prepared.visual_interaction.image_source is VisualImageSource.RECENT_ARTIFACT
+    assert prepared.visual_interaction.reference_image == "media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg"
+    assert prepared.capability_decision.capability is CapabilityKind.VISUAL_IMAGE_GENERATE
+
+
+def test_recent_visual_candidate_binds_for_implicit_edit_target() -> None:
+    prepared = _pipeline(project_reader=ProjectReader((_project(),))).prepare(CoreRequest(
+        text="đổi váy thành màu vàng",
+        recent_image_candidate="media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg",
+    ))
+    assert prepared.visual_interaction is not None
+    assert prepared.visual_interaction.operation is VisualOperation.EDIT
+    assert prepared.visual_interaction.image_source is VisualImageSource.RECENT_ARTIFACT
+    assert prepared.visual_interaction.clarification_required is False
+
+
+def test_recent_visual_candidate_does_not_bleed_into_unrelated_or_fresh_generation() -> None:
+    unrelated = _pipeline(project_reader=ProjectReader((_project(),))).prepare(CoreRequest(
+        text="Hôm nay có việc gì cần ưu tiên?",
+        recent_image_candidate="media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg",
+    ))
+    fresh = _pipeline(project_reader=ProjectReader((_project(),))).prepare(CoreRequest(
+        text="tạo một cô gái mặc váy vàng",
+        recent_image_candidate="media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg",
+    ))
+    assert unrelated.visual_interaction is None
+    assert fresh.visual_interaction is not None
+    assert fresh.visual_interaction.operation is VisualOperation.GENERATE
+    assert fresh.visual_interaction.image_source is VisualImageSource.NONE
+    assert fresh.visual_interaction.reference_image is None
