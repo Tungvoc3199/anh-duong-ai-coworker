@@ -82,7 +82,7 @@ function requireNullableString(value, requestId, options) {
   return value === null ? null : requireString(value, requestId, options);
 }
 
-export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey, imageSource, referenceImage, sourceOrigin, sourceMessageId, recentReferent }) {
+export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey, imageSource, referenceImage, recentImageCandidate, sourceOrigin, sourceMessageId, recentReferent }) {
   if (typeof prompt !== "string" || prompt.trim().length === 0 || prompt.length > 20_000) {
     throw validationError();
   }
@@ -119,6 +119,9 @@ export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey, 
       : {}),
     ...(typeof referenceImage === "string" && referenceImage.length > 0
       ? { reference_image: referenceImage }
+      : {}),
+    ...(typeof recentImageCandidate === "string" && recentImageCandidate.length > 0
+      ? { recent_image_candidate: recentImageCandidate }
       : {}),
     ...(recentReferent ? { recent_referent: recentReferent } : {}),
   };

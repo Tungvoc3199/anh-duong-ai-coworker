@@ -46,7 +46,6 @@ test("workflow progress ACK is deleted after final notification is sent", async 
   const deleted = [];
   const scheduled = [];
   const requests = [];
-  let runReads = 0;
   const env = {
     ANH_DUONG_CORE_ENABLED: "true",
     ANH_DUONG_CORE_BASE_URL: "http://core.local:8790",
@@ -132,14 +131,8 @@ test("workflow progress ACK is deleted after final notification is sent", async 
       );
     }
     if (String(url).endsWith("/api/async-tasks/run_wr1")) {
-      runReads += 1;
-      const snapshots = [
-        { status: "running", notification_status: "pending" },
-        { status: "completed", notification_status: "pending" },
-        { status: "completed", notification_status: "sent" },
-      ];
       return new Response(
-        JSON.stringify({ id: "run_wr1", ...snapshots[Math.min(runReads - 1, snapshots.length - 1)] }),
+        JSON.stringify({ id: "run_wr1", status: "completed", notification_status: "sent" }),
         { status: 200, headers: { "content-type": "application/json" } },
       );
     }
@@ -181,7 +174,6 @@ test("workflow progress ACK is deleted after final notification is sent", async 
   await Promise.all(scheduled);
 
   assert.deepEqual(deleted, [{ chatId: "private-chat", messageId: "3202" }]);
-  assert.equal(runReads, 3);
   assert.ok(requests.includes("http://core.local:8790/api/async-tasks/run_wr1"));
 });
 

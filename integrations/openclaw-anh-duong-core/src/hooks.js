@@ -63,6 +63,7 @@ export async function deleteTelegramWorkflowProgress(api, { chatId, messageId })
   }
 }
 const STATE_TTL_MS = 5 * 60 * 1_000;
+const RECENT_VISUAL_TTL_MS = 6 * 60 * 60 * 1_000;
 const WORKFLOW_PROGRESS_DELAY_MS = 1_500;
 const TERMINAL_RUN_STATUSES = new Set([
   "completed",
@@ -223,6 +224,7 @@ export function createAnhDuongCoreHooks({
   const explicitlyDisabled = config?.enabled === false;
   const states = new Map();
   const progress = new Map();
+  const recentVisuals = new Map();
 
   function sweep() {
     const current = now();
@@ -231,6 +233,35 @@ export function createAnhDuongCoreHooks({
         states.delete(runId);
       }
     }
+    for (const [key, state] of recentVisuals) {
+      if (state.expiresAt <= current) recentVisuals.delete(key);
+    }
+  }
+
+  function visualScopeKey(ctx) {
+    const sessionKey = ctx?.sessionKey ?? ctx?.sessionId;
+    const senderId = ctx?.senderId;
+    if (typeof sessionKey !== "string" || sessionKey.length === 0) return undefined;
+    if (typeof senderId === "string" && senderId.length > 0) return `${sessionKey}\u0000${senderId}`;
+    const chatId = ctx?.chatId ?? ctx?.conversationId;
+    if (chatId !== undefined && chatId !== null && String(chatId).length > 0) return `${sessionKey}\u0000chat:${chatId}`;
+    return undefined;
+  }
+
+  function recentVisualCandidate(ctx) {
+    sweep();
+    const key = visualScopeKey(ctx);
+    if (!key) return undefined;
+    return recentVisuals.get(key)?.referenceImage;
+  }
+
+  function rememberVisualCandidate(ctx, visualReference) {
+    const key = visualScopeKey(ctx);
+    if (!key || typeof visualReference?.referenceImage !== "string") return;
+    recentVisuals.set(key, {
+      referenceImage: visualReference.referenceImage,
+      expiresAt: now() + RECENT_VISUAL_TTL_MS,
+    });
   }
 
   function findClaimablePreAgentState(ctx, prompt) {
@@ -731,6 +762,7 @@ export function createAnhDuongCoreHooks({
         sessionKey: ctx?.sessionKey ?? ctx?.sessionId,
         imageSource: visualReference.imageSource,
         referenceImage: visualReference.referenceImage,
+        recentImageCandidate: visualReference.referenceImage === undefined ? recentVisualCandidate(ctx) : undefined,
         ...(directUserTurn ? { sourceOrigin: "telegram_user" } : {}),
         ...(trustedInboundTurn ? { sourceMessageId: originalTurn.sourceMessageId } : {}),
         recentReferent: recentUserUrl(event?.messages, corePrompt),
@@ -738,6 +770,7 @@ export function createAnhDuongCoreHooks({
       requestId = request.request_id;
       const prepared = await prepareCoreRequest({ config, request, fetchImpl });
       const preparedContext = appendCapabilityPolicy(prepared, buildPreparedContext(prepared));
+      rememberVisualCandidate(ctx, visualReference);
       states.set(runId, {
         status: "prepared",
         requestId,
@@ -749,6 +782,8 @@ export function createAnhDuongCoreHooks({
         chatId: ctx?.chatId,
         senderId: ctx?.senderId,
         provisionalSource,
+        visualReference,
+        preparedAt: now(),
         expiresAt: now() + STATE_TTL_MS,
       });
       safeLog(logger, "info", {
@@ -758,6 +793,11 @@ export function createAnhDuongCoreHooks({
         route: prepared.route_decision.route,
         capability: prepared.capability_decision.capability,
         execution_required: prepared.execution_required,
+        ...(prepared.visual_interaction ? {
+          visual_operation: prepared.visual_interaction.operation,
+          image_source: prepared.visual_interaction.image_source,
+          evidence_available: typeof prepared.visual_interaction.reference_image === "string",
+        } : {}),
       });
       return { prependContext: preparedContext };
     } catch (error) {

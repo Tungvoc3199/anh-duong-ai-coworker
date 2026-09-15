@@ -97,14 +97,20 @@ export function createPluginHandlers({
     const mediaPaths = isReply
       ? (Array.isArray(metadata.replyMediaPaths) && metadata.replyMediaPaths.length
           ? metadata.replyMediaPaths
-          : metadata.replyMediaPath ? [metadata.replyMediaPath] : [])
+          : metadata.replyMediaPath ? [metadata.replyMediaPath]
+          : Array.isArray(metadata.mediaPaths) && metadata.mediaPaths.length
+            ? metadata.mediaPaths
+            : metadata.mediaPath ? [metadata.mediaPath] : [])
       : (Array.isArray(metadata.mediaPaths) && metadata.mediaPaths.length
           ? metadata.mediaPaths
           : metadata.mediaPath ? [metadata.mediaPath] : []);
     const mediaTypes = isReply
       ? (Array.isArray(metadata.replyMediaTypes) && metadata.replyMediaTypes.length
           ? metadata.replyMediaTypes
-          : metadata.replyMediaType ? [metadata.replyMediaType] : [])
+          : metadata.replyMediaType ? [metadata.replyMediaType]
+          : Array.isArray(metadata.mediaTypes) && metadata.mediaTypes.length
+            ? metadata.mediaTypes
+            : metadata.mediaType ? [metadata.mediaType] : [])
       : (Array.isArray(metadata.mediaTypes) && metadata.mediaTypes.length
           ? metadata.mediaTypes
           : metadata.mediaType ? [metadata.mediaType] : []);
