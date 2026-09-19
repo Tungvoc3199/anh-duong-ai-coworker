@@ -196,6 +196,7 @@ class AsyncTaskWorker:
             workspace=request.workspace,
             reference_image=request.reference_image,
             constraints=self._execution_constraints(request),
+            prior_evidence=request.prior_evidence,
         )
 
         try:
@@ -565,7 +566,12 @@ class AsyncTaskWorker:
             verification_requirements=tuple(
                 item.description for item in running_plan.verification_requirements
             ),
-            prior_evidence=tuple(f"{item.id}: {item.summary}" for item in running_plan.evidence),
+            prior_evidence=tuple(
+                dict.fromkeys(
+                    request.prior_evidence
+                    + tuple(f"{item.id}: {item.summary}" for item in running_plan.evidence)
+                )
+            ),
             remaining_budget={
                 "actions": remaining_actions,
                 "replans": max(

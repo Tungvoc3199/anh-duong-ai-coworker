@@ -104,6 +104,7 @@ async def test_two_concurrent_requests_create_one_task_and_run(
 
     app = _app(engine, tmp_path)
     async with app.router.lifespan_context(app):
+        app.state.async_runtime_ready = True
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(
             transport=transport,
@@ -162,6 +163,7 @@ async def test_concurrent_changed_revision_reference_returns_conflict(
     second = _payload(tmp_path) | {"reference_image": "media://inbound/b---22222222-2222-4222-8222-222222222222.jpg"}
     app = _app(engine, tmp_path)
     async with app.router.lifespan_context(app):
+        app.state.async_runtime_ready = True
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
             responses = await asyncio.gather(

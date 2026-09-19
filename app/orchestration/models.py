@@ -11,12 +11,31 @@ from pydantic import (
     model_validator,
 )
 
-from app.capabilities.models import CapabilityDecision
+from app.capabilities.models import CapabilityDecision, CapabilityKind
 from app.context_builder.models import ContextBundle
 from app.image_reference import validate_managed_image_reference
 from app.policy import DecisionKind, RiskLevel
 from app.routing.models import RouteDecision
 from app.visual_interaction import VisualImageSource, VisualInteractionContract
+
+
+class ContextualReferent(BaseModel):
+    """Trusted turn-local reference data, never authorization by itself."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    source: Literal["quoted_message", "previous_assistant_result", "session_state"]
+    message_id: str | None = Field(default=None, max_length=128)
+    text: str = Field(min_length=1, max_length=12_000)
+    sender: str | None = Field(default=None, max_length=256)
+
+    @field_validator("text")
+    @classmethod
+    def normalize_text(cls, value: str) -> str:
+        normalized = " ".join(value.split())
+        if not normalized:
+            raise ValueError("contextual referent text cannot be blank")
+        return normalized
 
 
 class CoreRequest(BaseModel):
@@ -38,6 +57,8 @@ class CoreRequest(BaseModel):
     image_source: VisualImageSource = VisualImageSource.NONE
     reference_image: str | None = Field(default=None, max_length=2048)
     recent_image_candidate: str | None = Field(default=None, max_length=2048)
+    contextual_referent: ContextualReferent | None = None
+    recent_assistant_candidate: ContextualReferent | None = None
 
     @field_validator("text")
     @classmethod
@@ -141,6 +162,8 @@ class WorkflowEnvelope(BaseModel):
     idempotency_key: str | None = Field(default=None, max_length=255)
     correlation_id: str = Field(min_length=1, max_length=128)
     constraints: tuple[str, ...] = ()
+    prior_evidence: tuple[str, ...] = ()
+    capability: CapabilityKind | None = None
     policy_decision: DecisionKind
     policy_rule_id: str = Field(min_length=1, max_length=128)
     policy_reason: str = Field(min_length=1, max_length=2000)

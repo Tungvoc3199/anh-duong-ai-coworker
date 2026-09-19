@@ -82,7 +82,7 @@ function requireNullableString(value, requestId, options) {
   return value === null ? null : requireString(value, requestId, options);
 }
 
-export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey, imageSource, referenceImage, recentImageCandidate, sourceOrigin, sourceMessageId, recentReferent }) {
+export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey, imageSource, referenceImage, recentImageCandidate, sourceOrigin, sourceMessageId, recentReferent, contextualReferent, recentAssistantCandidate }) {
   if (typeof prompt !== "string" || prompt.trim().length === 0 || prompt.length > 20_000) {
     throw validationError();
   }
@@ -124,6 +124,8 @@ export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey, 
       ? { recent_image_candidate: recentImageCandidate }
       : {}),
     ...(recentReferent ? { recent_referent: recentReferent } : {}),
+    ...(contextualReferent ? { contextual_referent: contextualReferent } : {}),
+    ...(recentAssistantCandidate ? { recent_assistant_candidate: recentAssistantCandidate } : {}),
   };
 }
 
@@ -186,6 +188,12 @@ function validateWorkflowEnvelope(value, requestId) {
     throw validationError(requestId);
   }
   requireStringArray(workflow.constraints, requestId);
+  if (workflow.prior_evidence !== undefined) {
+    requireStringArray(workflow.prior_evidence, requestId);
+  }
+  if (workflow.capability !== undefined && !CAPABILITIES.has(requireString(workflow.capability, requestId))) {
+    throw validationError(requestId);
+  }
   if (!POLICY_DECISIONS.has(requireString(workflow.policy_decision, requestId))) {
     throw validationError(requestId);
   }
@@ -295,6 +303,10 @@ export function buildAsyncTaskCreate(prepared) {
     idempotency_key: workflow.idempotency_key,
     correlation_id: workflow.correlation_id,
     constraints: workflow.constraints,
+    ...(Array.isArray(workflow.prior_evidence) && workflow.prior_evidence.length > 0
+      ? { prior_evidence: workflow.prior_evidence }
+      : {}),
+    ...(typeof workflow.capability === "string" ? { capability: workflow.capability } : {}),
     ...(workflow.governed_coding !== undefined
       ? { governed_coding: workflow.governed_coding }
       : {}),

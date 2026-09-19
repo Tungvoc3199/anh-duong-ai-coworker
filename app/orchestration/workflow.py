@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from app.capabilities import CapabilityKind
+from app.orchestration.contextual_referent import prior_evidence
 from app.orchestration.errors import WorkflowPreparationFailed
 from app.orchestration.models import CoreRequest, WorkflowEnvelope
 from app.policy import DecisionKind, PolicyAction, PolicyEngine, RiskLevel
@@ -137,6 +138,7 @@ class WorkflowResolver:
         request: CoreRequest,
         request_id: str,
         normalized_text: str,
+        semantic_text: str | None = None,
         capability: CapabilityKind,
         project: Project,
     ) -> WorkflowEnvelope:
@@ -152,7 +154,7 @@ class WorkflowResolver:
             )
 
         action_name, declared_risk, safety_constraints = self._action(
-            normalized_text,
+            semantic_text or normalized_text,
             capability,
         )
         decision = self._policy_engine.evaluate(
@@ -215,6 +217,8 @@ class WorkflowResolver:
             idempotency_key=self._idempotency_key(request),
             correlation_id=request_id,
             constraints=constraints,
+            prior_evidence=prior_evidence(request.contextual_referent),
+            capability=capability,
             policy_decision=decision.kind,
             policy_rule_id=decision.rule_id,
             policy_reason=decision.reason,

@@ -159,6 +159,28 @@ function failureClassOf(error) {
   return error instanceof CoreIntegrationError ? error.failureClass : "internal";
 }
 
+function contextualReferentFromOriginalTurn(originalTurn) {
+  const text =
+    typeof originalTurn?.replyToBody === "string"
+      ? originalTurn.replyToBody.trim()
+      : "";
+  const messageId =
+    typeof originalTurn?.replyToId === "string" ||
+    typeof originalTurn?.replyToId === "number"
+      ? String(originalTurn.replyToId)
+      : "";
+  if (!text || !messageId) return undefined;
+  return {
+    source: "quoted_message",
+    message_id: messageId,
+    text: text.slice(0, 12_000),
+    ...(typeof originalTurn?.replyToSender === "string" &&
+    originalTurn.replyToSender.trim()
+      ? { sender: originalTurn.replyToSender.trim().slice(0, 256) }
+      : {}),
+  };
+}
+
 function corePromptForTelegramReply(cleanedBody) {
   if (typeof cleanedBody !== "string") {
     return cleanedBody;
@@ -212,6 +234,9 @@ export function createAnhDuongCoreHooks({
   realpathImpl = realpathSync,
   statImpl = statSync,
   resolveOriginalTurn,
+  loadActiveVisualReference = async () => undefined,
+  storeActiveVisualReference = async () => undefined,
+  loadRecentAssistantReferent = async () => undefined,
 } = {}) {
   let config;
   let configFailure;
@@ -224,7 +249,6 @@ export function createAnhDuongCoreHooks({
   const explicitlyDisabled = config?.enabled === false;
   const states = new Map();
   const progress = new Map();
-  const recentVisuals = new Map();
 
   function sweep() {
     const current = now();
@@ -233,35 +257,6 @@ export function createAnhDuongCoreHooks({
         states.delete(runId);
       }
     }
-    for (const [key, state] of recentVisuals) {
-      if (state.expiresAt <= current) recentVisuals.delete(key);
-    }
-  }
-
-  function visualScopeKey(ctx) {
-    const sessionKey = ctx?.sessionKey ?? ctx?.sessionId;
-    const senderId = ctx?.senderId;
-    if (typeof sessionKey !== "string" || sessionKey.length === 0) return undefined;
-    if (typeof senderId === "string" && senderId.length > 0) return `${sessionKey}\u0000${senderId}`;
-    const chatId = ctx?.chatId ?? ctx?.conversationId;
-    if (chatId !== undefined && chatId !== null && String(chatId).length > 0) return `${sessionKey}\u0000chat:${chatId}`;
-    return undefined;
-  }
-
-  function recentVisualCandidate(ctx) {
-    sweep();
-    const key = visualScopeKey(ctx);
-    if (!key) return undefined;
-    return recentVisuals.get(key)?.referenceImage;
-  }
-
-  function rememberVisualCandidate(ctx, visualReference) {
-    const key = visualScopeKey(ctx);
-    if (!key || typeof visualReference?.referenceImage !== "string") return;
-    recentVisuals.set(key, {
-      referenceImage: visualReference.referenceImage,
-      expiresAt: now() + RECENT_VISUAL_TTL_MS,
-    });
   }
 
   function findClaimablePreAgentState(ctx, prompt) {
@@ -762,15 +757,19 @@ export function createAnhDuongCoreHooks({
         sessionKey: ctx?.sessionKey ?? ctx?.sessionId,
         imageSource: visualReference.imageSource,
         referenceImage: visualReference.referenceImage,
-        recentImageCandidate: visualReference.referenceImage === undefined ? recentVisualCandidate(ctx) : undefined,
+        recentImageCandidate: visualReference.referenceImage === undefined ? await loadActiveVisualReference(ctx) : undefined,
         ...(directUserTurn ? { sourceOrigin: "telegram_user" } : {}),
         ...(trustedInboundTurn ? { sourceMessageId: originalTurn.sourceMessageId } : {}),
         recentReferent: recentUserUrl(event?.messages, corePrompt),
+        contextualReferent: contextualReferentFromOriginalTurn(originalTurn),
+        recentAssistantCandidate: await loadRecentAssistantReferent(ctx),
       });
       requestId = request.request_id;
       const prepared = await prepareCoreRequest({ config, request, fetchImpl });
       const preparedContext = appendCapabilityPolicy(prepared, buildPreparedContext(prepared));
-      rememberVisualCandidate(ctx, visualReference);
+      if (typeof visualReference.referenceImage === "string") {
+        await storeActiveVisualReference(ctx, visualReference.referenceImage);
+      }
       states.set(runId, {
         status: "prepared",
         requestId,

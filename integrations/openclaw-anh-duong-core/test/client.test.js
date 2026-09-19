@@ -482,3 +482,43 @@ test("buildCoreRequest carries a recent visual candidate without promoting it to
   assert.equal(request.image_source, undefined);
   assert.equal(request.reference_image, undefined);
 });
+
+test("workflow mapping carries contextual prior evidence into async task create", () => {
+  const prepared = preparedFixture("tg-contextual-evidence", {
+    route: "workflow",
+    executionRequired: true,
+  });
+  prepared.workflow.prior_evidence = [
+    "quoted_message:5963: lỗi nằm ở contextual referent boundary",
+  ];
+  const payload = buildAsyncTaskCreate(prepared);
+  assert.deepEqual(payload.prior_evidence, [
+    "quoted_message:5963: lỗi nằm ở contextual referent boundary",
+  ]);
+});
+
+test("workflow mapping carries Core-authoritative capability into async task create", () => {
+  const prepared = preparedFixture("tg-contextual-capability", {
+    route: "workflow",
+    executionRequired: true,
+  });
+  prepared.workflow.capability = "visual_image_generate";
+  const payload = buildAsyncTaskCreate(prepared);
+  assert.equal(payload.capability, "visual_image_generate");
+});
+
+test("request mapping carries recent assistant candidate as reference data", () => {
+  const candidate = {
+    source: "previous_assistant_result",
+    message_id: "5962",
+    text: "Phương án 1: A. Phương án 2: B.",
+    sender: "Ánh Dương",
+  };
+  const request = buildCoreRequest({
+    prompt: "Phương án 2.",
+    runId: "run-recent-assistant",
+    senderId: "sender",
+    recentAssistantCandidate: candidate,
+  });
+  assert.deepEqual(request.recent_assistant_candidate, candidate);
+});

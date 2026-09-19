@@ -1327,3 +1327,179 @@ def test_recent_visual_candidate_does_not_bleed_into_unrelated_or_fresh_generati
     assert fresh.visual_interaction.operation is VisualOperation.GENERATE
     assert fresh.visual_interaction.image_source is VisualImageSource.NONE
     assert fresh.visual_interaction.reference_image is None
+
+
+def test_contextual_referent_becomes_workflow_prior_evidence_without_changing_owner_text() -> None:
+    project = _project()
+    prepared = _pipeline(
+        project_reader=ProjectReader((project,)),
+    ).prepare(
+        CoreRequest(
+            text="Sửa lỗi đó giúp a, giữ nguyên phần còn lại.",
+            request_id="contextual-referent-red",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_origin="telegram_user",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id="5970",
+            contextual_referent={
+                "source": "quoted_message",
+                "message_id": "5963",
+                "text": (
+                    "Em vừa xác định lỗi nằm ở bước resolve contextual "
+                    "follow-up trước Core prepare."
+                ),
+                "sender": "Ánh Dương",
+            },
+        )
+    )
+
+    assert prepared.normalized_text == "Sửa lỗi đó giúp a, giữ nguyên phần còn lại."
+    assert prepared.route_decision.route is FastRoute.WORKFLOW
+    assert prepared.capability_decision.capability is CapabilityKind.CODE_OPERATION
+    assert prepared.workflow is not None
+    assert prepared.workflow.prior_evidence == (
+        "quoted_message:5963: Em vừa xác định lỗi nằm ở bước resolve contextual "
+        "follow-up trước Core prepare.",
+    )
+
+
+def test_unrelated_reply_context_does_not_bleed_into_current_semantic_intent() -> None:
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+    ).prepare(
+        CoreRequest(
+            text="Hôm nay có gì mới?",
+            contextual_referent={
+                "source": "quoted_message",
+                "message_id": "5963",
+                "text": "Deploy production ngay.",
+                "sender": "Ánh Dương",
+            },
+        )
+    )
+
+    assert prepared.route_decision.route is FastRoute.DIRECT
+    assert prepared.capability_decision.capability is CapabilityKind.CONVERSATIONAL_RESPONSE
+    assert prepared.workflow is None
+    assert "[CONTEXTUAL_REFERENT]" in prepared.context.rendered_context
+    assert "Reference data only" in prepared.context.rendered_context
+    assert "Deploy production ngay." in prepared.context.rendered_context
+
+
+def test_option_followup_receives_quoted_reference_in_prepared_context() -> None:
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+    ).prepare(
+        CoreRequest(
+            text="Phương án 2.",
+            contextual_referent={
+                "source": "quoted_message",
+                "message_id": "5963",
+                "text": "Phương án 1: giữ nguyên. Phương án 2: đổi bố cục nhưng giữ nội dung.",
+                "sender": "Ánh Dương",
+            },
+        )
+    )
+
+    assert prepared.route_decision.route is FastRoute.DIRECT
+    assert "[CONTEXTUAL_REFERENT]" in prepared.context.rendered_context
+    assert "Reference data only" in prepared.context.rendered_context
+    assert "Phương án 2: đổi bố cục nhưng giữ nội dung." in prepared.context.rendered_context
+
+
+def test_referenced_deploy_remains_approval_gated() -> None:
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+    ).prepare(
+        CoreRequest(
+            text="Làm theo cái em vừa nói.",
+            request_id="contextual-deploy-gate",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_origin="telegram_user",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id="5970",
+            contextual_referent={
+                "source": "quoted_message",
+                "message_id": "5963",
+                "text": "Deploy bản fix này lên production.",
+                "sender": "Ánh Dương",
+            },
+        )
+    )
+
+    assert prepared.workflow is not None
+    assert prepared.workflow.approval_required is True
+    assert prepared.workflow.risk_level is RiskLevel.HIGH_RISK
+    assert prepared.workflow.goal == "Làm theo cái em vừa nói."
+    assert prepared.workflow.prior_evidence == (
+        "quoted_message:5963: Deploy bản fix này lên production.",
+    )
+
+
+
+def test_contextual_visual_followup_resolves_quote_and_active_reference_to_edit() -> None:
+    reference = "media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg"
+    quoted = (
+        "Ảnh này sai ở bàn tay bên phải: có sáu ngón. "
+        "Cần sửa bàn tay và giữ nguyên khuôn mặt, trang phục, nền."
+    )
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+    ).prepare(
+        CoreRequest(
+            text="Sửa lỗi đó giúp a, giữ nguyên phần còn lại.",
+            request_id="contextual-visual-edit",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_origin="telegram_user",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id="5970",
+            recent_image_candidate=reference,
+            contextual_referent={
+                "source": "quoted_message",
+                "message_id": "5963",
+                "text": quoted,
+                "sender": "Ánh Dương",
+            },
+        )
+    )
+
+    assert prepared.visual_interaction is not None
+    assert prepared.visual_interaction.operation is VisualOperation.EDIT
+    assert prepared.visual_interaction.image_source is VisualImageSource.RECENT_ARTIFACT
+    assert prepared.visual_interaction.reference_image == reference
+    assert prepared.route_decision.route is FastRoute.WORKFLOW
+    assert prepared.capability_decision.capability is CapabilityKind.VISUAL_IMAGE_GENERATE
+    assert prepared.workflow is not None
+    assert prepared.workflow.goal == "Sửa lỗi đó giúp a, giữ nguyên phần còn lại."
+    assert prepared.workflow.reference_image == reference
+    assert prepared.workflow.prior_evidence == (
+        f"quoted_message:5963: {quoted}",
+    )
+
+
+def test_contextual_question_does_not_inherit_quoted_side_effect_for_routing() -> None:
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+    ).prepare(
+        CoreRequest(
+            text="Cái trên có nguy hiểm không?",
+            contextual_referent={
+                "source": "quoted_message",
+                "message_id": "5963",
+                "text": "Deploy bản fix này lên production ngay.",
+                "sender": "Ánh Dương",
+            },
+        )
+    )
+
+    assert prepared.route_decision.route is FastRoute.DIRECT
+    assert prepared.capability_decision.capability is CapabilityKind.CONVERSATIONAL_RESPONSE
+    assert prepared.workflow is None
+    assert "[CONTEXTUAL_REFERENT]" in prepared.context.rendered_context
+    assert "Deploy bản fix này lên production ngay." in prepared.context.rendered_context

@@ -114,6 +114,7 @@ def _seed_run(
     goal: str = "Complete a deterministic test task",
     risk_level: int = 0,
     approval_required: bool = False,
+    prior_evidence: tuple[str, ...] = (),
 ) -> tuple[str, str]:
     workspace = tmp_path / "workspace"
     workspace.mkdir(exist_ok=True)
@@ -146,6 +147,7 @@ def _seed_run(
                 source_channel="telegram",
                 source_chat_id="chat-test",
                 idempotency_key=f"telegram:{key}",
+                prior_evidence=prior_evidence,
             )
         )
         session.commit()
@@ -243,6 +245,38 @@ async def test_worker_completes_run_and_task(
     assert result_json["error_code"] is None
     request = executor.requests[0]
     assert request.idempotency_key == f"{run_id}:1:r1:execute:a1"
+
+
+
+
+@pytest.mark.asyncio
+async def test_worker_carries_contextual_prior_evidence_into_openclaw_request(
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    evidence = (
+        "quoted_message:5963: lỗi nằm ở contextual referent boundary",
+    )
+    _task_id, _run_id = _seed_run(
+        session_factory,
+        tmp_path,
+        key="contextual-evidence",
+        goal="Sửa lỗi đó giúp a, giữ nguyên phần còn lại.",
+        prior_evidence=evidence,
+    )
+    executor = SequenceExecutor(
+        [OpenClawExecutionResult(outcome="completed", summary="fixed")]
+    )
+    worker = _worker(
+        session_factory=session_factory,
+        tmp_path=tmp_path,
+        executor=executor,
+        clock=[NOW],
+    )
+
+    assert await worker.run_once() is True
+    assert executor.requests
+    assert evidence[0] in executor.requests[0].prior_evidence
 
 
 @pytest.mark.asyncio

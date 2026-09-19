@@ -15,6 +15,11 @@ from app.context_builder import (
     RuntimePolicySnapshot,
     TaskContextSnapshot,
 )
+from app.orchestration.contextual_referent import (
+    render_contextual_evidence,
+    resolve_contextual_referent,
+    semantic_text,
+)
 from app.orchestration.errors import (
     ProjectContextNotFound,
     ProjectResolutionFailed,
@@ -99,12 +104,32 @@ class CoreRequestPipeline:
 
     def prepare(self, request: CoreRequest) -> PreparedRequest:
         persona = self._persona_loader()
+        resolved_referent = resolve_contextual_referent(
+            request.text,
+            request.contextual_referent,
+            request.recent_assistant_candidate,
+        )
+        classification_text = semantic_text(request.text, resolved_referent)
         image_source = request.image_source
         reference_image = request.reference_image
+        contextual_visual = None
         if (
             image_source is VisualImageSource.NONE
             and request.recent_image_candidate is not None
-            and should_bind_recent_visual_candidate(request.text)
+            and resolved_referent is not None
+        ):
+            contextual_visual = build_visual_interaction_contract(
+                request.text,
+                image_source=VisualImageSource.RECENT_ARTIFACT,
+                reference_image=request.recent_image_candidate,
+            )
+        if (
+            image_source is VisualImageSource.NONE
+            and request.recent_image_candidate is not None
+            and (
+                contextual_visual is not None
+                or should_bind_recent_visual_candidate(request.text)
+            )
         ):
             image_source = VisualImageSource.RECENT_ARTIFACT
             reference_image = request.recent_image_candidate
@@ -114,12 +139,12 @@ class CoreRequestPipeline:
             reference_image=reference_image,
         )
         route_decision = self._fast_router.route(
-            request.text,
+            classification_text,
             visual_interaction=visual_interaction,
         )
         capability_decision = self._capability_router.route(
             route_decision,
-            request.text,
+            classification_text,
             visual_interaction=visual_interaction,
         )
 
@@ -133,11 +158,19 @@ class CoreRequestPipeline:
 
         request_id = request.request_id or self._id_factory()
         normalized_text = self._redacted_text(request.text)
+        workflow_request = request.model_copy(
+            update={
+                "contextual_referent": resolved_referent,
+                "image_source": image_source,
+                "reference_image": reference_image,
+            }
+        )
         workflow = (
             self._workflow_resolver.resolve(
-                request=request,
+                request=workflow_request,
                 request_id=request_id,
                 normalized_text=normalized_text,
+                semantic_text=classification_text,
                 capability=capability_decision.capability,
                 project=project,
             )
@@ -149,6 +182,7 @@ class CoreRequestPipeline:
         context = self._context_builder.build(
             ContextBuildRequest(
                 current_request=request.text,
+                contextual_referent=render_contextual_evidence(resolved_referent),
                 persona=persona,
                 fast_router_decision=route_decision,
                 capability_decision=capability_decision,

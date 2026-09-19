@@ -67,6 +67,8 @@ def normalize_async_request_identity_payload(payload: dict[str, Any]) -> dict[st
     identity.pop("_semantic_identity_sha256", None)
     identity.pop("_semantic_identity_fingerprint", None)
     identity.setdefault("reference_image", None)
+    if not identity.get("prior_evidence"):
+        identity.pop("prior_evidence", None)
     return identity
 
 

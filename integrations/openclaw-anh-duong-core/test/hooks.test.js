@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import plugin from "../index.js";
+import plugin, { createPluginHandlers } from "../index.js";
 import { SAFE_MESSAGE, createAnhDuongCoreHooks } from "../src/hooks.js";
 
 const ENV = {
@@ -568,13 +568,14 @@ test("plugin entry registers workflow short-circuit before the three TG-1 hooks"
   const registrations = [];
   plugin.register({
     logger: collectingLogger(),
+    session: { state: { registerSessionExtension() {}, getSessionExtension: async () => undefined, patchSessionExtension: async () => ({ ok: true }) } },
     on(name, handler, options) {
       registrations.push({ name, handler, options });
     },
   });
   assert.deepEqual(
     registrations.map(({ name }) => name),
-    ["before_agent_reply", "before_prompt_build", "before_agent_run", "before_tool_call", "agent_end"],
+    ["message_received", "before_agent_reply", "before_prompt_build", "before_agent_run", "before_tool_call", "reply_payload_sending", "message_sent", "agent_end"],
   );
   assert.ok(registrations[0].options.timeoutMs > 0);
   assert.ok(registrations[1].options.timeoutMs > 0);
@@ -1021,62 +1022,29 @@ test("natural Telegram approval resolves the latest scoped approval exactly once
   assert.equal(calls.length, 1);
 });
 
-test("image Telegram follow-up reuses one prepared intent and submits it once", async () => {
+test("image Telegram follow-up prepares once per inbound and duplicate hook does not resubmit", async () => {
   const calls = [];
-  let submitted;
   const fetchImpl = async (url, init) => {
     calls.push(url);
     const body = init?.body ? JSON.parse(init.body) : undefined;
-    if (url.endsWith("/prepare")) {
-      return new Response(JSON.stringify(responseFixture(body.request_id, {
-        route: "workflow",
-        capability: "visual_image_generate",
-        workflowOverrides: { goal: "Tạo đúng một ảnh serum tỷ lệ 9:16." },
-      })), { status: 200 });
-    }
-    if (url.endsWith("/api/async-tasks")) {
-      submitted = body;
-      return new Response(JSON.stringify({
-        task_id: "task-image",
-        run_id: "run-image",
-        status: "pending",
-        message: "ACCEPTED",
-        replayed: false,
-      }), { status: 202 });
-    }
+    if (url.endsWith("/prepare")) return new Response(JSON.stringify(responseFixture(body.request_id, { route: "workflow", capability: "visual_image_generate", workflowOverrides: { goal: "Tạo đúng một ảnh serum tỷ lệ 9:16." } })), { status: 200 });
+    if (url.endsWith("/api/async-tasks")) return new Response(JSON.stringify({ task_id: "task-image", run_id: "run-image", status: "pending", message: "ACCEPTED", replayed: false }), { status: 202 });
     return new Response(JSON.stringify({ status: "running" }), { status: 200 });
   };
   const hooks = createAnhDuongCoreHooks({ env: ENV, fetchImpl, workflowProgressDelayMs: 0 });
-  const firstCtx = telegramContext("run-image-request");
-  await hooks.beforePromptBuild({ prompt: "Tạo cho a một ảnh serum tỷ lệ 9:16", messages: [] }, firstCtx);
-  await hooks.agentEnd({}, firstCtx);
-  const followupCtx = telegramContext("run-image-followup");
-  const injection = await hooks.beforePromptBuild({ prompt: "Đây", messages: [] }, followupCtx);
-
+  const ctx = telegramContext("run-image-followup");
+  const injection = await hooks.beforePromptBuild({ prompt: "Đây", messages: [] }, ctx);
   assert.match(injection.prependContext, /capability: visual_image_generate/);
+  const first = await hooks.beforeAgentReply({ cleanedBody: "Đây" }, ctx);
+  const duplicate = await hooks.beforeAgentReply({ cleanedBody: "Đây" }, ctx);
+  assert.equal(first.reason, "anh_duong_workflow_progress_after_threshold");
+  assert.deepEqual(duplicate, { handled: true, reason: "anh_duong_workflow_duplicate_hook" });
   assert.equal(calls.filter((url) => url.endsWith("/prepare")).length, 1);
-  const reply = await hooks.beforeAgentReply({ cleanedBody: "Đây" }, followupCtx);
-  assert.equal(reply.handled, true);
-  assert.equal(reply.reason, "anh_duong_workflow_progress_after_threshold");
-  assert.equal(submitted.goal, "Tạo đúng một ảnh serum tỷ lệ 9:16.");
   assert.equal(calls.filter((url) => url.endsWith("/api/async-tasks")).length, 1);
   assert.equal(calls.filter((url) => url.endsWith("/api/async-tasks/run-image")).length, 1);
-
-  const duplicateCtx = telegramContext("run-image-duplicate");
-  const duplicateInjection = await hooks.beforePromptBuild(
-    { prompt: "Ok làm đi", messages: [] },
-    duplicateCtx,
-  );
-  assert.match(duplicateInjection.prependContext, /capability: visual_image_generate/);
-  const duplicate = await hooks.beforeAgentReply({ cleanedBody: "Ok làm đi" }, duplicateCtx);
-  assert.deepEqual(duplicate, {
-    handled: true,
-    reason: "anh_duong_workflow_duplicate_hook",
-  });
-  assert.equal(calls.filter((url) => url.endsWith("/api/async-tasks")).length, 1);
 });
 
-test("natural follow-up uses recent assistant visual context for one-turn image generation", async () => {
+test("natural follow-up does not promote assistant text into native visual evidence", async () => {
   const prompts = [];
   const fetchImpl = async (_url, init) => {
     const body = JSON.parse(init.body);
@@ -1099,14 +1067,14 @@ test("natural follow-up uses recent assistant visual context for one-turn image 
     messages,
   }, ctx);
 
-  assert.match(prepared.prependContext, /capability: visual_image_generate/);
+  assert.match(prepared.prependContext, /capability: conversational_response/);
   assert.equal(prompts.length, 1);
-  assert.match(prompts[0], /^Tạo ảnh theo phương án đã chốt/);
-  assert.match(prompts[0], /Facebook 4:5/);
+  assert.equal(prompts[0], "E làm theo phương án này đi để đăng bài fb");
+  assert.doesNotMatch(prompts[0], /Facebook 4:5/);
   assert.match(prompts[0], /E làm theo phương án này đi để đăng bài fb/);
 });
 
-test("natural E tự tạo đi follow-up reuses recent assistant image context", async () => {
+test("natural E tự tạo đi does not promote assistant text into native visual evidence", async () => {
   const prompts = [];
   const fetchImpl = async (_url, init) => {
     const body = JSON.parse(init.body);
@@ -1127,9 +1095,9 @@ test("natural E tự tạo đi follow-up reuses recent assistant image context",
 
   const prepared = await hooks.beforePromptBuild({ prompt: "E tự tạo đi", messages }, ctx);
 
-  assert.match(prepared.prependContext, /capability: visual_image_generate/);
+  assert.match(prepared.prependContext, /capability: conversational_response/);
   assert.equal(prompts.length, 1);
-  assert.match(prompts[0], /^Tạo ảnh theo phương án đã chốt/);
+  assert.equal(prompts[0], "E tự tạo đi");
   assert.match(prompts[0], /E tự tạo đi/);
 });
 
@@ -1272,8 +1240,11 @@ test("recent visual candidate survives one same-session turn without stale evide
     bodies.push(body);
     return new Response(JSON.stringify(responseFixture(body.request_id)), { status: 200 });
   };
+  const nativeVisuals = new Map();
   const hooks = createAnhDuongCoreHooks({
     env: ENV, fetchImpl,
+    loadActiveVisualReference: async (ctx) => nativeVisuals.get(ctx?.sessionKey),
+    storeActiveVisualReference: async (ctx, ref) => { nativeVisuals.set(ctx?.sessionKey, ref); },
     realpathImpl: (path) => path,
     statImpl: () => ({ isFile: () => true }),
     resolveOriginalTurn: ({ runId }) => runId === "run-visual-1"
@@ -1293,7 +1264,7 @@ test("recent visual candidate survives one same-session turn without stale evide
 });
 
 
-test("recent visual candidate expires and stays isolated across Telegram scopes", async () => {
+test("native visual candidate survives old TTL and stays isolated across Telegram sessions", async () => {
   const bodies = [];
   let clock = 1_000;
   const mediaPath = "/home/node/.openclaw/media/inbound/123e4567-e89b-42d3-a456-426614174000.jpg";
@@ -1302,8 +1273,11 @@ test("recent visual candidate expires and stays isolated across Telegram scopes"
     bodies.push(body);
     return new Response(JSON.stringify(responseFixture(body.request_id)), { status: 200 });
   };
+  const nativeVisuals = new Map();
   const hooks = createAnhDuongCoreHooks({
-    env: ENV, fetchImpl, now: () => clock,
+    env: ENV, fetchImpl,
+    loadActiveVisualReference: async (ctx) => nativeVisuals.get(ctx?.sessionKey),
+    storeActiveVisualReference: async (ctx, ref) => { nativeVisuals.set(ctx?.sessionKey, ref); }, now: () => clock,
     realpathImpl: (path) => path,
     statImpl: () => ({ isFile: () => true }),
     resolveOriginalTurn: ({ runId }) => runId === "run-seed"
@@ -1318,7 +1292,7 @@ test("recent visual candidate expires and stays isolated across Telegram scopes"
   clock += 5 * 60 * 1000 + 1;
   await hooks.beforePromptBuild({ prompt: "Vậy em dựng lại ảnh chuẩn chỉ cho anh được không", messages: [] }, telegramContext("run-expired"));
   assert.equal(bodies[1].recent_image_candidate, undefined);
-  assert.equal(bodies[2].recent_image_candidate, undefined);
+  assert.equal(bodies[2].recent_image_candidate, "media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg");
 });
 
 test("current visual evidence wins over remembered recent candidate", async () => {
@@ -1343,4 +1317,233 @@ test("current visual evidence wins over remembered recent candidate", async () =
   await hooks.beforePromptBuild({ prompt: "sửa ảnh này", messages: [] }, telegramContext("run-new"));
   assert.equal(bodies[1].reference_image, "media://inbound/223e4567-e89b-42d3-a456-426614174000.jpg");
   assert.equal(bodies[1].recent_image_candidate, undefined);
+});
+
+
+test("native session visual state survives agent_end and plugin restart without TTL memory", async () => {
+  const bodies = [];
+  const nativeState = new Map();
+  const api = {
+    logger: collectingLogger(),
+    session: { state: {
+      registerSessionExtension() {},
+      async getSessionExtension({ sessionKey }) { return nativeState.get(sessionKey); },
+      async patchSessionExtension({ sessionKey, value, unset }) {
+        if (unset) nativeState.delete(sessionKey); else nativeState.set(sessionKey, value);
+        return { ok: true };
+      },
+    } },
+  };
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body); bodies.push(body);
+    return new Response(JSON.stringify(responseFixture(body.request_id)), { status: 200 });
+  };
+  const mediaPath = "/home/node/.openclaw/media/inbound/123e4567-e89b-42d3-a456-426614174000.jpg";
+  const ctx1 = { ...telegramContext("native-1"), channelId: "telegram", messageId: "m1" };
+  const first = createPluginHandlers({ api, env: ENV, fetchImpl, realpathImpl: (x) => x, statImpl: () => ({ isFile: () => true }) });
+  first.messageReceived({ content: "ảnh này sai gì", sessionKey: ctx1.sessionKey, senderId: ctx1.senderId, messageId: "m1", metadata: { mediaPath, mediaType: "image/jpeg" } }, ctx1);
+  await first.beforePromptBuild({ prompt: "ảnh này sai gì", messages: [] }, ctx1);
+  await first.agentEnd({}, ctx1);
+  assert.equal(nativeState.get(ctx1.sessionKey)?.activeReference, "media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg");
+  const restarted = createPluginHandlers({ api, env: ENV, fetchImpl });
+  const ctx2 = { ...telegramContext("native-2"), sessionKey: ctx1.sessionKey };
+  await restarted.beforePromptBuild({ prompt: "Vậy em chỉnh lại theo đề xuất đi", messages: [] }, ctx2);
+  assert.equal(bodies.at(-1).recent_image_candidate, "media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg");
+  nativeState.clear();
+  const reset = createPluginHandlers({ api, env: ENV, fetchImpl });
+  await reset.beforePromptBuild({ prompt: "Vậy em chỉnh lại theo đề xuất đi", messages: [] }, { ...ctx2, runId: "native-after-reset" });
+  assert.equal(bodies.at(-1).recent_image_candidate, undefined);
+});
+
+test("native visual state falls back to the legacy transcript key when runtime policy state is absent", async () => {
+  const bodies = [];
+  const peerKey = "agent:main:telegram:default:direct:7535966424";
+  const legacyKey = "agent:main:telegram:direct:7535966424";
+  const nativeState = new Map([
+    [legacyKey, { activeReference: "media://inbound/legacy-session.jpg" }],
+  ]);
+  const api = {
+    logger: collectingLogger(),
+    session: { state: {
+      registerSessionExtension() {},
+      async getSessionExtension({ sessionKey }) { return nativeState.get(sessionKey); },
+      async patchSessionExtension({ sessionKey, value, unset }) {
+        if (unset) nativeState.delete(sessionKey); else nativeState.set(sessionKey, value);
+        return { ok: true };
+      },
+    } },
+  };
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    bodies.push(body);
+    return new Response(JSON.stringify(responseFixture(body.request_id)), { status: 200 });
+  };
+  const handlers = createPluginHandlers({ api, env: ENV, fetchImpl });
+  const ctx = {
+    ...telegramContext("runtime-policy-legacy-fallback"),
+    sessionKey: legacyKey,
+    runtimePolicySessionKey: peerKey,
+  };
+
+  await handlers.beforePromptBuild(
+    { prompt: "Sửa lỗi đó giúp a, giữ nguyên phần còn lại.", messages: [] },
+    ctx,
+  );
+
+  assert.equal(
+    bodies.at(-1).recent_image_candidate,
+    "media://inbound/legacy-session.jpg",
+  );
+});
+
+test("native visual state prefers runtime policy peer key over transcript main key", async () => {
+  const bodies = [];
+  const peerKey = "agent:main:telegram:direct:7535966424";
+  const nativeState = new Map([
+    [peerKey, { activeReference: "media://inbound/runtime-peer.jpg" }],
+  ]);
+  const api = {
+    logger: collectingLogger(),
+    session: { state: {
+      registerSessionExtension() {},
+      async getSessionExtension({ sessionKey }) { return nativeState.get(sessionKey); },
+      async patchSessionExtension({ sessionKey, value, unset }) {
+        if (unset) nativeState.delete(sessionKey); else nativeState.set(sessionKey, value);
+        return { ok: true };
+      },
+    } },
+  };
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    bodies.push(body);
+    return new Response(JSON.stringify(responseFixture(body.request_id)), { status: 200 });
+  };
+  const handlers = createPluginHandlers({ api, env: ENV, fetchImpl });
+  const ctx = {
+    ...telegramContext("runtime-policy-peer"),
+    sessionKey: "agent:main:main",
+    runtimePolicySessionKey: peerKey,
+  };
+
+  await handlers.beforePromptBuild(
+    { prompt: "Sửa lỗi đó giúp a, giữ nguyên phần còn lại.", messages: [] },
+    ctx,
+  );
+
+  assert.equal(
+    bodies.at(-1).recent_image_candidate,
+    "media://inbound/runtime-peer.jpg",
+  );
+});
+
+test("quoted Telegram reply is forwarded to Core as typed contextual referent", async () => {
+  const bodies = [];
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    bodies.push(body);
+    return new Response(JSON.stringify(responseFixture(body.request_id, {
+      route: "workflow",
+      capability: "code_operation",
+    })), { status: 200 });
+  };
+  const activeReference =
+    "media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg";
+  const api = {
+    logger: collectingLogger(),
+    session: {
+      state: {
+        async getSessionExtension() {
+          return { activeReference };
+        },
+        async patchSessionExtension() {
+          return { ok: true };
+        },
+      },
+    },
+  };
+  const handlers = createPluginHandlers({ api, env: ENV, fetchImpl });
+  const ctx = telegramContext("contextual-referent-red");
+
+  handlers.messageReceived({
+    content: "Sửa lỗi đó giúp a, giữ nguyên phần còn lại.",
+    sessionKey: ctx.sessionKey,
+    senderId: ctx.senderId,
+    messageId: "5970",
+    replyToId: "5963",
+    replyToBody: "Em vừa xác định lỗi nằm ở bước resolve contextual follow-up trước Core prepare.",
+    replyToSender: "Ánh Dương",
+    replyToIsQuote: true,
+    metadata: { originatingChannel: "telegram" },
+  }, ctx);
+
+  await handlers.beforePromptBuild(
+    { prompt: "Sửa lỗi đó giúp a, giữ nguyên phần còn lại.", messages: [] },
+    ctx,
+  );
+  await handlers.beforePromptBuild(
+    { prompt: "Sửa lỗi đó giúp a, giữ nguyên phần còn lại.", messages: [] },
+    ctx,
+  );
+
+  assert.equal(bodies.length, 1);
+  assert.deepEqual(bodies[0].contextual_referent, {
+    source: "quoted_message",
+    message_id: "5963",
+    text: "Em vừa xác định lỗi nằm ở bước resolve contextual follow-up trước Core prepare.",
+    sender: "Ánh Dương",
+  });
+  assert.equal(bodies[0].recent_image_candidate, activeReference);
+});
+
+test("previous assistant result persists in native session state and reaches Core as fallback candidate", async () => {
+  const bodies = [];
+  const nativeState = new Map();
+  const stateKey = (namespace, sessionKey) => namespace + ":" + sessionKey;
+  const api = {
+    logger: collectingLogger(),
+    session: { state: {
+      registerSessionExtension() {},
+      async getSessionExtension({ sessionKey, namespace }) {
+        return nativeState.get(stateKey(namespace, sessionKey));
+      },
+      async patchSessionExtension({ sessionKey, namespace, value, unset }) {
+        const key = stateKey(namespace, sessionKey);
+        if (unset) nativeState.delete(key); else nativeState.set(key, value);
+        return { ok: true };
+      },
+    } },
+  };
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    bodies.push(body);
+    return new Response(JSON.stringify(responseFixture(body.request_id)), { status: 200 });
+  };
+  const handlers = createPluginHandlers({ api, env: ENV, fetchImpl });
+  const ctx = telegramContext("recent-assistant-fallback");
+
+  await handlers.messageSent({
+    channelId: "telegram",
+    content: "Phương án 1: giữ nguyên. Phương án 2: đổi bố cục.",
+    success: true,
+    messageId: "5962",
+    sessionKey: ctx.sessionKey,
+  }, { channelId: "telegram", sessionKey: ctx.sessionKey });
+
+  handlers.messageReceived({
+    content: "Phương án 2.",
+    sessionKey: ctx.sessionKey,
+    senderId: ctx.senderId,
+    messageId: "5963",
+    metadata: { originatingChannel: "telegram" },
+  }, ctx);
+  await handlers.beforePromptBuild({ prompt: "Phương án 2.", messages: [] }, ctx);
+
+  assert.equal(bodies.length, 1);
+  assert.deepEqual(bodies[0].recent_assistant_candidate, {
+    source: "previous_assistant_result",
+    message_id: "5962",
+    text: "Phương án 1: giữ nguyên. Phương án 2: đổi bố cục.",
+    sender: "Ánh Dương",
+  });
+  assert.equal(bodies[0].contextual_referent, undefined);
 });

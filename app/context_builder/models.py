@@ -100,6 +100,7 @@ class ContextBuildRequest(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     current_request: str
+    contextual_referent: str | None = Field(default=None, max_length=13_000)
     persona: PersonaSnapshot
     fast_router_decision: RouteDecision
     capability_decision: CapabilityDecision
