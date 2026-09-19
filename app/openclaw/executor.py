@@ -110,6 +110,27 @@ class OpenClawExecutor:
             "Do not send Telegram messages or invoke delivery tools: Core verifies "
             "the result and owns final delivery."
         )
+        if request is not None and {
+            "subscription_quota_only",
+            "no_paid_fallback",
+        }.issubset(set(request.constraints)):
+            instructions += (
+                " Image route authority: for this managed runtime, the only authorized "
+                "image route is model openai/cx/gpt-5.5-image. The outer OpenClaw "
+                "provider id 'openai' is a local transport adapter to the configured "
+                "9Router endpoint; it is not evidence that the paid OpenAI Images API "
+                "is being used. Inside 9Router, the explicit 'cx/' model prefix resolves "
+                "to the Codex provider, whose image adapter authenticates with the "
+                "managed ChatGPT/Codex OAuth subscription. Treat this exact pinned model "
+                "as satisfying subscription_quota_only only when image_generate "
+                "action=list reports provider openai configured and the generation "
+                "request keeps the exact pinned model. Do not substitute another "
+                "model/provider and do not remove the cx/ prefix. If the catalog is "
+                "unavailable, provider openai is not configured, or the pinned model "
+                "cannot be used, fail closed. An explicit models.providers.openai entry "
+                "is expected for the local 9Router transport and by itself must not "
+                "trigger the paid-route block."
+            )
         if request is not None and request.dod_criteria:
             instructions += (
                 " Return exactly one JSON object, without Markdown or prose outside it. "
