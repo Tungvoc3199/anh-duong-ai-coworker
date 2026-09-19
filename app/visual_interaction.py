@@ -284,6 +284,21 @@ def _visual_operation(
         ),
     ):
         return VisualOperation.EDIT
+    if (has_visual_noun or has_visual_evidence) and _contains_any(
+        text,
+        (
+            "so sánh",
+            "so sanh",
+            "compare",
+            "cái nào đẹp hơn",
+            "cai nao dep hon",
+            "cái nào tốt hơn",
+            "cai nao tot hon",
+            "which looks better",
+            "which is better",
+        ),
+    ):
+        return VisualOperation.COMPARE
     if has_visual_context and _contains_any(
         text,
         (
@@ -303,11 +318,6 @@ def _visual_operation(
         ("trích xuất", "trich xuat", "ocr", "đọc chữ", "doc chu", "extract text"),
     ):
         return VisualOperation.EXTRACT
-    if (has_visual_noun or has_visual_evidence) and _contains_any(
-        text,
-        ("so sánh", "so sanh", "compare"),
-    ):
-        return VisualOperation.COMPARE
     if (has_visual_noun or has_visual_evidence) and _contains_any(
         text,
         ("xác minh", "xac minh", "verify"),
