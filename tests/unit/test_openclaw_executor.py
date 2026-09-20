@@ -644,3 +644,12 @@ async def test_executor_serializes_plan_node_dod_and_evidence_context() -> None:
     assert gateway_input["remaining_budget"] == {"actions": 2, "replans": 1}
     assert "criterion_verification" in cast(str, payload["instructions"])
     assert result.criterion_verification[0].status == "verified"
+
+
+def test_external_communication_instructions_allow_only_authorized_delivery() -> None:
+    executor = OpenClawExecutor(base_url="http://127.0.0.1:18789")
+    request = _request().model_copy(update={"goal": "Send this image to Hai", "reference_image": "media://inbound/example.jpg", "capability_requirements": ("external_communication",)})
+    instructions = executor._instructions(request)
+    assert "explicitly authorized external communication" in instructions
+    assert "may invoke delivery tools" in instructions
+    assert "Do not send Telegram messages or invoke delivery tools" not in instructions

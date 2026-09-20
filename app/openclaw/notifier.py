@@ -277,6 +277,9 @@ class OpenClawNotifier:
             if isinstance(parsed_request, dict):
                 request = parsed_request
 
+        capability = request.get("capability")
+        if capability == CapabilityKind.EXTERNAL_COMMUNICATION.value:
+            return False
         if isinstance(request.get("reference_image"), str) and request["reference_image"]:
             return True
 

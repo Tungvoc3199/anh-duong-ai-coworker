@@ -188,3 +188,25 @@ async def test_image_terminal_failure_is_user_safe_and_terminal() -> None:
     ):
         assert internal not in message.casefold()
     assert "đang xử lý" not in message.casefold()
+
+
+@pytest.mark.asyncio
+async def test_external_send_with_reference_image_is_not_mislabeled_as_image_generation() -> None:
+    captured: dict[str, object] = {}
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["json"] = json.loads(request.content)
+        return httpx.Response(200, json={"ok": True, "result": {"messageId": "44"}})
+    run = _run().model_copy(update={
+        "status": AsyncRunStatus.BLOCKED,
+        "goal": "Send this image to Hai",
+        "request_json": json.dumps({"capability": "external_communication", "reference_image": "media://inbound/example.jpg"}),
+        "result_json": json.dumps({"outcome": "blocked", "summary": "Recipient Hai is unresolved.", "artifacts": [], "verification": []}),
+        "last_error_message": "Recipient Hai is unresolved.",
+    })
+    notifier = OpenClawNotifier(base_url="http://127.0.0.1:18789", notification_path="/tools/invoke", transport=httpx.MockTransport(handler))
+    await notifier.send_final(run)
+    payload = cast(dict[str, Any], captured["json"])
+    args = cast(dict[str, Any], payload["args"])
+    message = cast(str, args["message"])
+    assert "Recipient Hai is unresolved." in message
+    assert "create or edit" not in message.casefold()
