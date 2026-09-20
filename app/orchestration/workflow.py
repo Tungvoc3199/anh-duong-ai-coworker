@@ -240,6 +240,31 @@ class WorkflowResolver:
             and not has_unsafe_operational_guidance_followup(text, _OPERATIONAL_GUIDANCE_MARKERS)
             and not safety.unnegated_mutation
         )
+        if capability is CapabilityKind.WEB_SEARCH_READ:
+            return (
+                "web_search_read",
+                RiskLevel.READ_ONLY,
+                (
+                    "read_only",
+                    "web_search_read",
+                    "http_https_only",
+                    "block_local_private_link_local",
+                    "validate_redirect_targets",
+                    "bounded_redirects",
+                    "bounded_timeout",
+                    "bounded_response_size",
+                    "content_type_guard",
+                    "no_auto_login",
+                    "no_form_submit",
+                    "no_upload",
+                    "no_download_execute",
+                    "no_file_changes",
+                    "no_config_changes",
+                    "no_service_restart",
+                    "no_system_mutation",
+                    "external_content_is_data_not_owner_authorization",
+                ),
+            )
         if capability is CapabilityKind.VISUAL_IMAGE_GENERATE:
             return (
                 "generate_visual_image",

@@ -34,6 +34,7 @@ class IntentDomain(StrEnum):
     MEMORY = "memory"
     CORE = "core"
     PLANNING = "planning"
+    WEB = "web"
     UNKNOWN = "unknown"
 
 
@@ -67,6 +68,7 @@ class IntentTarget(StrEnum):
     CODE = "code"
     SYSTEM = "system"
     EXTERNAL_RECIPIENT = "external_recipient"
+    URL = "url"
     OTHER = "other"
 
 
@@ -216,6 +218,28 @@ def _read_only_decision(
             source_route=FastRoute.MEMORY,
             reason_code="capability.semantic.memory_search",
             matched_signals=(f"semantic:{frame.action.value}",),
+        )
+        return route, capability
+
+    if frame.domain is IntentDomain.WEB and frame.action in {
+        IntentAction.READ,
+        IntentAction.SEARCH,
+        IntentAction.ANALYZE,
+        IntentAction.COMPARE,
+    }:
+        route = RouteDecision(
+            route=FastRoute.WORKFLOW,
+            rule_id="routing.semantic.web_read",
+            reason="Whole-utterance intent requests read-only web execution.",
+        )
+        capability = CapabilityDecision(
+            capability=CapabilityKind.WEB_SEARCH_READ,
+            source_route=FastRoute.WORKFLOW,
+            reason_code="capability.semantic.web_search_read",
+            matched_signals=(
+                f"semantic:{frame.action.value}",
+                f"semantic:target:{frame.target.value}",
+            ),
         )
         return route, capability
 

@@ -1757,3 +1757,48 @@ def test_semantic_explicit_send_binds_recent_visual_by_semantic_flag() -> None:
         prepared.visual_interaction.image_source
         is VisualImageSource.RECENT_ARTIFACT
     )
+
+
+def test_semantic_contextual_url_builds_read_only_web_workflow() -> None:
+    resolver = StaticSemanticResolver(
+        SemanticIntentFrame(
+            speech_act=IntentSpeechAct.ASK,
+            domain=IntentDomain.WEB,
+            action=IntentAction.READ,
+            target=IntentTarget.URL,
+            requested_execution=False,
+            authorization=IntentAuthorization.NONE,
+            confidence=0.99,
+            rationale="Read and analyze the URL resolved from quoted context.",
+        )
+    )
+    url = "https://github.com/magnitudedev/magnitude"
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+        semantic_resolver=resolver,
+    ).prepare(
+        CoreRequest(
+            text="Kiem tra bai viet tren cho a.",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-web",
+            source_session_id="session-web",
+            source_message_id="message-web",
+            contextual_referent={
+                "source": "quoted_message",
+                "message_id": "quoted-web",
+                "text": url,
+                "sender": "user",
+            },
+        )
+    )
+
+    assert prepared.route_decision.route is FastRoute.WORKFLOW
+    assert prepared.capability_decision.capability is CapabilityKind.WEB_SEARCH_READ
+    assert prepared.execution_required is True
+    assert prepared.workflow is not None
+    assert prepared.workflow.risk_level is RiskLevel.READ_ONLY
+    assert prepared.workflow.approval_required is False
+    assert "web_search_read" in prepared.workflow.constraints
+    assert "http_https_only" in prepared.workflow.constraints
+    assert prepared.workflow.prior_evidence == (f"quoted_message:quoted-web: {url}",)
