@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     openclaw_container_name: str = "openclaw-openclaw-gateway-1"
     openclaw_image_model: str = "openai/cx/gpt-5.5-image"
     openclaw_image_timeout_seconds: float = 600.0
+    semantic_intent_enabled: bool = True
+    semantic_intent_model: str = "openclaw/default"
+    semantic_intent_timeout_seconds: float = 15.0
+    semantic_intent_confidence_threshold: float = Field(default=0.72, ge=0.0, le=1.0)
     openclaw_image_output_root: Path = Path(
         "/home/thadc/.openclaw/media/tool-image-generation"
     )

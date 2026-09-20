@@ -31,6 +31,7 @@ from app.context_builder import create_context_builder
 from app.db.session import create_db_engine
 from app.openclaw import OpenClawExecutor, OpenClawImageGenerator, OpenClawNotifier
 from app.orchestration import create_core_request_pipeline
+from app.semantic_intent_resolver import OpenClawSemanticIntentResolver
 from app.visualforge import VisualForgeClient, VisualForgeRoutingExecutor
 
 logger = logging.getLogger(__name__)
@@ -215,11 +216,26 @@ def create_app(
     application.state.engine = engine
     application.state.session_factory = None
     application.state.context_builder_factory = create_context_builder
+    semantic_intent_resolver = (
+        OpenClawSemanticIntentResolver(
+            base_url=runtime_settings.openclaw_base_url,
+            execution_path=runtime_settings.openclaw_execution_path,
+            auth_token=runtime_settings.openclaw_auth_token,
+            model=runtime_settings.semantic_intent_model,
+            timeout_seconds=runtime_settings.semantic_intent_timeout_seconds,
+        )
+        if runtime_settings.semantic_intent_enabled
+        else None
+    )
     application.state.core_request_pipeline_factory = partial(
         create_core_request_pipeline,
         audit_writer=audit_writer,
         persona_root=Path("data/persona"),
         owner_telegram_id=runtime_settings.owner_telegram_id,
+        semantic_intent_resolver=semantic_intent_resolver,
+        semantic_confidence_threshold=(
+            runtime_settings.semantic_intent_confidence_threshold
+        ),
     )
     application.state.background_tasks = []
     application.state.accepting_async_tasks = False

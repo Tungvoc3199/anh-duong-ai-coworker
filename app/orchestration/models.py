@@ -16,6 +16,7 @@ from app.context_builder.models import ContextBundle
 from app.image_reference import validate_managed_image_reference
 from app.policy import DecisionKind, RiskLevel
 from app.routing.models import RouteDecision
+from app.semantic_intent import SemanticIntentFrame
 from app.visual_interaction import VisualImageSource, VisualInteractionContract
 
 
@@ -179,6 +180,7 @@ class PreparedRequest(BaseModel):
     persona: PersonaReference
     route_decision: RouteDecision
     capability_decision: CapabilityDecision
+    semantic_intent: SemanticIntentFrame | None = None
     visual_interaction: VisualInteractionContract | None = None
     context: ContextBundle
     project_id: str | None = None

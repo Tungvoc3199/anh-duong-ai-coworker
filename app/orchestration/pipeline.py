@@ -36,6 +36,19 @@ from app.orchestration.workflow import WorkflowResolver
 from app.persona import PersonaSnapshot
 from app.projects import Project, ProjectNotFound, ProjectStatus
 from app.routing import FastRoute, FastRouter
+from app.semantic_intent import (
+    IntentAction,
+    IntentAuthorization,
+    IntentDomain,
+    IntentSpeechAct,
+    IntentTarget,
+    SemanticIntentFrame,
+    decisions_from_intent_frame,
+)
+from app.semantic_intent_resolver import (
+    SemanticIntentResolutionError,
+    SemanticIntentResolver,
+)
 from app.tasks import Task, TaskNotFound, TaskStatus
 from app.visual_interaction import (
     VisualImageSource,
@@ -89,6 +102,8 @@ class CoreRequestPipeline:
         id_factory: Callable[[], str] = new_request_id,
         redactor: SecretRedactor | None = None,
         workflow_resolver: WorkflowResolver | None = None,
+        semantic_intent_resolver: SemanticIntentResolver | None = None,
+        semantic_confidence_threshold: float = 0.72,
     ) -> None:
         self._persona_loader = persona_loader
         self._fast_router = fast_router
@@ -101,6 +116,12 @@ class CoreRequestPipeline:
         self._id_factory = id_factory
         self._redactor = redactor or SecretRedactor()
         self._workflow_resolver = workflow_resolver or WorkflowResolver()
+        self._semantic_intent_resolver = semantic_intent_resolver
+        if not 0.0 <= semantic_confidence_threshold <= 1.0:
+            raise ValueError(
+                "semantic_confidence_threshold must be between 0 and 1"
+            )
+        self._semantic_confidence_threshold = semantic_confidence_threshold
 
     def prepare(self, request: CoreRequest) -> PreparedRequest:
         persona = self._persona_loader()
@@ -112,41 +133,109 @@ class CoreRequestPipeline:
         classification_text = semantic_text(request.text, resolved_referent)
         image_source = request.image_source
         reference_image = request.reference_image
-        contextual_visual = None
-        if (
-            image_source is VisualImageSource.NONE
-            and request.recent_image_candidate is not None
-            and resolved_referent is not None
-        ):
-            contextual_visual = build_visual_interaction_contract(
+        semantic_intent: SemanticIntentFrame | None = None
+        semantic_warnings: list[str] = []
+
+        if self._semantic_intent_resolver is not None:
+            try:
+                semantic_intent = self._semantic_intent_resolver.resolve(
+                    current_text=request.text,
+                    contextual_referent=resolved_referent,
+                    image_source=image_source,
+                    has_reference_image=reference_image is not None,
+                    has_recent_image_candidate=(
+                        request.recent_image_candidate is not None
+                    ),
+                )
+            except SemanticIntentResolutionError:
+                semantic_warnings.append(
+                    "semantic_intent_unavailable_execution_suppressed"
+                )
+
+        if semantic_intent is not None:
+            if (
+                image_source is VisualImageSource.NONE
+                and request.recent_image_candidate is not None
+                and self._semantic_binds_recent_visual(semantic_intent)
+            ):
+                image_source = VisualImageSource.RECENT_ARTIFACT
+                reference_image = request.recent_image_candidate
+
+            effective_intent = semantic_intent
+            if semantic_intent.confidence < self._semantic_confidence_threshold:
+                semantic_warnings.append(
+                    "semantic_intent_low_confidence_execution_suppressed"
+                )
+                effective_intent = semantic_intent.model_copy(
+                    update={
+                        "requested_execution": False,
+                        "authorization": IntentAuthorization.NONE,
+                    }
+                )
+            (
+                route_decision,
+                capability_decision,
+                visual_interaction,
+            ) = decisions_from_intent_frame(
+                effective_intent,
+                raw_instruction=request.text,
+                image_source=image_source,
+                reference_image=reference_image,
+            )
+        else:
+            contextual_visual = None
+            if (
+                image_source is VisualImageSource.NONE
+                and request.recent_image_candidate is not None
+                and resolved_referent is not None
+            ):
+                contextual_visual = build_visual_interaction_contract(
+                    request.text,
+                    image_source=VisualImageSource.RECENT_ARTIFACT,
+                    reference_image=request.recent_image_candidate,
+                )
+            if (
+                image_source is VisualImageSource.NONE
+                and request.recent_image_candidate is not None
+                and (
+                    contextual_visual is not None
+                    or should_bind_recent_visual_candidate(request.text)
+                )
+            ):
+                image_source = VisualImageSource.RECENT_ARTIFACT
+                reference_image = request.recent_image_candidate
+            visual_interaction = build_visual_interaction_contract(
                 request.text,
-                image_source=VisualImageSource.RECENT_ARTIFACT,
-                reference_image=request.recent_image_candidate,
+                image_source=image_source,
+                reference_image=reference_image,
             )
-        if (
-            image_source is VisualImageSource.NONE
-            and request.recent_image_candidate is not None
-            and (
-                contextual_visual is not None
-                or should_bind_recent_visual_candidate(request.text)
+            route_decision = self._fast_router.route(
+                classification_text,
+                visual_interaction=visual_interaction,
             )
-        ):
-            image_source = VisualImageSource.RECENT_ARTIFACT
-            reference_image = request.recent_image_candidate
-        visual_interaction = build_visual_interaction_contract(
-            request.text,
-            image_source=image_source,
-            reference_image=reference_image,
-        )
-        route_decision = self._fast_router.route(
-            classification_text,
-            visual_interaction=visual_interaction,
-        )
-        capability_decision = self._capability_router.route(
-            route_decision,
-            classification_text,
-            visual_interaction=visual_interaction,
-        )
+            capability_decision = self._capability_router.route(
+                route_decision,
+                classification_text,
+                visual_interaction=visual_interaction,
+            )
+            if (
+                self._semantic_intent_resolver is not None
+                and route_decision.route is FastRoute.WORKFLOW
+            ):
+                safe_intent = self._safe_read_only_fallback_intent(
+                    image_source=image_source,
+                    visual_interaction=visual_interaction,
+                )
+                (
+                    route_decision,
+                    capability_decision,
+                    visual_interaction,
+                ) = decisions_from_intent_frame(
+                    safe_intent,
+                    raw_instruction=request.text,
+                    image_source=image_source,
+                    reference_image=reference_image,
+                )
 
         task = self._load_task(request.task_id)
         project = self._resolve_project(
@@ -222,13 +311,14 @@ class CoreRequestPipeline:
             ),
             route_decision=route_decision,
             capability_decision=capability_decision,
+            semantic_intent=semantic_intent,
             visual_interaction=visual_interaction,
             context=context,
             project_id=project.id if project is not None else request.project_id,
             task_id=request.task_id,
             execution_required=route_decision.route is FastRoute.WORKFLOW,
             workflow=workflow,
-            warnings=context.warnings,
+            warnings=tuple((*context.warnings, *semantic_warnings)),
             provenance=RequestProvenance(
                 persona_version=persona.version,
                 persona_content_hash=persona.content_hash,
@@ -242,6 +332,45 @@ class CoreRequestPipeline:
         )
         self._write_audit(prepared, request)
         return prepared
+
+    @staticmethod
+    def _semantic_binds_recent_visual(frame: SemanticIntentFrame) -> bool:
+        return frame.uses_contextual_visual
+
+    @staticmethod
+    def _safe_read_only_fallback_intent(
+        *,
+        image_source: VisualImageSource,
+        visual_interaction: object | None,
+    ) -> SemanticIntentFrame:
+        has_visual = (
+            image_source is not VisualImageSource.NONE
+            or visual_interaction is not None
+        )
+        return SemanticIntentFrame(
+            speech_act=IntentSpeechAct.ASK,
+            domain=(
+                IntentDomain.VISUAL
+                if has_visual
+                else IntentDomain.CONVERSATION
+            ),
+            action=(
+                IntentAction.ANALYZE
+                if has_visual
+                else IntentAction.NONE
+            ),
+            target=(
+                IntentTarget.IMAGE
+                if has_visual
+                else IntentTarget.NONE
+            ),
+            requested_execution=False,
+            authorization=IntentAuthorization.NONE,
+            confidence=0.0,
+            rationale=(
+                "Semantic resolver unavailable; execution suppressed."
+            ),
+        )
 
     def _load_project(self, project_id: str | None) -> Project | None:
         if project_id is None:
@@ -365,6 +494,27 @@ class CoreRequestPipeline:
                     "persona_content_hash": prepared.persona.content_hash,
                     "token_estimate": prepared.context.estimated_tokens,
                     "warning_count": len(prepared.warnings),
+                    **(
+                        {
+                            "semantic_speech_act": (
+                                prepared.semantic_intent.speech_act.value
+                            ),
+                            "semantic_domain": (
+                                prepared.semantic_intent.domain.value
+                            ),
+                            "semantic_action": (
+                                prepared.semantic_intent.action.value
+                            ),
+                            "semantic_requested_execution": (
+                                prepared.semantic_intent.requested_execution
+                            ),
+                            "semantic_confidence": (
+                                prepared.semantic_intent.confidence
+                            ),
+                        }
+                        if prepared.semantic_intent is not None
+                        else {}
+                    ),
                     **(
                         {
                             "workflow_policy_rule": (
