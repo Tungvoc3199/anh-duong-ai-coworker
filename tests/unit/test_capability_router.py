@@ -14,13 +14,14 @@ def _route(request: str) -> CapabilityDecision:
     return CapabilityRouter().route(fast_decision, request)
 
 
-def test_capability_kind_contains_exact_v1_contract() -> None:
+def test_capability_kind_contains_current_contract() -> None:
     assert {kind.value for kind in CapabilityKind} == {
         "conversational_response",
         "memory_search",
         "project_read",
         "task_read",
         "core_status_read",
+        "web_search_read",
         "planning",
         "visual_prompt_compose",
         "visual_analysis",
