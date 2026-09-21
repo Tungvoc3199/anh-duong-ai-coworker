@@ -12,6 +12,7 @@ from app.semantic_intent import (
     IntentTarget,
     SemanticIntentFrame,
     decisions_from_intent_frame,
+    normalize_explicit_url_read_intent,
 )
 from app.semantic_intent_resolver import OpenClawSemanticIntentResolver
 
@@ -46,6 +47,107 @@ def test_web_search_and_compare_use_same_readonly_capability() -> None:
         )
         assert route.route is FastRoute.WORKFLOW
         assert capability.capability is CapabilityKind.WEB_SEARCH_READ
+
+
+def test_explicit_url_anchor_recovers_readonly_web_intent_from_conversation_frame() -> None:
+    prompt = (
+        "https://github.com/magnitudedev/magnitude\n"
+        "Kiểm tra bài viết trên cho a."
+    )
+    assert len(prompt) == 71
+    misclassified = SemanticIntentFrame(
+        speech_act=IntentSpeechAct.ASK,
+        domain=IntentDomain.CONVERSATION,
+        action=IntentAction.NONE,
+        target=IntentTarget.NONE,
+        requested_execution=False,
+        authorization=IntentAuthorization.NONE,
+        confidence=0.91,
+        rationale="Generic conversational request.",
+    )
+
+    normalized = normalize_explicit_url_read_intent(
+        misclassified,
+        raw_instruction=prompt,
+    )
+    route, capability, visual = decisions_from_intent_frame(
+        normalized,
+        raw_instruction=prompt,
+    )
+
+    assert normalized.domain is IntentDomain.WEB
+    assert normalized.action is IntentAction.READ
+    assert normalized.target is IntentTarget.URL
+    assert normalized.requested_execution is False
+    assert route.route is FastRoute.WORKFLOW
+    assert capability.capability is CapabilityKind.WEB_SEARCH_READ
+    assert visual is None
+
+
+def test_explicit_url_anchor_never_overrides_prohibition_or_side_effect() -> None:
+    prompt = "https://example.com/report"
+
+    prohibited = SemanticIntentFrame(
+        speech_act=IntentSpeechAct.PROHIBITION,
+        domain=IntentDomain.CONVERSATION,
+        action=IntentAction.NONE,
+        target=IntentTarget.NONE,
+        requested_execution=False,
+        authorization=IntentAuthorization.PROHIBITED,
+        confidence=0.99,
+    )
+    assert (
+        normalize_explicit_url_read_intent(
+            prohibited,
+            raw_instruction=prompt,
+        )
+        == prohibited
+    )
+
+    send = SemanticIntentFrame(
+        speech_act=IntentSpeechAct.ACTION_REQUEST,
+        domain=IntentDomain.EXTERNAL_COMMUNICATION,
+        action=IntentAction.SEND,
+        target=IntentTarget.EXTERNAL_RECIPIENT,
+        requested_execution=True,
+        authorization=IntentAuthorization.EXPLICIT,
+        recipient="@someone",
+        confidence=0.99,
+    )
+    assert (
+        normalize_explicit_url_read_intent(
+            send,
+            raw_instruction=f"Gửi {prompt} cho @someone",
+        )
+        == send
+    )
+
+
+def test_explicit_url_anchor_requires_structurally_valid_http_url() -> None:
+    frame = SemanticIntentFrame(
+        speech_act=IntentSpeechAct.ASK,
+        domain=IntentDomain.CONVERSATION,
+        action=IntentAction.NONE,
+        target=IntentTarget.NONE,
+        requested_execution=False,
+        authorization=IntentAuthorization.NONE,
+        confidence=0.99,
+    )
+
+    assert (
+        normalize_explicit_url_read_intent(
+            frame,
+            raw_instruction="Kiểm tra github.com/magnitudedev/magnitude cho a.",
+        )
+        == frame
+    )
+    assert (
+        normalize_explicit_url_read_intent(
+            frame,
+            raw_instruction="Kiểm tra https:// cho a.",
+        )
+        == frame
+    )
 
 
 def test_web_workflow_policy_is_read_only_and_ssrf_bounded() -> None:

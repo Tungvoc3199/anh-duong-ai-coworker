@@ -44,6 +44,7 @@ from app.semantic_intent import (
     IntentTarget,
     SemanticIntentFrame,
     decisions_from_intent_frame,
+    normalize_explicit_url_read_intent,
 )
 from app.semantic_intent_resolver import (
     SemanticIntentResolutionError,
@@ -172,6 +173,10 @@ class CoreRequestPipeline:
                         "authorization": IntentAuthorization.NONE,
                     }
                 )
+            effective_intent = normalize_explicit_url_read_intent(
+                effective_intent,
+                raw_instruction=request.text,
+            )
             (
                 route_decision,
                 capability_decision,

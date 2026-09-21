@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 from enum import StrEnum
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -116,6 +118,65 @@ class SemanticIntentFrame(BaseModel):
             if self.authorization is not IntentAuthorization.EXPLICIT:
                 raise ValueError("execution requires explicit current-turn authorization")
         return self
+
+
+_EXPLICIT_HTTP_URL_RE = re.compile(r"(?i)\bhttps?://[^\s<>\"']+")
+_EXPLICIT_URL_TRAILING_PUNCTUATION = ".,;:!?)]}"
+
+
+def _has_explicit_http_url(text: str) -> bool:
+    """Return True only for a structurally valid explicit http(s) URL in this turn."""
+
+    for match in _EXPLICIT_HTTP_URL_RE.finditer(text):
+        candidate = match.group(0).rstrip(_EXPLICIT_URL_TRAILING_PUNCTUATION)
+        if not candidate:
+            continue
+        parsed = urlsplit(candidate)
+        if parsed.scheme.casefold() in {"http", "https"} and parsed.netloc:
+            return True
+    return False
+
+
+def normalize_explicit_url_read_intent(
+    frame: SemanticIntentFrame,
+    *,
+    raw_instruction: str,
+) -> SemanticIntentFrame:
+    """Anchor explicit current-turn URLs to read-only web intent after semantic parsing.
+
+    This is a narrow structural normalization, not keyword routing. It never overrides
+    prohibitions or any intent that already requests a side effect/execution.
+    """
+
+    if not _has_explicit_http_url(raw_instruction):
+        return frame
+    if frame.requested_execution or frame.authorization is IntentAuthorization.PROHIBITED:
+        return frame
+    if frame.domain not in {IntentDomain.CONVERSATION, IntentDomain.UNKNOWN}:
+        return frame
+    if frame.action not in {
+        IntentAction.NONE,
+        IntentAction.ANALYZE,
+        IntentAction.COMPARE,
+        IntentAction.READ,
+        IntentAction.SEARCH,
+    }:
+        return frame
+
+    anchored_action = (
+        IntentAction.READ if frame.action is IntentAction.NONE else frame.action
+    )
+    return frame.model_copy(
+        update={
+            "domain": IntentDomain.WEB,
+            "action": anchored_action,
+            "target": IntentTarget.URL,
+            "rationale": (
+                "Explicit current-turn http/https URL anchors this read-only intent "
+                "to web content."
+            ),
+        }
+    )
 
 
 def _visual_contract(

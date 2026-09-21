@@ -1759,6 +1759,49 @@ def test_semantic_explicit_send_binds_recent_visual_by_semantic_flag() -> None:
     )
 
 
+def test_explicit_url_anchor_corrects_semantic_conversation_frame_in_pipeline() -> None:
+    resolver = StaticSemanticResolver(
+        SemanticIntentFrame(
+            speech_act=IntentSpeechAct.ASK,
+            domain=IntentDomain.CONVERSATION,
+            action=IntentAction.NONE,
+            target=IntentTarget.NONE,
+            requested_execution=False,
+            authorization=IntentAuthorization.NONE,
+            confidence=0.91,
+            rationale="Generic conversational request.",
+        )
+    )
+    prompt = (
+        "https://github.com/magnitudedev/magnitude\n"
+        "Kiểm tra bài viết trên cho a."
+    )
+    assert len(prompt) == 71
+
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+        semantic_resolver=resolver,
+    ).prepare(
+        CoreRequest(
+            text=prompt,
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-web-anchor",
+            source_session_id="session-web-anchor",
+            source_message_id="message-web-anchor",
+        )
+    )
+
+    assert prepared.semantic_intent == resolver.frame
+    assert prepared.route_decision.route is FastRoute.WORKFLOW
+    assert prepared.route_decision.rule_id == "routing.semantic.web_read"
+    assert prepared.capability_decision.capability is CapabilityKind.WEB_SEARCH_READ
+    assert prepared.execution_required is True
+    assert prepared.workflow is not None
+    assert prepared.workflow.risk_level is RiskLevel.READ_ONLY
+    assert prepared.workflow.approval_required is False
+
+
 def test_semantic_contextual_url_builds_read_only_web_workflow() -> None:
     resolver = StaticSemanticResolver(
         SemanticIntentFrame(
