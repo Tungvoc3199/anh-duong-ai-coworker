@@ -87,10 +87,12 @@ def test_web_execution_instructions_require_native_tools_and_sources() -> None:
     assert "web_search" in text
     assert "browser" in text
     assert "source URLs" in text
-    assert "concise executive brief" in text
-    assert "3-5 decision-useful key points" in text
+    assert "Preserve analytical depth" in text
+    assert "blank lines" in text
+    assert "one main idea per bullet" in text
     assert "whole page or README" in text
     assert "project claims" in text
+    assert "arbitrary bullet count" in text
     assert "http/https" in text
     assert "private" in text
     assert "redirect" in text

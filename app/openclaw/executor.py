@@ -148,12 +148,15 @@ class OpenClawExecutor:
                 "The final answer must identify the source URLs actually read or searched "
                 "and distinguish fetched evidence from supplemental search evidence. "
                 "Synthesize the evidence around the user's actual question instead of narrating "
-                "the whole page or README. Default to a concise executive brief: lead with a "
-                "1-2 sentence conclusion, then 3-5 decision-useful key points, then at most 2-3 "
-                "practical implications when relevant, and finish with a short Sources section. "
-                "Keep normal answers compact and expand only when the user explicitly asks for "
-                "deep analysis. Clearly separate project claims, independently verified facts, "
-                "and assistant analysis; omit generic caveats that do not change the conclusion."
+                "the whole page or README. Preserve analytical depth and useful caveats; improve "
+                "presentation rather than shortening the substance. Structure long answers into "
+                "clear visual blocks with short headings, blank lines, short paragraphs, and one "
+                "main idea per bullet so the result is easy to scan on a phone. Use functional "
+                "section labels such as Conclusion, Key points, Practical implications, Caveats, "
+                "and Sources when relevant, without forcing every section into every answer. "
+                "Clearly separate project claims, independently verified facts, and assistant "
+                "analysis. Do not compress detailed evidence merely to meet an arbitrary bullet "
+                "count, and do not place many unrelated facts into one dense paragraph."
             )
         if request is not None and {
             "subscription_quota_only",
