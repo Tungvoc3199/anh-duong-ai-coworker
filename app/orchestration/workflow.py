@@ -13,6 +13,7 @@ from app.orchestration.models import CoreRequest, WorkflowEnvelope
 from app.policy import DecisionKind, PolicyAction, PolicyEngine, RiskLevel
 from app.policy.models import PolicyDecision
 from app.privacy import telegram_idempotency_key
+from app.privacy.minimization import channel_idempotency_key
 from app.projects import Project
 from app.safety_intent import (
     SafetyConstraint,
@@ -443,11 +444,17 @@ class WorkflowResolver:
 
     @staticmethod
     def _idempotency_key(request: CoreRequest) -> str | None:
-        if request.channel != "telegram":
+        if request.channel not in {"telegram", "zalouser"}:
             return None
         if not request.source_chat_id or not request.source_message_id:
             return None
-        return telegram_idempotency_key(
+        if request.channel == "telegram":
+            return telegram_idempotency_key(
+                source_chat_id=request.source_chat_id,
+                source_message_id=request.source_message_id,
+            )
+        return channel_idempotency_key(
+            channel=request.channel,
             source_chat_id=request.source_chat_id,
             source_message_id=request.source_message_id,
         )

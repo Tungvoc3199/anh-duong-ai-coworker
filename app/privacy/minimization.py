@@ -6,6 +6,14 @@ import json
 from typing import Any
 
 
+def channel_idempotency_key(
+    *, channel: str, source_chat_id: str, source_message_id: str
+) -> str:
+    """Return a stable channel-namespaced key without raw routing identifiers."""
+    material = f"{source_chat_id}\0{source_message_id}".encode()
+    return channel + ":" + hashlib.sha256(material).hexdigest()
+
+
 def telegram_idempotency_key(
     *,
     source_chat_id: str,
