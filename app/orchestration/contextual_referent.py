@@ -7,6 +7,7 @@ from app.orchestration.models import ContextualReferent
 
 _REFERENTIAL_PATTERNS = (
     re.compile(r"\b(?:nhu|theo)\s+(?:tren|do|nay)\b"),
+    re.compile(r"\b(?:(?:e|em)\s+)?(?:tu\s+)?(?:tao|lam)\s+(?:di|luon)\b"),
     re.compile(r"\b(?:cai|phan|loi|anh|hinh|viec)\s+(?:do|nay|tren)\b"),
     re.compile(r"\b(?:phan|phuong an|lua chon|option)\s*\d+\b"),
     re.compile(r"\b(?:con lai|giu nguyen phan con lai)\b"),
@@ -18,6 +19,7 @@ _REFERENTIAL_PATTERNS = (
 )
 
 _CONTEXTUAL_EXECUTION_PATTERNS = (
+    re.compile(r"\b(?:(?:e|em)\s+)?(?:tu\s+)?(?:tao|lam)\s+(?:di|luon)\b"),
     re.compile(
         r"\b(?:lam|thuc hien|trien khai|apply|do|execute)\s+"
         r"(?:theo\s+)?(?:cai|phan|viec|de xuat|phuong an|option)?\s*"

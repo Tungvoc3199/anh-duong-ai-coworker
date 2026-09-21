@@ -17,6 +17,7 @@ from app.context_builder import (
 )
 from app.orchestration.contextual_referent import (
     render_contextual_evidence,
+    requests_contextual_execution,
     resolve_contextual_referent,
     semantic_text,
 )
@@ -154,6 +155,12 @@ class CoreRequestPipeline:
                 )
 
         if semantic_intent is not None:
+            semantic_intent = self._normalize_contextual_visual_intent(
+                semantic_intent,
+                current_text=request.text,
+                resolved_referent=resolved_referent,
+                has_recent_image_candidate=request.recent_image_candidate is not None,
+            )
             if (
                 image_source is VisualImageSource.NONE
                 and request.recent_image_candidate is not None
@@ -337,6 +344,39 @@ class CoreRequestPipeline:
         )
         self._write_audit(prepared, request)
         return prepared
+
+    @staticmethod
+    def _normalize_contextual_visual_intent(
+        frame: SemanticIntentFrame,
+        *,
+        current_text: str,
+        resolved_referent: object | None,
+        has_recent_image_candidate: bool,
+    ) -> SemanticIntentFrame:
+        if (
+            resolved_referent is None
+            or not has_recent_image_candidate
+            or not requests_contextual_execution(current_text)
+            or frame.authorization is IntentAuthorization.PROHIBITED
+            or not frame.requested_execution
+            or frame.authorization is not IntentAuthorization.EXPLICIT
+            or frame.action not in {IntentAction.GENERATE, IntentAction.EDIT}
+            or frame.domain
+            not in {IntentDomain.UNKNOWN, IntentDomain.CONVERSATION, IntentDomain.VISUAL}
+            or frame.target not in {IntentTarget.NONE, IntentTarget.OTHER, IntentTarget.IMAGE}
+        ):
+            return frame
+        return frame.model_copy(
+            update={
+                "domain": IntentDomain.VISUAL,
+                "target": IntentTarget.IMAGE,
+                "uses_contextual_visual": True,
+                "rationale": (
+                    "Explicit contextual visual execution is bound to the resolved "
+                    "assistant referent and recent image candidate."
+                ),
+            }
+        )
 
     @staticmethod
     def _semantic_binds_recent_visual(frame: SemanticIntentFrame) -> bool:

@@ -1682,6 +1682,97 @@ def test_low_confidence_semantic_execution_is_suppressed() -> None:
     )
 
 
+def test_elliptical_contextual_generate_binds_resolved_assistant_visual() -> None:
+    resolver = StaticSemanticResolver(
+        SemanticIntentFrame(
+            speech_act=IntentSpeechAct.ACTION_REQUEST,
+            domain=IntentDomain.UNKNOWN,
+            action=IntentAction.GENERATE,
+            target=IntentTarget.NONE,
+            requested_execution=True,
+            authorization=IntentAuthorization.EXPLICIT,
+            uses_contextual_visual=False,
+            confidence=0.99,
+            rationale="Generate, but referent binding is unresolved.",
+        )
+    )
+    recent = "media://inbound/44444444-4444-4444-8444-444444444444.jpg"
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+        semantic_resolver=resolver,
+    ).prepare(
+        CoreRequest(
+            text="E tự tạo đi",
+            source_origin="telegram_user",
+            recent_assistant_candidate={
+                "source": "previous_assistant_result",
+                "message_id": "7001",
+                "text": "Em sẽ tạo lại phương án này theo ảnh vừa rồi.",
+                "sender": "Ánh Dương",
+            },
+            recent_image_candidate=recent,
+        )
+    )
+
+    assert prepared.semantic_intent is not None
+    assert prepared.semantic_intent.domain is IntentDomain.VISUAL
+    assert prepared.semantic_intent.target is IntentTarget.IMAGE
+    assert prepared.semantic_intent.uses_contextual_visual is True
+    assert prepared.capability_decision.capability is CapabilityKind.VISUAL_IMAGE_GENERATE
+    assert prepared.visual_interaction is not None
+    assert prepared.visual_interaction.image_source is VisualImageSource.RECENT_ARTIFACT
+    assert prepared.visual_interaction.reference_image == recent
+
+
+def test_elliptical_generate_without_recent_context_does_not_invent_visual_referent() -> None:
+    resolver = StaticSemanticResolver(
+        SemanticIntentFrame(
+            speech_act=IntentSpeechAct.ACTION_REQUEST,
+            domain=IntentDomain.UNKNOWN,
+            action=IntentAction.GENERATE,
+            target=IntentTarget.NONE,
+            requested_execution=True,
+            authorization=IntentAuthorization.EXPLICIT,
+            confidence=0.99,
+        )
+    )
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+        semantic_resolver=resolver,
+    ).prepare(CoreRequest(text="E tự tạo đi", source_origin="telegram_user"))
+
+    assert prepared.semantic_intent == resolver.frame
+    assert prepared.visual_interaction is None
+
+
+def test_contextual_normalizer_never_overrides_prohibition() -> None:
+    resolver = StaticSemanticResolver(
+        SemanticIntentFrame(
+            speech_act=IntentSpeechAct.PROHIBITION,
+            domain=IntentDomain.UNKNOWN,
+            action=IntentAction.GENERATE,
+            target=IntentTarget.NONE,
+            requested_execution=False,
+            authorization=IntentAuthorization.PROHIBITED,
+            confidence=0.99,
+        )
+    )
+    prepared = _pipeline(semantic_resolver=resolver).prepare(
+        CoreRequest(
+            text="Đừng làm đi",
+            recent_assistant_candidate={
+                "source": "previous_assistant_result",
+                "message_id": "7002",
+                "text": "Em có thể tạo lại ảnh.",
+            },
+            recent_image_candidate="media://inbound/55555555-5555-4555-8555-555555555555.jpg",
+        )
+    )
+
+    assert prepared.semantic_intent == resolver.frame
+    assert prepared.execution_required is False
+
+
 def test_semantic_contextual_generate_binds_recent_visual_without_keyword_router() -> None:
     resolver = StaticSemanticResolver(
         SemanticIntentFrame(
