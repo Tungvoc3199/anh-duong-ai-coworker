@@ -29,6 +29,7 @@ from app.openclaw import (
     OpenClawExecutionResult,
     OpenClawTransportError,
 )
+from app.system_status import probe_core_status_with_client
 from app.tasks import TaskRepository, TaskService, TaskStatus
 
 NOW = datetime.now(UTC) + timedelta(hours=1)
@@ -1110,18 +1111,7 @@ async def test_default_http_probe_does_not_scan_database(
         async def get(self, url: str) -> FakeResponse:
             return FakeResponse("ready" if url.endswith("/ready") else "ok")
 
-    monkeypatch.setattr(
-        "app.async_tasks.worker.httpx.AsyncClient",
-        lambda **_: FakeClient(),
-    )
-    worker = _worker(
-        session_factory=session_factory,
-        tmp_path=tmp_path,
-        executor=SequenceExecutor([]),
-        clock=[NOW],
-    )
-
-    result = await worker._probe_local_core_status()
+    result = await probe_core_status_with_client(FakeClient())
 
     assert "database" not in result
 
@@ -1239,18 +1229,7 @@ async def test_http_response_proves_service_running_even_when_health_fails(
                 return FakeResponse(503, "degraded")
             return FakeResponse(200, "ready")
 
-    monkeypatch.setattr(
-        "app.async_tasks.worker.httpx.AsyncClient",
-        lambda **_: FakeClient(),
-    )
-    worker = _worker(
-        session_factory=session_factory,
-        tmp_path=tmp_path,
-        executor=SequenceExecutor([]),
-        clock=[NOW],
-    )
-
-    result = await worker._probe_local_core_status()
+    result = await probe_core_status_with_client(FakeClient())
 
     assert result["service"]["status"] == "running"
     assert result["health"]["http_status"] == 503
@@ -1284,15 +1263,7 @@ async def test_non_json_health_response_preserves_service_reachability(
                 return FakeResponse(503, "unavailable")
             return FakeResponse(200, {"status": "ready"})
 
-    monkeypatch.setattr("app.async_tasks.worker.httpx.AsyncClient", lambda **_: FakeClient())
-    worker = _worker(
-        session_factory=session_factory,
-        tmp_path=tmp_path,
-        executor=SequenceExecutor([]),
-        clock=[NOW],
-    )
-
-    result = await worker._probe_local_core_status()
+    result = await probe_core_status_with_client(FakeClient())
 
     assert result["service"]["status"] == "running"
     assert result["health"]["http_status"] == 503
@@ -1304,9 +1275,9 @@ async def test_non_json_health_response_preserves_service_reachability(
 @pytest.mark.parametrize(
     ("fail_health", "fail_ready", "expected_service", "expected_evidence"),
     [
-        (True, False, "running", "local_http:/ready"),
-        (False, True, "running", "local_http:/health"),
-        (True, True, "unavailable", "local_http:no_response"),
+        (True, False, "running", "core_asgi:/ready"),
+        (False, True, "running", "core_asgi:/health"),
+        (True, True, "unavailable", "core_asgi:no_response"),
     ],
 )
 async def test_core_status_transport_failures_preserve_truthful_reachability(
@@ -1342,18 +1313,7 @@ async def test_core_status_transport_failures_preserve_truthful_reachability(
                 raise httpx.ReadTimeout("sensitive ready transport detail")
             return FakeResponse(200, "ready")
 
-    monkeypatch.setattr(
-        "app.async_tasks.worker.httpx.AsyncClient",
-        lambda **_: FakeClient(),
-    )
-    worker = _worker(
-        session_factory=session_factory,
-        tmp_path=tmp_path,
-        executor=SequenceExecutor([]),
-        clock=[NOW],
-    )
-
-    result = await worker._probe_local_core_status()
+    result = await probe_core_status_with_client(FakeClient())
 
     assert result["service"]["status"] == expected_service
     assert result["service"]["evidence"] == expected_evidence
@@ -1409,15 +1369,15 @@ async def test_transport_failure_blocks_core_readonly_run_without_openclaw(
                 raise httpx.ReadTimeout("private ready failure")
             return FakeResponse()
 
-    monkeypatch.setattr(
-        "app.async_tasks.worker.httpx.AsyncClient",
-        lambda **_: FakeClient(),
-    )
+    async def core_status_probe() -> dict[str, object]:
+        return await probe_core_status_with_client(FakeClient())
+
     worker = _worker(
         session_factory=session_factory,
         tmp_path=tmp_path,
         executor=executor,
         clock=[NOW],
+        core_status_probe=core_status_probe,
     )
 
     assert await worker.run_once() is True

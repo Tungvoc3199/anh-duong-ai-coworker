@@ -105,7 +105,7 @@ results = repository.search_fts(
 ## Kiểm tra trên máy anh
 
 ```bash
-cd /home/thadc/AIOS/anh-duong-core
+cd "$(git rev-parse --show-toplevel)"
 source .venv/bin/activate
 
 alembic upgrade head

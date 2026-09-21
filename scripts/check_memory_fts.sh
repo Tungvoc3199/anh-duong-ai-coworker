@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_ROOT="/home/thadc/AIOS/anh-duong-core"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/lib/project_env.sh"
 STATE_DIR="/home/thadc/.local/state/anh-duong-core"
 CHECK_DB="${STATE_DIR}/memory-fts-check.db"
 CHECK_URL="sqlite+pysqlite:////home/thadc/.local/state/anh-duong-core/memory-fts-check.db"
 
 cd "${PROJECT_ROOT}"
-source .venv/bin/activate
+activate_project_venv
 
 mkdir -p "${STATE_DIR}"
 chmod 700 "${STATE_DIR}"

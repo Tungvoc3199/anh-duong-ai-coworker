@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Operator cutover for the prepared Core release; no gateway or permission changes."""
+"""HISTORICAL checkpoint-specific cutover helper; not a current production runbook."""
 
 import argparse
 import json

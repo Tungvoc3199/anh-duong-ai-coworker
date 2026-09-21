@@ -32,6 +32,7 @@ from app.db.session import create_db_engine
 from app.openclaw import OpenClawExecutor, OpenClawImageGenerator, OpenClawNotifier
 from app.orchestration import create_core_request_pipeline
 from app.semantic_intent_resolver import OpenClawSemanticIntentResolver
+from app.system_status import probe_core_status_via_asgi
 from app.visualforge import VisualForgeClient, VisualForgeRoutingExecutor
 
 logger = logging.getLogger(__name__)
@@ -162,6 +163,10 @@ def create_app(
                         lease_seconds=(
                             runtime_settings
                             .async_worker_lease_seconds
+                        ),
+                        core_status_probe=partial(
+                            probe_core_status_via_asgi,
+                            app,
                         ),
                     )
                     notification_worker = NotificationWorker(

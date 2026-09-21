@@ -16,7 +16,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--base-url",
-        default="http://127.0.0.1:8790",
+        default=os.environ.get("ANH_DUONG_CORE_BASE_URL"),
+        help=(
+            "Core base URL. Pass the fresh value from "
+            "/usr/local/libexec/anh-duong/runtime-truth."
+        ),
     )
     parser.add_argument(
         "--token",
@@ -34,6 +38,13 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    if not args.base_url:
+        print(
+            "ERROR: pass --base-url using the fresh CORE_BASE_URL from "
+            "/usr/local/libexec/anh-duong/runtime-truth.",
+            file=sys.stderr,
+        )
+        return 2
     if not args.token:
         print(
             "ERROR: set ANH_DUONG_INTERNAL_API_TOKEN "

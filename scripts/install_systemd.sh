@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_ROOT="/home/thadc/AIOS/anh-duong-core"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG_DIR="/home/thadc/.config/anh-duong-core"
 STATE_DIR="/home/thadc/.local/state/anh-duong-core"
 UNIT_SOURCE="${PROJECT_ROOT}/systemd/anh-duong-core.service"
@@ -28,7 +28,4 @@ sudo systemctl enable --now anh-duong-core.service
 echo
 sudo systemctl status anh-duong-core.service --no-pager
 echo
-curl -fsS http://127.0.0.1:8790/health
-echo
-curl -fsS http://127.0.0.1:8790/ready
-echo
+"${PROJECT_ROOT}/scripts/runtime_truth.sh"

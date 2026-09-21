@@ -119,10 +119,16 @@ Script chỉ gọi health và list API; không tạo task, không gọi OpenClaw
 gửi Telegram:
 
 ```bash
+CORE_BASE_URL="$(
+  /usr/local/libexec/anh-duong/runtime-truth |
+    awk -F= '$1 == "CORE_BASE_URL" {print $2}'
+)"
 ANH_DUONG_INTERNAL_API_TOKEN='<token>' \
   .venv/bin/python scripts/smoke_async_task_runner.py \
-  --base-url http://127.0.0.1:8790
+  --base-url "$CORE_BASE_URL"
 ```
+
+Không dùng port hardcode cho production; runtime probe phải cung cấp endpoint hiện hành.
 
 ## Cài đặt và rollback
 

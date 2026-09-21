@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_ROOT="/home/thadc/AIOS/anh-duong-core"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/lib/project_env.sh"
 STATE_DIR="/home/thadc/.local/state/anh-duong-core"
 AUDIT_FILE="${STATE_DIR}/audit-check.jsonl"
 
 cd "${PROJECT_ROOT}"
-source .venv/bin/activate
+activate_project_venv
 
 mkdir -p "${STATE_DIR}"
 chmod 700 "${STATE_DIR}"

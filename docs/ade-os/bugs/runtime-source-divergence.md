@@ -4,9 +4,9 @@
 A source edit, test result, or repository file does not match the behavior of the running service.
 
 ## Known boundaries
-**FACT:** active source is `/home/thadc/AIOS/anh-duong-core`.
+**FACT:** the canonical repository anchor is `/home/thadc/AIOS/anh-duong-core`; this does not prove which immutable release is active.
 
-**FACT:** the service is `anh-duong-core.service` and the active endpoint is `http://127.0.0.1:8790`.
+**FACT:** the service is `anh-duong-core.service`. Discover the active release and endpoint with `/usr/local/libexec/anh-duong/runtime-truth`; never infer production from a hardcoded port.
 
 **FACT:** `/mnt/f/AIOS/anh-duong-core` is not an active runtime dependency.
 

@@ -4,9 +4,13 @@ applyTo: "**"
 ---
 # Runtime truth
 
-- Active source is `/home/thadc/AIOS/anh-duong-core`; never repair `/mnt/f/AIOS/anh-duong-core` as if it were live.
+- Read `docs/AGENT_RUNTIME_CONTRACT.md`.
+- Run `/usr/local/libexec/anh-duong/runtime-truth` before any mutation or production claim.
+- The repository anchor `/home/thadc/AIOS/anh-duong-core` is not proof of the active production release.
+- Discover the active release and Core endpoint from the running process/effective systemd configuration; never assume port 8790, 8792, or 8000.
 - Runtime DB is `/home/thadc/.local/state/anh-duong-core/anh_duong.db`.
-- Service is `anh-duong-core.service`; active endpoint is `http://127.0.0.1:8790`, not port 8000.
-- Record long diagnostic output under `/mnt/f/AIOS/anh-duong-checkpoints`.
-- Treat service health, logs, DB state, mounts, and active container configuration as stronger evidence than assumptions or stale docs.
+- Human-readable data mirror is `/mnt/f/AIOS/anh-duong-data`.
+- Long diagnostic/checkpoint evidence belongs under `/mnt/f/AIOS/anh-duong-checkpoints`.
+- Frozen releases are immutable. Repair only an isolated coding worktree, never a release tree.
+- Treat process cwd, effective systemd properties, health/ready, DB, mounts, and active container state as stronger evidence than static docs.
 - State FACT / INFERENCE / UNKNOWN separately. Redact credentials and authorization values.
