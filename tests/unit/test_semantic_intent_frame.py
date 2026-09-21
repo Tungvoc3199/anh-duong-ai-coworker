@@ -5,6 +5,7 @@ from app.semantic_intent import (
     IntentAuthorization,
     IntentDomain,
     IntentSpeechAct,
+    IntentTarget,
     SemanticIntentFrame,
     decisions_from_intent_frame,
 )
@@ -107,6 +108,26 @@ def test_prohibition_cannot_become_external_action() -> None:
     assert capability.capability is CapabilityKind.CONVERSATIONAL_RESPONSE
     assert visual is not None
     assert visual.side_effect.value == "none"
+
+
+def test_explicit_core_restart_maps_to_system_operation() -> None:
+    frame = _frame(
+        speech_act=IntentSpeechAct.ACTION_REQUEST,
+        domain=IntentDomain.CORE,
+        action=IntentAction.EXECUTE,
+        target=IntentTarget.CORE,
+        requested_execution=True,
+        authorization=IntentAuthorization.EXPLICIT,
+    )
+
+    route, capability, visual = decisions_from_intent_frame(
+        frame,
+        raw_instruction="Khởi động lại dịch vụ Ánh Dương Core cho a.",
+    )
+
+    assert route.route is FastRoute.WORKFLOW
+    assert capability.capability is CapabilityKind.SYSTEM_OPERATION
+    assert visual is None
 
 
 def test_read_only_analysis_cannot_be_promoted_to_workflow_execution() -> None:

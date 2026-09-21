@@ -385,7 +385,11 @@ def decisions_from_intent_frame(
         capability_kind = CapabilityKind.FILE_OPERATION
     elif frame.domain is IntentDomain.CODE:
         capability_kind = CapabilityKind.CODE_OPERATION
-    elif frame.domain is IntentDomain.SYSTEM:
+    elif frame.domain is IntentDomain.SYSTEM or (
+        frame.domain is IntentDomain.CORE
+        and frame.action is IntentAction.EXECUTE
+        and frame.target is IntentTarget.CORE
+    ):
         capability_kind = CapabilityKind.SYSTEM_OPERATION
     elif frame.domain is IntentDomain.PLANNING:
         capability_kind = CapabilityKind.PLANNING
