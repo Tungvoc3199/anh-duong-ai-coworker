@@ -11,6 +11,7 @@ from app.openclaw import (
     OpenClawExecutor,
     OpenClawTransportError,
 )
+from app.planning.models import ExecutionEvidence
 
 
 def _request() -> OpenClawExecutionRequest:
@@ -431,6 +432,57 @@ async def test_executor_answer_only_json_becomes_completed_final_reply() -> None
 
 
 @pytest.mark.asyncio
+async def test_executor_bounds_long_summary_without_losing_tail_sources() -> None:
+    source_url = "https://docs.example.com/reference"
+    long_summary = (
+        "📌 Kết luận\n\n"
+        + ("Phân tích chi tiết có giá trị. " * 180)
+        + "\n\n⚠️ Caveat quan trọng vẫn phải giữ.\n\n"
+        + f"🔗 Nguồn\n• {source_url}"
+    )
+    assert len(long_summary) > 4_000
+
+    executor = OpenClawExecutor(
+        base_url="http://127.0.0.1:18789",
+        transport=_json_transport(
+            {
+                "outcome": "completed",
+                "summary": long_summary,
+            }
+        ),
+    )
+
+    result = await executor.execute(_request())
+
+    assert result.outcome == "completed"
+    assert len(result.summary) <= 4_000
+    assert result.summary.startswith("📌 Kết luận")
+    assert "…" in result.summary
+    assert source_url in result.summary
+    evidence = ExecutionEvidence(
+        id="ev-long-summary",
+        node_id="node-1",
+        kind="result",
+        summary=result.summary,
+    )
+    assert evidence.summary == result.summary
+
+
+def test_web_instructions_preserve_depth_inside_single_message_envelope() -> None:
+    executor = OpenClawExecutor(base_url="http://127.0.0.1:18789")
+    request = _request().model_copy(
+        update={"capability_requirements": ("web_search_read",)}
+    )
+
+    instructions = executor._instructions(request)
+
+    assert "within 3900 characters" in instructions
+    assert "Preserve analytical coverage" in instructions
+    assert "do not drop materially distinct findings" in instructions
+    assert "source URLs" in instructions
+
+
+@pytest.mark.asyncio
 async def test_executor_plain_exec_failed_is_never_completed() -> None:
     terminal_text = (
         "⚠️ 🛠️ Exec failed: `check git status -> show first 30 lines "
@@ -648,7 +700,13 @@ async def test_executor_serializes_plan_node_dod_and_evidence_context() -> None:
 
 def test_external_communication_instructions_allow_only_authorized_delivery() -> None:
     executor = OpenClawExecutor(base_url="http://127.0.0.1:18789")
-    request = _request().model_copy(update={"goal": "Send this image to Hai", "reference_image": "media://inbound/example.jpg", "capability_requirements": ("external_communication",)})
+    request = _request().model_copy(
+        update={
+            "goal": "Send this image to Hai",
+            "reference_image": "media://inbound/example.jpg",
+            "capability_requirements": ("external_communication",),
+        }
+    )
     instructions = executor._instructions(request)
     assert "explicitly authorized external communication" in instructions
     assert "may invoke delivery tools" in instructions

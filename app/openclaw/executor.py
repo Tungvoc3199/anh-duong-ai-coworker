@@ -51,6 +51,10 @@ class OpenClawExecutor:
         "text",
         "content",
     )
+    _SUMMARY_MAX_CHARS = 4_000
+    _SUMMARY_TARGET_CHARS = 3_900
+    _SUMMARY_TAIL_CHARS = 650
+    _SUMMARY_TRUNCATION_MARKER = "\n\n…\n\n"
 
     # Absolute paths and shell commands inside the *operator's* runtime
     # (host/WSL/Docker layer) are operational facts. They may appear in a
@@ -156,7 +160,12 @@ class OpenClawExecutor:
                 "and Sources when relevant, without forcing every section into every answer. "
                 "Clearly separate project claims, independently verified facts, and assistant "
                 "analysis. Do not compress detailed evidence merely to meet an arbitrary bullet "
-                "count, and do not place many unrelated facts into one dense paragraph."
+                "count, and do not place many unrelated facts into one dense paragraph. "
+                "The final user-facing summary must stay within 3900 characters so Core can "
+                "persist and deliver it as one Telegram response. Preserve analytical coverage "
+                "inside that envelope by tightening wording, grouping related facts, and removing "
+                "repetition; do not drop materially distinct findings, useful caveats, or source "
+                "URLs merely to save space."
             )
         if request is not None and {
             "subscription_quota_only",
@@ -493,38 +502,79 @@ class OpenClawExecutor:
         *,
         output_text: str,
     ) -> str:
+        summary: str | None = None
         for key in self._SUMMARY_KEYS:
             value = payload.get(key)
             if isinstance(value, str) and value.strip():
-                return self._guard_operational_evidence(str(self.redactor.redact(value.strip())))
+                summary = self._guard_operational_evidence(
+                    str(self.redactor.redact(value.strip()))
+                )
+                break
 
         nested_result = payload.get("result")
-        if isinstance(nested_result, dict):
+        if summary is None and isinstance(nested_result, dict):
             for key in self._SUMMARY_KEYS:
                 value = nested_result.get(key)
                 if isinstance(value, str) and value.strip():
-                    return self._guard_operational_evidence(
+                    summary = self._guard_operational_evidence(
                         str(self.redactor.redact(value.strip()))
                     )
-        elif isinstance(nested_result, str) and nested_result.strip():
-            return self._guard_operational_evidence(
+                    break
+        elif summary is None and isinstance(nested_result, str) and nested_result.strip():
+            summary = self._guard_operational_evidence(
                 str(self.redactor.redact(nested_result.strip()))
             )
 
-        redacted = self.redactor.redact(payload)
-        try:
-            fallback = json.dumps(
-                redacted,
-                ensure_ascii=False,
-                separators=(",", ":"),
-                sort_keys=True,
+        if summary is None:
+            redacted = self.redactor.redact(payload)
+            try:
+                fallback = json.dumps(
+                    redacted,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                )
+            except (TypeError, ValueError):
+                fallback = output_text
+            summary = (
+                self._guard_operational_evidence(
+                    str(self.redactor.redact(fallback)).strip()
+                )
+                or "Đã xử lý yêu cầu."
             )
-        except (TypeError, ValueError):
-            fallback = output_text
-        return (
-            self._guard_operational_evidence(str(self.redactor.redact(fallback)).strip())
-            or "Đã xử lý yêu cầu."
+        return self._bound_summary(summary)
+
+    @classmethod
+    def _bound_summary(cls, summary: str) -> str:
+        text = summary.strip()
+        if len(text) <= cls._SUMMARY_MAX_CHARS:
+            return text
+
+        tail_budget = min(
+            cls._SUMMARY_TAIL_CHARS,
+            cls._SUMMARY_MAX_CHARS // 4,
         )
+        head_budget = (
+            cls._SUMMARY_MAX_CHARS
+            - len(cls._SUMMARY_TRUNCATION_MARKER)
+            - tail_budget
+        )
+        head = cls._truncate_summary_at_boundary(text, head_budget)
+        tail = text[-tail_budget:].lstrip()
+        bounded = f"{head}{cls._SUMMARY_TRUNCATION_MARKER}{tail}".strip()
+        return bounded[: cls._SUMMARY_MAX_CHARS].rstrip()
+
+    @staticmethod
+    def _truncate_summary_at_boundary(text: str, budget: int) -> str:
+        candidate = text[:budget].rstrip()
+        floor = max(int(budget * 0.65), 0)
+        for separator in ("\n\n", "\n", ". "):
+            position = candidate.rfind(separator)
+            if position >= floor:
+                if separator == ". ":
+                    position += 1
+                return candidate[:position].rstrip()
+        return candidate
 
     @staticmethod
     def _normalize_detail_field(value: object) -> object:
