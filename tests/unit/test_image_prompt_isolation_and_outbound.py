@@ -1246,3 +1246,123 @@ async def test_non_person_reference_revision_filters_stale_product_dna() -> None
     assert "clearest focal point" not in prompt
     assert "promotional discounts" not in prompt
     assert "badge claims" not in prompt
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("compiler_type", "goal"),
+    (
+        ("portrait_persona", "Create a portrait of a woman holding a serum bottle"),
+        ("product", "Create a product hero with a model standing behind it"),
+        ("poster_text", 'Create a poster, exact text: "HAI CAKE"'),
+        ("reference_edit", "Change the dress to yellow and preserve everything else"),
+    ),
+)
+async def test_visual_compiler_uses_semantic_type_contract_not_keyword_guessing(
+    compiler_type: str,
+    goal: str,
+) -> None:
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=PoisonVisualDNAComposer(),
+        image_generator=generator,
+    )
+    request = _image_request(
+        goal,
+        reference_image=(
+            "media://inbound/11111111-1111-4111-8111-111111111111.jpg"
+            if compiler_type == "reference_edit"
+            else None
+        ),
+    ).model_copy(
+        update={
+            "constraints": (f"visual_compiler:type={compiler_type}",),
+            "capability_requirements": ("visual_image_generate",),
+        }
+    )
+    result = await executor.execute(request)
+
+    assert result.artifacts["sections"]["compiler_type"] == compiler_type
+
+
+@pytest.mark.asyncio
+async def test_reference_edit_semantic_contract_encodes_change_only_and_preservation() -> None:
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=PoisonVisualDNAComposer(),
+        image_generator=generator,
+    )
+    request = _image_request(
+        "Change the dress to yellow and preserve everything else",
+        reference_image="media://inbound/11111111-1111-4111-8111-111111111111.jpg",
+    ).model_copy(
+        update={
+            "constraints": (
+                "visual_compiler:type=reference_edit",
+                "visual_compiler:preserve_unmentioned=true",
+                "visual_compiler:identity_lock=true",
+            ),
+            "capability_requirements": ("visual_image_generate",),
+        }
+    )
+    await executor.execute(request)
+
+    prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    assert "change only what the current request explicitly asks to change" in prompt
+    assert "preserve subject identity" in prompt
+
+
+@pytest.mark.asyncio
+async def test_semantic_visual_compiler_is_stateless_across_unrelated_requests() -> None:
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=PoisonVisualDNAComposer(),
+        image_generator=generator,
+    )
+    candy_request = _image_request("Create a candy poster with a giant lollipop").model_copy(
+        update={
+            "constraints": ("visual_compiler:type=poster_text",),
+            "capability_requirements": ("visual_image_generate",),
+        }
+    )
+    product_request = _image_request("Create a clean serum bottle packshot").model_copy(
+        update={
+            "constraints": ("visual_compiler:type=product",),
+            "capability_requirements": ("visual_image_generate",),
+        }
+    )
+
+    await executor.execute(candy_request)
+    await executor.execute(product_request)
+
+    first_prompt = cast(str, generator.calls[0]["prompt"]).casefold()
+    second_prompt = cast(str, generator.calls[1]["prompt"]).casefold()
+    assert "candy" in first_prompt
+    assert "lollipop" in first_prompt
+    assert "candy" not in second_prompt
+    assert "lollipop" not in second_prompt
+
+
+@pytest.mark.asyncio
+async def test_poster_text_semantic_compiler_preserves_exact_requested_copy() -> None:
+    generator = CaptureImageGenerator()
+    executor = VisualForgeRoutingExecutor(
+        delegate=cast(Any, object()),
+        client=PoisonVisualDNAComposer(),
+        image_generator=generator,
+    )
+    request = _image_request('Create a poster, exact text: "HAI CAKE"').model_copy(
+        update={
+            "constraints": ("visual_compiler:type=poster_text",),
+            "capability_requirements": ("visual_image_generate",),
+        }
+    )
+
+    result = await executor.execute(request)
+
+    prompt = cast(str, generator.calls[0]["prompt"])
+    assert "Visible text must be exactly: HAI CAKE" in prompt
+    assert result.artifacts["required_text"] == "HAI CAKE"

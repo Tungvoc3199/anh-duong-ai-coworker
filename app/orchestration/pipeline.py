@@ -7,7 +7,7 @@ from typing import Any, Protocol, cast
 from uuid import uuid4
 
 from app.audit import AuditEvent, SecretRedactor
-from app.capabilities import CapabilityRouter
+from app.capabilities import CapabilityKind, CapabilityRouter
 from app.context_builder import (
     ContextBuilder,
     ContextBuildRequest,
@@ -279,6 +279,27 @@ class CoreRequestPipeline:
             and project is not None
             else None
         )
+
+        if (
+            workflow is not None
+            and semantic_intent is not None
+            and semantic_intent.visual_compiler_type is not None
+            and capability_decision.capability is CapabilityKind.VISUAL_IMAGE_GENERATE
+        ):
+            compiler_constraints = [
+                f"visual_compiler:type={semantic_intent.visual_compiler_type.value}",
+            ]
+            if semantic_intent.visual_identity_lock:
+                compiler_constraints.append("visual_compiler:identity_lock=true")
+            if semantic_intent.visual_preserve_unmentioned:
+                compiler_constraints.append("visual_compiler:preserve_unmentioned=true")
+            workflow = workflow.model_copy(
+                update={
+                    "constraints": tuple(
+                        dict.fromkeys((*workflow.constraints, *compiler_constraints))
+                    )
+                }
+            )
 
         context = self._context_builder.build(
             ContextBuildRequest(

@@ -40,6 +40,7 @@ from app.semantic_intent import (
     IntentSpeechAct,
     IntentTarget,
     SemanticIntentFrame,
+    VisualCompilerType,
 )
 from app.semantic_intent_resolver import SemanticIntentResolutionError
 from app.tasks import Task, TaskNotFound, TaskPriority, TaskStatus
@@ -1936,3 +1937,39 @@ def test_semantic_contextual_url_builds_read_only_web_workflow() -> None:
     assert "web_search_read" in prepared.workflow.constraints
     assert "http_https_only" in prepared.workflow.constraints
     assert prepared.workflow.prior_evidence == (f"quoted_message:quoted-web: {url}",)
+
+
+def test_semantic_visual_compiler_contract_is_propagated_to_workflow_constraints() -> None:
+    resolver = StaticSemanticResolver(
+        SemanticIntentFrame(
+            speech_act=IntentSpeechAct.ACTION_REQUEST,
+            domain=IntentDomain.VISUAL,
+            action=IntentAction.EDIT,
+            target=IntentTarget.IMAGE,
+            requested_execution=True,
+            authorization=IntentAuthorization.EXPLICIT,
+            uses_contextual_visual=True,
+            visual_compiler_type=VisualCompilerType.REFERENCE_EDIT,
+            visual_identity_lock=True,
+            visual_preserve_unmentioned=True,
+            confidence=0.99,
+            rationale="Reference edit with identity and preservation requirements.",
+        )
+    )
+    reference = "media://inbound/11111111-1111-4111-8111-111111111111.jpg"
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+        semantic_resolver=resolver,
+    ).prepare(
+        CoreRequest(
+            text="Change the dress to yellow and preserve everything else",
+            source_origin="telegram_user",
+            image_source=VisualImageSource.REPLIED_IMAGE,
+            reference_image=reference,
+        )
+    )
+
+    assert prepared.workflow is not None
+    assert "visual_compiler:type=reference_edit" in prepared.workflow.constraints
+    assert "visual_compiler:identity_lock=true" in prepared.workflow.constraints
+    assert "visual_compiler:preserve_unmentioned=true" in prepared.workflow.constraints

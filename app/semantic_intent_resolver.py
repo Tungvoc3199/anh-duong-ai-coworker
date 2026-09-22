@@ -59,6 +59,9 @@ action: none | discuss_edit | analyze | compare | generate | edit |
 target: none | image | memory | core | project | task | file | code | system |
         external_recipient | url | other
 authorization: none | explicit | prohibited
+visual_compiler_type: portrait_persona | product | poster_text | reference_edit | null
+visual_identity_lock: boolean
+visual_preserve_unmentioned: boolean
 
 Set requested_execution=true only when the CURRENT USER TURN itself asks the
 assistant to perform an action now/next. For any requested_execution=true,
@@ -66,6 +69,13 @@ speech_act must be action_request and authorization must be explicit.
 A question about whether/how/what to do is not execution.
 A prohibition is requested_execution=false and authorization=prohibited.
 recipient/channel are null unless the current turn actually identifies them.
+For visual generate/edit requests, classify visual_compiler_type by semantic subject/goal,
+not isolated keywords: portrait_persona for a person/persona-led image, product for a
+product-led image, poster_text for layout/copy-led poster or graphic, and reference_edit
+when editing a supplied/replied/recent image. Set visual_identity_lock=true only when
+identity/persona continuity is semantically required. Set visual_preserve_unmentioned=true
+for reference edits that ask to keep the rest unchanged; reference_edit defaults to
+preserving unmentioned attributes unless the current turn explicitly asks for a broad redesign.
 uses_contextual_visual=true only when the current turn refers to a prior/replied/recent
 image as the target/reference (for example "ảnh đó", "bản em vừa tạo", "làm lại cái này").
 For read-only intents (advice, analyze, compare, read/search/status), always set

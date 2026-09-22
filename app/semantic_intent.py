@@ -80,6 +80,13 @@ class IntentAuthorization(StrEnum):
     PROHIBITED = "prohibited"
 
 
+class VisualCompilerType(StrEnum):
+    PORTRAIT_PERSONA = "portrait_persona"
+    PRODUCT = "product"
+    POSTER_TEXT = "poster_text"
+    REFERENCE_EDIT = "reference_edit"
+
+
 class SemanticIntentFrame(BaseModel):
     """Whole-utterance meaning selected before route/capability policy."""
 
@@ -94,6 +101,9 @@ class SemanticIntentFrame(BaseModel):
     recipient: str | None = Field(default=None, max_length=512)
     channel: str | None = Field(default=None, max_length=128)
     uses_contextual_visual: bool = False
+    visual_compiler_type: VisualCompilerType | None = None
+    visual_identity_lock: bool = False
+    visual_preserve_unmentioned: bool = False
     confidence: float = Field(ge=0.0, le=1.0)
     rationale: str | None = Field(default=None, max_length=2000)
 
@@ -117,6 +127,18 @@ class SemanticIntentFrame(BaseModel):
                 raise ValueError("execution requires an action_request speech act")
             if self.authorization is not IntentAuthorization.EXPLICIT:
                 raise ValueError("execution requires explicit current-turn authorization")
+        if self.visual_compiler_type is not None:
+            if (
+                self.domain is not IntentDomain.VISUAL
+                or self.action not in {IntentAction.GENERATE, IntentAction.EDIT}
+                or not self.requested_execution
+            ):
+                raise ValueError("visual compiler contract requires executable visual intent")
+            if (
+                self.visual_compiler_type is VisualCompilerType.REFERENCE_EDIT
+                and self.action is not IntentAction.EDIT
+            ):
+                raise ValueError("reference_edit compiler requires edit intent")
         return self
 
 

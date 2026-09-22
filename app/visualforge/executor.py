@@ -11,6 +11,7 @@ from app.openclaw.models import (
     OpenClawTransportError,
 )
 from app.routing import FastRouter
+from app.visual_compiler import VisualCompilerContract, compile_visual_prompt
 from app.visualforge.client import VisualForgeRuntimeError
 from app.visualforge.models import VisualForgeCompiledPrompt, VisualPromptSpec
 from app.visualforge.parser import VisualPromptParseError, VisualPromptParser
@@ -58,14 +59,25 @@ class VisualForgeRoutingExecutor:
 
         try:
             spec = self.parser.parse(request.goal)
-            compiled = await self.client.compose(spec)
-            if capability_kind is CapabilityKind.VISUAL_IMAGE_GENERATE:
-                compiled = self._request_scoped_image_prompt(
+            compiler_contract = VisualCompilerContract.from_constraints(request.constraints)
+            if (
+                capability_kind is CapabilityKind.VISUAL_IMAGE_GENERATE
+                and compiler_contract is not None
+            ):
+                compiled = compile_visual_prompt(
                     spec,
-                    compiled=compiled,
+                    contract=compiler_contract,
                     has_reference_image=request.reference_image is not None,
-                    contextual_evidence=request.prior_evidence,
                 )
+            else:
+                compiled = await self.client.compose(spec)
+                if capability_kind is CapabilityKind.VISUAL_IMAGE_GENERATE:
+                    compiled = self._request_scoped_image_prompt(
+                        spec,
+                        compiled=compiled,
+                        has_reference_image=request.reference_image is not None,
+                        contextual_evidence=request.prior_evidence,
+                    )
         except (VisualPromptParseError, VisualForgeRuntimeError) as error:
             raise OpenClawTransportError(
                 error.code,
