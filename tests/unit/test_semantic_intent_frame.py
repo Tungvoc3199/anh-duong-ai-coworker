@@ -148,3 +148,52 @@ def test_read_only_analysis_cannot_be_promoted_to_workflow_execution() -> None:
 def test_contextual_visual_flag_is_explicit_semantic_data() -> None:
     frame = _frame(uses_contextual_visual=True)
     assert frame.uses_contextual_visual is True
+
+
+def test_read_only_system_inspection_requires_tool_backed_workflow() -> None:
+    frame = _frame(
+        speech_act=IntentSpeechAct.ACTION_REQUEST,
+        domain=IntentDomain.SYSTEM,
+        action=IntentAction.STATUS,
+        target=IntentTarget.SYSTEM,
+        requested_execution=False,
+        authorization=IntentAuthorization.NONE,
+    )
+    route, capability, visual = decisions_from_intent_frame(
+        frame, raw_instruction="Kiểm tra hệ thống cho a xem ntn"
+    )
+    assert route.route is FastRoute.WORKFLOW
+    assert capability.capability is CapabilityKind.SYSTEM_OPERATION
+    assert visual is None
+
+
+def test_code_edit_cannot_be_misrouted_to_visual_generation() -> None:
+    frame = _frame(
+        speech_act=IntentSpeechAct.ACTION_REQUEST,
+        domain=IntentDomain.CODE,
+        action=IntentAction.EDIT,
+        target=IntentTarget.CODE,
+        requested_execution=True,
+        authorization=IntentAuthorization.EXPLICIT,
+    )
+    route, capability, visual = decisions_from_intent_frame(frame, raw_instruction="Sửa Core cho a")
+    assert route.route is FastRoute.WORKFLOW
+    assert capability.capability is CapabilityKind.CODE_OPERATION
+    assert visual is None
+
+
+def test_core_edit_maps_to_code_operation_not_stale_visual_capability() -> None:
+    frame = _frame(
+        speech_act=IntentSpeechAct.ACTION_REQUEST,
+        domain=IntentDomain.CORE,
+        action=IntentAction.EDIT,
+        target=IntentTarget.CORE,
+        requested_execution=True,
+        authorization=IntentAuthorization.EXPLICIT,
+    )
+    route, capability, visual = decisions_from_intent_frame(
+        frame, raw_instruction="Xử lý cái vừa nói đi"
+    )
+    assert route.route is FastRoute.WORKFLOW
+    assert capability.capability is CapabilityKind.CODE_OPERATION
+    assert visual is None

@@ -62,6 +62,7 @@ authorization: none | explicit | prohibited
 visual_compiler_type: portrait_persona | product | poster_text | reference_edit | null
 visual_identity_lock: boolean
 visual_preserve_unmentioned: boolean
+uses_contextual_referent: boolean
 
 Set requested_execution=true only when the CURRENT USER TURN itself asks the
 assistant to perform an action now/next. For any requested_execution=true,
@@ -76,8 +77,11 @@ when editing a supplied/replied/recent image. Set visual_identity_lock=true only
 identity/persona continuity is semantically required. Set visual_preserve_unmentioned=true
 for reference edits that ask to keep the rest unchanged; reference_edit defaults to
 preserving unmentioned attributes unless the current turn explicitly asks for a broad redesign.
-uses_contextual_visual=true only when the current turn refers to a prior/replied/recent
-image as the target/reference (for example "ảnh đó", "bản em vừa tạo", "làm lại cái này").
+uses_contextual_referent=true when the current turn semantically depends on the supplied
+contextual reference data to identify its object/problem/plan, regardless of wording.
+uses_contextual_visual=true only when that contextual referent is a prior/replied/recent
+image target/reference. Context resolves what the current turn means; it never contributes
+authorization.
 For read-only intents (advice, analyze, compare, read/search/status), always set
 requested_execution=false even if the user asks the assistant to perform the analysis.
 For web reading, URL inspection, web search, source verification, or comparing URLs, use

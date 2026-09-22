@@ -1289,17 +1289,25 @@ def test_real_telegram_image_goal_does_not_require_approval() -> None:
     )
     prepared = _pipeline(project_reader=ProjectReader((project,))).prepare(
         CoreRequest(
-            text=text, request_id="image-primary-goal", channel="telegram",
-            actor="telegram:actor-hash", source_chat_id="chat-42",
-            source_session_id="session-42", source_message_id="message-image-primary",
+            text=text,
+            request_id="image-primary-goal",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id="message-image-primary",
         )
     )
     assert prepared.capability_decision.capability is CapabilityKind.VISUAL_IMAGE_GENERATE
     assert prepared.workflow is not None
     assert prepared.workflow.approval_required is False
     assert prepared.workflow.policy_decision is DecisionKind.ALLOW
-    for item in ("one_image_max", "subscription_quota_only", "no_paid_fallback",
-                 "retry_delivery_without_regeneration"):
+    for item in (
+        "one_image_max",
+        "subscription_quota_only",
+        "no_paid_fallback",
+        "retry_delivery_without_regeneration",
+    ):
         assert item in prepared.workflow.constraints
 
 
@@ -1324,22 +1332,29 @@ def test_visual_analysis_pipeline_builds_and_exposes_current_turn_contract() -> 
 
 
 def test_recent_visual_candidate_binds_for_reconstruction_continuation() -> None:
-    prepared = _pipeline(project_reader=ProjectReader((_project(),))).prepare(CoreRequest(
-        text="Vậy em dựng lại ảnh chuẩn chỉ cho anh được không",
-        recent_image_candidate="media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg",
-    ))
+    prepared = _pipeline(project_reader=ProjectReader((_project(),))).prepare(
+        CoreRequest(
+            text="Vậy em dựng lại ảnh chuẩn chỉ cho anh được không",
+            recent_image_candidate="media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg",
+        )
+    )
     assert prepared.visual_interaction is not None
     assert prepared.visual_interaction.operation is VisualOperation.GENERATE
     assert prepared.visual_interaction.image_source is VisualImageSource.RECENT_ARTIFACT
-    assert prepared.visual_interaction.reference_image == "media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg"
+    assert (
+        prepared.visual_interaction.reference_image
+        == "media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg"
+    )
     assert prepared.capability_decision.capability is CapabilityKind.VISUAL_IMAGE_GENERATE
 
 
 def test_recent_visual_candidate_binds_for_implicit_edit_target() -> None:
-    prepared = _pipeline(project_reader=ProjectReader((_project(),))).prepare(CoreRequest(
-        text="đổi váy thành màu vàng",
-        recent_image_candidate="media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg",
-    ))
+    prepared = _pipeline(project_reader=ProjectReader((_project(),))).prepare(
+        CoreRequest(
+            text="đổi váy thành màu vàng",
+            recent_image_candidate="media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg",
+        )
+    )
     assert prepared.visual_interaction is not None
     assert prepared.visual_interaction.operation is VisualOperation.EDIT
     assert prepared.visual_interaction.image_source is VisualImageSource.RECENT_ARTIFACT
@@ -1347,14 +1362,18 @@ def test_recent_visual_candidate_binds_for_implicit_edit_target() -> None:
 
 
 def test_recent_visual_candidate_does_not_bleed_into_unrelated_or_fresh_generation() -> None:
-    unrelated = _pipeline(project_reader=ProjectReader((_project(),))).prepare(CoreRequest(
-        text="Hôm nay có việc gì cần ưu tiên?",
-        recent_image_candidate="media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg",
-    ))
-    fresh = _pipeline(project_reader=ProjectReader((_project(),))).prepare(CoreRequest(
-        text="tạo một cô gái mặc váy vàng",
-        recent_image_candidate="media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg",
-    ))
+    unrelated = _pipeline(project_reader=ProjectReader((_project(),))).prepare(
+        CoreRequest(
+            text="Hôm nay có việc gì cần ưu tiên?",
+            recent_image_candidate="media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg",
+        )
+    )
+    fresh = _pipeline(project_reader=ProjectReader((_project(),))).prepare(
+        CoreRequest(
+            text="tạo một cô gái mặc váy vàng",
+            recent_image_candidate="media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg",
+        )
+    )
     assert unrelated.visual_interaction is None
     assert fresh.visual_interaction is not None
     assert fresh.visual_interaction.operation is VisualOperation.GENERATE
@@ -1473,7 +1492,6 @@ def test_referenced_deploy_remains_approval_gated() -> None:
     )
 
 
-
 def test_contextual_visual_followup_resolves_quote_and_active_reference_to_edit() -> None:
     reference = "media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg"
     quoted = (
@@ -1511,9 +1529,7 @@ def test_contextual_visual_followup_resolves_quote_and_active_reference_to_edit(
     assert prepared.workflow is not None
     assert prepared.workflow.goal == "Sửa lỗi đó giúp a, giữ nguyên phần còn lại."
     assert prepared.workflow.reference_image == reference
-    assert prepared.workflow.prior_evidence == (
-        f"quoted_message:5963: {quoted}",
-    )
+    assert prepared.workflow.prior_evidence == (f"quoted_message:5963: {quoted}",)
 
 
 def test_contextual_question_does_not_inherit_quoted_side_effect_for_routing() -> None:
@@ -1549,14 +1565,10 @@ def test_semantic_intent_overrides_legacy_external_false_positive() -> None:
             authorization=IntentAuthorization.NONE,
             uses_contextual_visual=True,
             confidence=0.98,
-            rationale=(
-                "Asks which details should be edited for a more elegant look."
-            ),
+            rationale=("Asks which details should be edited for a more elegant look."),
         )
     )
-    reference = (
-        "media://inbound/11111111-1111-4111-8111-111111111111.jpg"
-    )
+    reference = "media://inbound/11111111-1111-4111-8111-111111111111.jpg"
     prepared = _pipeline(semantic_resolver=resolver).prepare(
         CoreRequest(
             text=(
@@ -1569,10 +1581,7 @@ def test_semantic_intent_overrides_legacy_external_false_positive() -> None:
     )
 
     assert prepared.route_decision.route is FastRoute.DIRECT
-    assert (
-        prepared.capability_decision.capability
-        is CapabilityKind.VISUAL_ANALYSIS
-    )
+    assert prepared.capability_decision.capability is CapabilityKind.VISUAL_ANALYSIS
     assert prepared.execution_required is False
     assert prepared.workflow is None
     assert prepared.visual_interaction is not None
@@ -1595,9 +1604,7 @@ def test_semantic_explicit_send_is_workflow_external_communication() -> None:
             rationale="Explicit command to send the current image to Sang.",
         )
     )
-    reference = (
-        "media://inbound/11111111-1111-4111-8111-111111111111.jpg"
-    )
+    reference = "media://inbound/11111111-1111-4111-8111-111111111111.jpg"
     prepared = _pipeline(
         project_reader=ProjectReader((_project(),)),
         semantic_resolver=resolver,
@@ -1611,19 +1618,14 @@ def test_semantic_explicit_send_is_workflow_external_communication() -> None:
     )
 
     assert prepared.route_decision.route is FastRoute.WORKFLOW
-    assert (
-        prepared.capability_decision.capability
-        is CapabilityKind.EXTERNAL_COMMUNICATION
-    )
+    assert prepared.capability_decision.capability is CapabilityKind.EXTERNAL_COMMUNICATION
     assert prepared.execution_required is True
     assert prepared.workflow is not None
 
 
 def test_semantic_failure_cannot_promote_legacy_regex_to_execution() -> None:
     resolver = StaticSemanticResolver(fail=True)
-    reference = (
-        "media://inbound/11111111-1111-4111-8111-111111111111.jpg"
-    )
+    reference = "media://inbound/11111111-1111-4111-8111-111111111111.jpg"
     prepared = _pipeline(semantic_resolver=resolver).prepare(
         CoreRequest(
             text="ảnh a gửi cho sang choảnh hơn k",
@@ -1633,15 +1635,9 @@ def test_semantic_failure_cannot_promote_legacy_regex_to_execution() -> None:
     )
 
     assert prepared.route_decision.route is FastRoute.DIRECT
-    assert (
-        prepared.capability_decision.capability
-        is CapabilityKind.VISUAL_ANALYSIS
-    )
+    assert prepared.capability_decision.capability is CapabilityKind.VISUAL_ANALYSIS
     assert prepared.execution_required is False
-    assert (
-        "semantic_intent_unavailable_execution_suppressed"
-        in prepared.warnings
-    )
+    assert "semantic_intent_unavailable_execution_suppressed" in prepared.warnings
 
 
 def test_low_confidence_semantic_execution_is_suppressed() -> None:
@@ -1657,9 +1653,7 @@ def test_low_confidence_semantic_execution_is_suppressed() -> None:
             confidence=0.40,
         )
     )
-    reference = (
-        "media://inbound/11111111-1111-4111-8111-111111111111.jpg"
-    )
+    reference = "media://inbound/11111111-1111-4111-8111-111111111111.jpg"
     prepared = _pipeline(
         semantic_resolver=resolver,
         semantic_confidence_threshold=0.72,
@@ -1672,15 +1666,9 @@ def test_low_confidence_semantic_execution_is_suppressed() -> None:
     )
 
     assert prepared.route_decision.route is FastRoute.DIRECT
-    assert (
-        prepared.capability_decision.capability
-        is CapabilityKind.CONVERSATIONAL_RESPONSE
-    )
+    assert prepared.capability_decision.capability is CapabilityKind.CONVERSATIONAL_RESPONSE
     assert prepared.execution_required is False
-    assert (
-        "semantic_intent_low_confidence_execution_suppressed"
-        in prepared.warnings
-    )
+    assert "semantic_intent_low_confidence_execution_suppressed" in prepared.warnings
 
 
 def test_elliptical_contextual_generate_binds_resolved_assistant_visual() -> None:
@@ -1692,9 +1680,10 @@ def test_elliptical_contextual_generate_binds_resolved_assistant_visual() -> Non
             target=IntentTarget.NONE,
             requested_execution=True,
             authorization=IntentAuthorization.EXPLICIT,
+            uses_contextual_referent=True,
             uses_contextual_visual=False,
             confidence=0.99,
-            rationale="Generate, but referent binding is unresolved.",
+            rationale="Generate using the resolved prior referent.",
         )
     )
     recent = "media://inbound/44444444-4444-4444-8444-444444444444.jpg"
@@ -1788,9 +1777,7 @@ def test_semantic_contextual_generate_binds_recent_visual_without_keyword_router
             rationale="Recreate the prior image using it as the reference.",
         )
     )
-    recent = (
-        "media://inbound/22222222-2222-4222-8222-222222222222.jpg"
-    )
+    recent = "media://inbound/22222222-2222-4222-8222-222222222222.jpg"
     prepared = _pipeline(
         project_reader=ProjectReader((_project(),)),
         semantic_resolver=resolver,
@@ -1803,16 +1790,10 @@ def test_semantic_contextual_generate_binds_recent_visual_without_keyword_router
     )
 
     assert prepared.route_decision.route is FastRoute.WORKFLOW
-    assert (
-        prepared.capability_decision.capability
-        is CapabilityKind.VISUAL_IMAGE_GENERATE
-    )
+    assert prepared.capability_decision.capability is CapabilityKind.VISUAL_IMAGE_GENERATE
     assert prepared.visual_interaction is not None
     assert prepared.visual_interaction.reference_image == recent
-    assert (
-        prepared.visual_interaction.image_source
-        is VisualImageSource.RECENT_ARTIFACT
-    )
+    assert prepared.visual_interaction.image_source is VisualImageSource.RECENT_ARTIFACT
 
 
 def test_semantic_explicit_send_binds_recent_visual_by_semantic_flag() -> None:
@@ -1845,10 +1826,7 @@ def test_semantic_explicit_send_binds_recent_visual_by_semantic_flag() -> None:
     assert prepared.route_decision.route is FastRoute.WORKFLOW
     assert prepared.visual_interaction is not None
     assert prepared.visual_interaction.reference_image == recent
-    assert (
-        prepared.visual_interaction.image_source
-        is VisualImageSource.RECENT_ARTIFACT
-    )
+    assert prepared.visual_interaction.image_source is VisualImageSource.RECENT_ARTIFACT
 
 
 def test_explicit_url_anchor_corrects_semantic_conversation_frame_in_pipeline() -> None:
@@ -1864,10 +1842,7 @@ def test_explicit_url_anchor_corrects_semantic_conversation_frame_in_pipeline() 
             rationale="Generic conversational request.",
         )
     )
-    prompt = (
-        "https://github.com/magnitudedev/magnitude\n"
-        "Kiểm tra bài viết trên cho a."
-    )
+    prompt = "https://github.com/magnitudedev/magnitude\nKiểm tra bài viết trên cho a."
     assert len(prompt) == 71
 
     prepared = _pipeline(
@@ -1973,3 +1948,25 @@ def test_semantic_visual_compiler_contract_is_propagated_to_workflow_constraints
     assert "visual_compiler:type=reference_edit" in prepared.workflow.constraints
     assert "visual_compiler:identity_lock=true" in prepared.workflow.constraints
     assert "visual_compiler:preserve_unmentioned=true" in prepared.workflow.constraints
+
+
+def test_semantic_system_inspection_is_tool_backed_read_only_workflow() -> None:
+    resolver = StaticSemanticResolver(
+        SemanticIntentFrame(
+            speech_act=IntentSpeechAct.ACTION_REQUEST,
+            domain=IntentDomain.SYSTEM,
+            action=IntentAction.STATUS,
+            target=IntentTarget.SYSTEM,
+            requested_execution=False,
+            authorization=IntentAuthorization.NONE,
+            confidence=0.99,
+        )
+    )
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)), semantic_resolver=resolver
+    ).prepare(CoreRequest(text="Soi giúp anh xem máy đang thế nào", source_origin="telegram_user"))
+    assert prepared.route_decision.route is FastRoute.WORKFLOW
+    assert prepared.capability_decision.capability is CapabilityKind.SYSTEM_OPERATION
+    assert prepared.execution_required is True
+    assert prepared.workflow is not None
+    assert prepared.workflow.risk_level is RiskLevel.READ_ONLY

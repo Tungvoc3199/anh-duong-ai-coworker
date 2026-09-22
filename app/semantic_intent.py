@@ -100,6 +100,7 @@ class SemanticIntentFrame(BaseModel):
     authorization: IntentAuthorization
     recipient: str | None = Field(default=None, max_length=512)
     channel: str | None = Field(default=None, max_length=128)
+    uses_contextual_referent: bool = False
     uses_contextual_visual: bool = False
     visual_compiler_type: VisualCompilerType | None = None
     visual_identity_lock: bool = False
@@ -185,17 +186,14 @@ def normalize_explicit_url_read_intent(
     }:
         return frame
 
-    anchored_action = (
-        IntentAction.READ if frame.action is IntentAction.NONE else frame.action
-    )
+    anchored_action = IntentAction.READ if frame.action is IntentAction.NONE else frame.action
     return frame.model_copy(
         update={
             "domain": IntentDomain.WEB,
             "action": anchored_action,
             "target": IntentTarget.URL,
             "rationale": (
-                "Explicit current-turn http/https URL anchors this read-only intent "
-                "to web content."
+                "Explicit current-turn http/https URL anchors this read-only intent to web content."
             ),
         }
     )
@@ -326,6 +324,24 @@ def _read_only_decision(
         )
         return route, capability
 
+    if frame.domain is IntentDomain.SYSTEM and frame.action in {
+        IntentAction.ANALYZE,
+        IntentAction.READ,
+        IntentAction.STATUS,
+    }:
+        route = RouteDecision(
+            route=FastRoute.WORKFLOW,
+            rule_id="routing.semantic.system_read",
+            reason="Whole-utterance intent requires read-only system inspection.",
+        )
+        capability = CapabilityDecision(
+            capability=CapabilityKind.SYSTEM_OPERATION,
+            source_route=FastRoute.WORKFLOW,
+            reason_code="capability.semantic.system_operation.read_only",
+            matched_signals=(f"semantic:{frame.action.value}", "semantic:read_only"),
+        )
+        return route, capability
+
     if frame.domain is IntentDomain.CORE and frame.action in {
         IntentAction.READ,
         IntentAction.STATUS,
@@ -399,13 +415,18 @@ def decisions_from_intent_frame(
 
     if frame.action in {IntentAction.SEND, IntentAction.PUBLISH}:
         capability_kind = CapabilityKind.EXTERNAL_COMMUNICATION
-    elif frame.action in {IntentAction.GENERATE, IntentAction.EDIT}:
+    elif frame.domain is IntentDomain.VISUAL and frame.action in {
+        IntentAction.GENERATE,
+        IntentAction.EDIT,
+    }:
         capability_kind = CapabilityKind.VISUAL_IMAGE_GENERATE
-    elif frame.action is IntentAction.COMPOSE_PROMPT:
+    elif frame.domain is IntentDomain.VISUAL and frame.action is IntentAction.COMPOSE_PROMPT:
         capability_kind = CapabilityKind.VISUAL_PROMPT_COMPOSE
     elif frame.domain is IntentDomain.FILE:
         capability_kind = CapabilityKind.FILE_OPERATION
-    elif frame.domain is IntentDomain.CODE:
+    elif frame.domain is IntentDomain.CODE or (
+        frame.domain is IntentDomain.CORE and frame.action is IntentAction.EDIT
+    ):
         capability_kind = CapabilityKind.CODE_OPERATION
     elif frame.domain is IntentDomain.SYSTEM or (
         frame.domain is IntentDomain.CORE
