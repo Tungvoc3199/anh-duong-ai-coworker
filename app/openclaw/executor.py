@@ -324,6 +324,7 @@ class OpenClawExecutor:
         headers = {
             "Content-Type": "application/json",
             "Idempotency-Key": request.idempotency_key,
+            "X-OpenClaw-Session-Key": f"anh-duong-async:{request.run_id}",
         }
         if self.auth_token:
             headers["Authorization"] = f"Bearer {self.auth_token}"

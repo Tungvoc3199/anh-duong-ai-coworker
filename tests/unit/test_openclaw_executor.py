@@ -64,6 +64,7 @@ async def test_executor_posts_openresponses_request() -> None:
         captured["path"] = request.url.path
         captured["authorization"] = request.headers.get("authorization")
         captured["idempotency"] = request.headers.get("idempotency-key")
+        captured["session_key"] = request.headers.get("x-openclaw-session-key")
         captured["json"] = json.loads(request.content)
         return httpx.Response(
             200,
@@ -117,6 +118,7 @@ async def test_executor_posts_openresponses_request() -> None:
     assert captured["path"] == "/v1/responses"
     assert captured["authorization"] == "Bearer test-token"
     assert captured["idempotency"] == "run_1:1"
+    assert captured["session_key"] == "anh-duong-async:run_1"
     assert isinstance(captured["json"], dict)
     assert captured["json"]["model"] == "openclaw/default"
     request_payload = json.loads(cast(dict[str, Any], captured["json"])["input"])
