@@ -32,7 +32,15 @@ def test_verify_blocks_incomplete_backup(tmp_path: Path) -> None:
         MODULE.verify(tmp_path / "root", tmp_path / "backup", tmp_path)
 
 
-def test_untracked_ownership_is_explicit() -> None:
+def test_untracked_ownership_is_explicit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    backup = tmp_path / "backup"
+    audit = backup / ".github/hooks/audit.json"
+    audit.parent.mkdir(parents=True)
+    audit.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(MODULE, "BACKUP", backup)
+
     assert MODULE.allowed_untracked("scripts/agent/verify_ade_rollback.py")
     assert MODULE.allowed_untracked("tests/unit/test_ade_os.py")
     assert MODULE.allowed_untracked(".github/hooks/audit.json")

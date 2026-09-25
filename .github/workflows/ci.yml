@@ -19,15 +19,18 @@ jobs:
     name: Core / Python
     runs-on: ubuntu-24.04
     timeout-minutes: 40
+    env:
+      CI_PRIMARY: /home/thadc/AIOS/anh-duong-core
+      CI_WORKTREE: /home/thadc/AIOS/worktrees/ci-main
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 2
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7.0.0
         with:
           python-version: "3.12.3"
           cache: pip
@@ -35,28 +38,68 @@ jobs:
             pyproject.toml
             ci/constraints-py312.txt
 
+      - name: Prepare canonical governance topology
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo mkdir -p /home/thadc/AIOS /mnt/f/AIOS/anh-duong-checkpoints
+          sudo chown -R "$(id -u):$(id -g)" /home/thadc /mnt/f/AIOS
+          mkdir -p "$CI_PRIMARY" /home/thadc/AIOS/worktrees
+          cp -a "$GITHUB_WORKSPACE/." "$CI_PRIMARY/"
+          git -C "$CI_PRIMARY" worktree add --detach "$CI_WORKTREE" "$GITHUB_SHA"
+          test "$(git -C "$CI_WORKTREE" rev-parse HEAD)" = "$GITHUB_SHA"
+          git -C "$CI_PRIMARY" worktree list --porcelain
+
       - name: Install pinned CI environment
         env:
           PIP_DEFAULT_TIMEOUT: "120"
+        shell: bash
         run: |
-          python -m pip install "pip==26.2.1"
-          python -m pip install -c ci/constraints-py312.txt -e ".[dev]"
-          python -m pip check
+          set -euo pipefail
+          python -m venv "$CI_PRIMARY/.venv"
+          PY="$CI_PRIMARY/.venv/bin/python"
+          "$PY" -m pip install "pip==26.2.1"
+          "$PY" -m pip install -c "$CI_WORKTREE/ci/constraints-py312.txt" -e "$CI_WORKTREE[dev]"
+          "$PY" -m pip check
+          echo "$CI_PRIMARY/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Git whitespace check
-        run: git diff --check HEAD^
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CI_WORKTREE"
+          git diff --check HEAD^
 
       - name: Core test suite
-        run: python -m pytest -q
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CI_WORKTREE"
+          for startup_var in "${!LD_@}"; do
+            unset "$startup_var"
+          done
+          python -m pytest -q
 
       - name: Python compile check
-        run: python -m compileall -q app tests scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CI_WORKTREE"
+          python -m compileall -q app tests scripts
 
       - name: Type check
-        run: mypy app
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CI_WORKTREE"
+          mypy app
 
       - name: Ruff no-new-regression gate
-        run: python scripts/ci_ruff_guard.py
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CI_WORKTREE"
+          python scripts/ci_ruff_guard.py
 
   openclaw-plugin:
     name: OpenClaw plugin / Node
@@ -69,12 +112,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7.0.0
         with:
-          node-version: "18.19.1"
+          node-version: "24.16.0"
 
       - name: Syntax check
         run: node --check index.js
