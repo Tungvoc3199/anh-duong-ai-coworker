@@ -1,8 +1,11 @@
 # Ánh Dương Core — Agent Rules
 
 ## Runtime truth
-- Active source: `/home/thadc/AIOS/anh-duong-core`; runtime DB: `/home/thadc/.local/state/anh-duong-core/anh_duong.db`.
-- Artifacts: `/mnt/f/AIOS/anh-duong-checkpoints`; port: `8790`.
+- Canonical production pointer: `/mnt/f/AIOS/anh-duong-checkpoints/CURRENT-GOLDEN.md`. Read it before every bot-impacting checkpoint.
+- Active source workspace: `/home/thadc/AIOS/anh-duong-core`; runtime DB: `/home/thadc/.local/state/anh-duong-core/anh_duong.db`.
+- Source/dev default API bind is `127.0.0.1:8790`. Never assume the production port from source defaults; verify fresh from systemd and the OpenClaw `ANH_DUONG_CORE_BASE_URL`.
+- Artifacts: `/mnt/f/AIOS/anh-duong-checkpoints`.
+- `main`, a release branch, or a chat transcript is never production truth by itself. Fresh systemd/Docker/runtime evidence wins; if it disagrees with `CURRENT-GOLDEN.md`, treat the pointer as stale and reconcile it only after evidence.
 - `/mnt/f/AIOS/anh-duong-core` is not an active runtime dependency.
 
 ## Evidence and safety
