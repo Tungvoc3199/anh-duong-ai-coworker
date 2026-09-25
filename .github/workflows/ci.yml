@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    name: Core / Python
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.3"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            ci/constraints-py312.txt
+
+      - name: Install pinned CI environment
+        env:
+          PIP_DEFAULT_TIMEOUT: "120"
+        run: |
+          python -m pip install "pip==26.2.1"
+          python -m pip install -c ci/constraints-py312.txt -e ".[dev]"
+          python -m pip check
+
+      - name: Git whitespace check
+        run: git diff --check HEAD^
+
+      - name: Core test suite
+        run: python -m pytest -q
+
+      - name: Python compile check
+        run: python -m compileall -q app tests scripts
+
+      - name: Type check
+        run: mypy app
+
+      - name: Ruff no-new-regression gate
+        run: python scripts/ci_ruff_guard.py
+
+  openclaw-plugin:
+    name: OpenClaw plugin / Node
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: integrations/openclaw-anh-duong-core
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18.19.1"
+
+      - name: Syntax check
+        run: node --check index.js
+
+      - name: Plugin test suite
+        run: npm test

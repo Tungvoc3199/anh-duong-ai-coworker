@@ -1,0 +1,284 @@
+{
+  "schema": 1,
+  "policy": "No new Ruff issue groups or increased counts; reductions are allowed.",
+  "tool": "ruff==0.16.0",
+  "total": 79,
+  "entries": [
+    {
+      "path": "app/timeutil.py",
+      "code": "UP017",
+      "message": "Use `datetime.UTC` alias",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/audit_hook.py",
+      "code": "E501",
+      "message": "Line too long (142 > 100)",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/audit_hook.py",
+      "code": "E501",
+      "message": "Line too long (171 > 100)",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/audit_hook.py",
+      "code": "E501",
+      "message": "Line too long (184 > 100)",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/audit_hook.py",
+      "code": "UP017",
+      "message": "Use `datetime.UTC` alias",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/validate_changed.py",
+      "code": "E501",
+      "message": "Line too long (106 > 100)",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/validate_changed.py",
+      "code": "E501",
+      "message": "Line too long (164 > 100)",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/validate_changed.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 5
+    },
+    {
+      "path": "scripts/agent/validate_changed.py",
+      "code": "F401",
+      "message": "`shlex` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/validate_customizations.py",
+      "code": "E501",
+      "message": "Line too long (101 > 100)",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/validate_customizations.py",
+      "code": "E501",
+      "message": "Line too long (104 > 100)",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/validate_customizations.py",
+      "code": "E501",
+      "message": "Line too long (106 > 100)",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/validate_customizations.py",
+      "code": "E501",
+      "message": "Line too long (107 > 100)",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/validate_customizations.py",
+      "code": "E501",
+      "message": "Line too long (117 > 100)",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/validate_customizations.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 4
+    },
+    {
+      "path": "scripts/agent/verify_ade_rollback.py",
+      "code": "E501",
+      "message": "Line too long (102 > 100)",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/verify_ade_rollback.py",
+      "code": "E501",
+      "message": "Line too long (103 > 100)",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/verify_ade_rollback.py",
+      "code": "E501",
+      "message": "Line too long (108 > 100)",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/verify_ade_rollback.py",
+      "code": "E501",
+      "message": "Line too long (123 > 100)",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/verify_ade_rollback.py",
+      "code": "E501",
+      "message": "Line too long (126 > 100)",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/verify_ade_rollback.py",
+      "code": "E501",
+      "message": "Line too long (127 > 100)",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/verify_ade_rollback.py",
+      "code": "E501",
+      "message": "Line too long (131 > 100)",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/verify_ade_rollback.py",
+      "code": "E501",
+      "message": "Line too long (134 > 100)",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/verify_ade_rollback.py",
+      "code": "E501",
+      "message": "Line too long (140 > 100)",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/verify_ade_rollback.py",
+      "code": "E501",
+      "message": "Line too long (146 > 100)",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/verify_ade_rollback.py",
+      "code": "E501",
+      "message": "Line too long (198 > 100)",
+      "count": 1
+    },
+    {
+      "path": "scripts/agent/verify_ade_rollback.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 14
+    },
+    {
+      "path": "scripts/agent/verify_ade_rollback.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 3
+    },
+    {
+      "path": "tests/integration/test_async_task_service.py",
+      "code": "E501",
+      "message": "Line too long (115 > 100)",
+      "count": 1
+    },
+    {
+      "path": "tests/integration/test_async_task_service.py",
+      "code": "E501",
+      "message": "Line too long (140 > 100)",
+      "count": 1
+    },
+    {
+      "path": "tests/integration/test_async_task_service.py",
+      "code": "E501",
+      "message": "Line too long (208 > 100)",
+      "count": 1
+    },
+    {
+      "path": "tests/integration/test_async_task_service.py",
+      "code": "E501",
+      "message": "Line too long (275 > 100)",
+      "count": 1
+    },
+    {
+      "path": "tests/unit/test_async_task_run_display_time.py",
+      "code": "F401",
+      "message": "`app.tasks.models.TaskPriority` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "tests/unit/test_openclaw_notifier.py",
+      "code": "E501",
+      "message": "Line too long (138 > 100)",
+      "count": 1
+    },
+    {
+      "path": "tests/unit/test_openclaw_notifier.py",
+      "code": "E501",
+      "message": "Line too long (141 > 100)",
+      "count": 1
+    },
+    {
+      "path": "tests/unit/test_timeutil.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/unit/test_verify_ade_rollback.py",
+      "code": "E501",
+      "message": "Line too long (101 > 100)",
+      "count": 1
+    },
+    {
+      "path": "tests/unit/test_verify_ade_rollback.py",
+      "code": "E501",
+      "message": "Line too long (103 > 100)",
+      "count": 1
+    },
+    {
+      "path": "tests/unit/test_verify_ade_rollback.py",
+      "code": "E501",
+      "message": "Line too long (115 > 100)",
+      "count": 1
+    },
+    {
+      "path": "tests/unit/test_verify_ade_rollback.py",
+      "code": "E501",
+      "message": "Line too long (136 > 100)",
+      "count": 1
+    },
+    {
+      "path": "tests/unit/test_verify_ade_rollback.py",
+      "code": "E501",
+      "message": "Line too long (145 > 100)",
+      "count": 1
+    },
+    {
+      "path": "tests/unit/test_verify_ade_rollback.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 3
+    },
+    {
+      "path": "tests/unit/test_verify_ade_rollback.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 10
+    },
+    {
+      "path": "tests/unit/test_zalouser_core_contract.py",
+      "code": "E501",
+      "message": "Line too long (130 > 100)",
+      "count": 1
+    },
+    {
+      "path": "tests/unit/test_zalouser_core_contract.py",
+      "code": "E501",
+      "message": "Line too long (153 > 100)",
+      "count": 1
+    },
+    {
+      "path": "tests/unit/test_zalouser_core_contract.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    }
+  ]
+}
