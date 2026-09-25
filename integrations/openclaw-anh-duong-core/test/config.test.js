@@ -22,7 +22,18 @@ test("enabled integration normalizes a valid finite configuration", () => {
     baseUrl: "http://host.docker.internal:8790",
     token: "unit-test-secret",
     timeoutMs: 10_000,
+    prepareTimeoutMs: 30_000,
   });
+});
+
+test("enabled integration accepts a bounded prepare timeout override", () => {
+  assert.equal(
+    readCoreConfig({
+      ...VALID_ENV,
+      ANH_DUONG_CORE_PREPARE_TIMEOUT_SECONDS: "45",
+    }).prepareTimeoutMs,
+    45_000,
+  );
 });
 
 for (const [name, override] of [
@@ -34,6 +45,9 @@ for (const [name, override] of [
   ["zero timeout", { ANH_DUONG_CORE_TIMEOUT_SECONDS: "0" }],
   ["oversized timeout", { ANH_DUONG_CORE_TIMEOUT_SECONDS: "31" }],
   ["fractional timeout", { ANH_DUONG_CORE_TIMEOUT_SECONDS: "1.5" }],
+  ["zero prepare timeout", { ANH_DUONG_CORE_PREPARE_TIMEOUT_SECONDS: "0" }],
+  ["oversized prepare timeout", { ANH_DUONG_CORE_PREPARE_TIMEOUT_SECONDS: "61" }],
+  ["fractional prepare timeout", { ANH_DUONG_CORE_PREPARE_TIMEOUT_SECONDS: "1.5" }],
 ]) {
   test(`enabled integration rejects ${name}`, () => {
     const env = { ...VALID_ENV, ...override };

@@ -57,10 +57,24 @@ export function readCoreConfig(env = process.env) {
     throw configurationError();
   }
 
+  const prepareTimeoutRaw = env.ANH_DUONG_CORE_PREPARE_TIMEOUT_SECONDS;
+  const prepareTimeoutSeconds =
+    prepareTimeoutRaw === undefined || prepareTimeoutRaw === ""
+      ? 30
+      : Number(prepareTimeoutRaw);
+  if (
+    !Number.isInteger(prepareTimeoutSeconds)
+    || prepareTimeoutSeconds < 1
+    || prepareTimeoutSeconds > 60
+  ) {
+    throw configurationError();
+  }
+
   return {
     enabled: true,
     baseUrl: url.origin,
     token,
     timeoutMs: timeoutSeconds * 1_000,
+    prepareTimeoutMs: prepareTimeoutSeconds * 1_000,
   };
 }

@@ -53,14 +53,32 @@ export async function deleteTelegramWorkflowProgress(api, { chatId, messageId })
   if (typeof runner !== "function") {
     throw new Error("OpenClaw runtime command helper is unavailable.");
   }
+  const target = normalizeTelegramChatTarget(chatId);
+  if (!target) {
+    throw new Error("OpenClaw Telegram progress deletion target is invalid.");
+  }
   const result = await runner([
     process.execPath, "/app/openclaw.mjs", "message", "delete",
-    "--channel", "telegram", "--target", String(chatId),
-    "--message-id", String(messageId),
-  ], { timeoutMs: 10_000, cwd: "/app" });
+    "--channel", "telegram", "--target", target,
+    "--message-id", String(messageId), "--json",
+  ], { timeoutMs: 30_000, cwd: "/app" });
   if (result?.code !== 0) {
     throw new Error("OpenClaw Telegram progress deletion failed.");
   }
+  let payload;
+  try {
+    payload = JSON.parse(result?.stdout ?? "")?.payload;
+  } catch {
+    throw new Error("OpenClaw Telegram progress deletion returned invalid JSON.");
+  }
+  if (payload?.deleted === true || payload?.ok === true) {
+    return;
+  }
+  const warning = typeof payload?.warning === "string" ? payload.warning.toLowerCase() : "";
+  if (warning.includes("message to delete not found")) {
+    return;
+  }
+  throw new Error("OpenClaw Telegram progress deletion was not confirmed.");
 }
 const STATE_TTL_MS = 5 * 60 * 1_000;
 const RECENT_VISUAL_TTL_MS = 6 * 60 * 60 * 1_000;
@@ -72,8 +90,17 @@ const TERMINAL_RUN_STATUSES = new Set([
   "cancelled",
 ]);
 
+function managedChannel(ctx) {
+  const channel = ctx?.messageProvider ?? ctx?.channel;
+  return channel === "telegram" || channel === "zalouser" ? channel : undefined;
+}
+
 function isTelegram(ctx) {
-  return ctx?.messageProvider === "telegram" || ctx?.channel === "telegram";
+  return managedChannel(ctx) === "telegram";
+}
+
+function isManagedChannel(ctx) {
+  return managedChannel(ctx) !== undefined;
 }
 
 function normalizeTelegramChatTarget(value) {
@@ -588,7 +615,7 @@ export function createAnhDuongCoreHooks({
         }
       }
     }
-    if (explicitlyDisabled || !isTelegram(ctx)) {
+    if (explicitlyDisabled || !isManagedChannel(ctx)) {
       return undefined;
     }
 
@@ -758,7 +785,8 @@ export function createAnhDuongCoreHooks({
         imageSource: visualReference.imageSource,
         referenceImage: visualReference.referenceImage,
         recentImageCandidate: visualReference.referenceImage === undefined ? await loadActiveVisualReference(ctx) : undefined,
-        ...(directUserTurn ? { sourceOrigin: "telegram_user" } : {}),
+        channel: managedChannel(ctx),
+        ...(directUserTurn ? { sourceOrigin: `${managedChannel(ctx)}_user` } : {}),
         ...(trustedInboundTurn ? { sourceMessageId: originalTurn.sourceMessageId } : {}),
         recentReferent: recentUserUrl(event?.messages, corePrompt),
         contextualReferent: contextualReferentFromOriginalTurn(originalTurn),
@@ -847,7 +875,7 @@ export function createAnhDuongCoreHooks({
         reason: "anh_duong_approval_failed",
       };
     }
-    if (explicitlyDisabled || !isTelegram(ctx)) {
+    if (explicitlyDisabled || !isManagedChannel(ctx)) {
       return undefined;
     }
     const runId = resolveTurnRunId(ctx, event?.cleanedBody, now());
@@ -1029,7 +1057,7 @@ export function createAnhDuongCoreHooks({
 
   async function beforeAgentRun(_event, ctx) {
     sweep();
-    if (explicitlyDisabled || !isTelegram(ctx)) {
+    if (explicitlyDisabled || !isManagedChannel(ctx)) {
       return undefined;
     }
     const runId = ctx?.runId;

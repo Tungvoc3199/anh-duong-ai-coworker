@@ -10,6 +10,7 @@ const CAPABILITIES = new Set([
   "task_read",
   "core_status_read",
   "web_research_read",
+  "web_search_read",
   "visual_prompt_compose",
   "visual_analysis",
   "visual_image_generate",
@@ -82,7 +83,7 @@ function requireNullableString(value, requestId, options) {
   return value === null ? null : requireString(value, requestId, options);
 }
 
-export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey, imageSource, referenceImage, recentImageCandidate, sourceOrigin, sourceMessageId, recentReferent, contextualReferent, recentAssistantCandidate }) {
+export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey, imageSource, referenceImage, recentImageCandidate, sourceOrigin, sourceMessageId, recentReferent, contextualReferent, recentAssistantCandidate, channel = "telegram" }) {
   if (typeof prompt !== "string" || prompt.trim().length === 0 || prompt.length > 20_000) {
     throw validationError();
   }
@@ -90,12 +91,14 @@ export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey, 
     throw validationError();
   }
 
-  const directRequestId = `tg-${runId}`;
-  const requestId = directRequestId.length <= 128 ? directRequestId : `tg-${sha256(runId)}`;
+  const managedChannel = channel === "zalouser" ? "zalouser" : "telegram";
+  const requestPrefix = managedChannel === "telegram" ? "tg" : "zlu";
+  const directRequestId = `${requestPrefix}-${runId}`;
+  const requestId = directRequestId.length <= 128 ? directRequestId : `${requestPrefix}-${sha256(runId)}`;
   const actor =
     typeof senderId === "string" && senderId.length > 0
-      ? `telegram:${sha256(senderId)}`
-      : "telegram:anonymous";
+      ? `${managedChannel}:${sha256(senderId)}`
+      : `${managedChannel}:anonymous`;
   const resolvedSourceMessageId =
     typeof sourceMessageId === "string" && sourceMessageId.length > 0
       ? sourceMessageId
@@ -104,9 +107,9 @@ export function buildCoreRequest({ prompt, runId, senderId, chatId, sessionKey, 
   return {
     text: prompt,
     request_id: requestId,
-    channel: "telegram",
+    channel: managedChannel,
     actor,
-    ...(sourceOrigin === "telegram_user" ? { source_origin: "telegram_user" } : {}),
+    ...(sourceOrigin === `${managedChannel}_user` ? { source_origin: sourceOrigin } : {}),
     ...(typeof chatId === "string" && chatId.length > 0
       ? { source_chat_id: chatId }
       : {}),
@@ -171,7 +174,8 @@ function validateWorkflowEnvelope(value, requestId) {
   requireBoolean(workflow.approval_required, requestId);
   requireNullableString(workflow.workspace, requestId, { maxLength: 1024 });
   requireString(workflow.requested_by, requestId, { maxLength: 128 });
-  if (requireString(workflow.source_channel, requestId, { maxLength: 64 }) !== "telegram") {
+  const sourceChannel = requireString(workflow.source_channel, requestId, { maxLength: 64 });
+  if (sourceChannel !== "telegram" && sourceChannel !== "zalouser") {
     throw validationError(requestId);
   }
   requireString(workflow.source_chat_id, requestId, { maxLength: 128 });
@@ -181,7 +185,7 @@ function validateWorkflowEnvelope(value, requestId) {
     requireString(workflow.reference_image, requestId, { maxLength: 2048 });
   }
   const idempotencyKey = requireString(workflow.idempotency_key, requestId, { maxLength: 255 });
-  if (!idempotencyKey.startsWith("telegram:")) {
+  if (!idempotencyKey.startsWith(`${sourceChannel}:`)) {
     throw validationError(requestId);
   }
   if (requireString(workflow.correlation_id, requestId, { maxLength: 128 }) !== requestId) {
@@ -337,7 +341,8 @@ export function validateAsyncTaskRun(value, requestId) {
 export async function prepareCoreRequest({ config, request, fetchImpl = fetch }) {
   const requestId = request?.request_id;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+  const timeoutMs = config.prepareTimeoutMs ?? config.timeoutMs;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     let response;

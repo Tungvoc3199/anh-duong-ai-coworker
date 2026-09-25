@@ -14,15 +14,157 @@ export { WORKFLOW_ACKNOWLEDGMENT, deleteTelegramWorkflowProgress };
 const PROMPT_HOOK_TIMEOUT_MS = 32_000;
 const WORKFLOW_HOOK_TIMEOUT_MS = 65_000;
 const GATE_HOOK_TIMEOUT_MS = 2_000;
-const MESSAGE_HOOK_TIMEOUT_MS = 2_000;
+const MESSAGE_HOOK_TIMEOUT_MS = 20_000;
 const WORKFLOW_PROGRESS_TTL_MS = 5 * 60_000;
 const ORIGINAL_TURN_TTL_MS = 5 * 60_000;
 const ORIGINAL_TURN_FRESH_WINDOW_MS = 30_000;
 const DEFAULT_POLL_MS = 2_000;
+const TELEGRAM_API_TIMEOUT_MS = 8_000;
+const TELEGRAM_CLI_TIMEOUT_MS = 35_000;
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "blocked", "cancelled"]);
 
 function safeLog(logger, level, fields) {
   try { logger?.[level]?.(JSON.stringify(fields)); } catch { /* cleanup is best effort */ }
+}
+
+const PRESENCE_THINKING = "🧠 Đang kết ý thành lời…";
+const ASYNC_SESSION_PREFIX = "anh-duong-async:";
+const ASYNC_TASK_SESSION_MARKER = "openresponses-user:async:";
+
+function coreTaskIdFromSessionKey(sessionKey) {
+  const value = typeof sessionKey === "string" ? sessionKey.trim() : "";
+  const markerIndex = value.lastIndexOf(ASYNC_TASK_SESSION_MARKER);
+  if (markerIndex < 0) return undefined;
+  if (markerIndex > 0 && value[markerIndex - 1] !== ":") return undefined;
+  const taskId = value.slice(markerIndex + ASYNC_TASK_SESSION_MARKER.length).trim();
+  return /^task_[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(taskId) ? taskId : undefined;
+}
+
+function coreRunIdFromSessionKey(sessionKey) {
+  const value = typeof sessionKey === "string" ? sessionKey.trim() : "";
+  const markerIndex = value.lastIndexOf(ASYNC_SESSION_PREFIX);
+  if (markerIndex < 0) return undefined;
+  if (markerIndex > 0 && value[markerIndex - 1] !== ":") return undefined;
+  const runId = value.slice(markerIndex + ASYNC_SESSION_PREFIX.length).trim();
+  return /^run_[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(runId) ? runId : undefined;
+}
+
+function safeToolText(value, max = 72) {
+  if (typeof value !== "string") return "";
+  return value.replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+function safeUrlHost(value) {
+  try { return new URL(String(value)).hostname.replace(/^www\./, ""); } catch { return ""; }
+}
+
+function toolActivityLabel(event) {
+  const rawName = safeToolText(event?.toolName ?? event?.name ?? event?.tool?.name, 48);
+  const name = rawName.toLowerCase();
+  const params = event?.params ?? event?.arguments ?? event?.input ?? {};
+  if (name.includes("search")) {
+    const query = safeToolText(params?.query ?? params?.q);
+    return query ? `🔎 ${rawName || "search"} · “${query}”` : `🔎 ${rawName || "search"}`;
+  }
+  if (name.includes("web") || name.includes("browser") || name.includes("fetch") || name.includes("read")) {
+    const host = safeUrlHost(params?.url ?? params?.uri);
+    return host ? `🌐 ${rawName || "web_read"} · ${host}` : `🌐 ${rawName || "web_read"}`;
+  }
+  if (name.includes("image") || name.includes("visual")) return `🎨 ${rawName || "image"}`;
+  if (name.includes("memory")) return `🧠 ${rawName || "memory"}`;
+  if (name.includes("message") || name.includes("send")) return `✉️ ${rawName || "message"}`;
+  return `🛠️ ${rawName || "tool"}`;
+}
+
+function normalizeTelegramTarget(value) {
+  if (value === undefined || value === null) return undefined;
+  const text = String(value).trim().replace(/^telegram:/i, "");
+  return text || undefined;
+}
+
+async function runTelegramMessageCommand(api, args) {
+  const runner = api?.runtime?.system?.runCommandWithTimeout;
+  if (typeof runner !== "function") return undefined;
+  const result = await runner(
+    [process.execPath, "/app/openclaw.mjs", "message", ...args, "--json"],
+    { timeoutMs: TELEGRAM_CLI_TIMEOUT_MS, cwd: "/app" },
+  );
+  if (result?.code !== 0) return undefined;
+  try { return JSON.parse(result?.stdout ?? ""); } catch { return undefined; }
+}
+
+function platformMessageId(payload) {
+  const candidates = [payload?.payload?.messageId, payload?.payload?.message_id, payload?.payload?.primaryPlatformMessageId, payload?.messageId, payload?.message_id, payload?.receipt?.primaryPlatformMessageId];
+  const value = candidates.find((item) => item !== undefined && item !== null);
+  return value === undefined ? undefined : String(value);
+}
+
+function telegramBotToken(api) {
+  const raw = api?.config?.channels?.telegram?.botToken;
+  if (typeof raw === "string" && raw.trim()) return raw.trim();
+  const envName = api?.config?.channels?.telegram?.tokenEnv;
+  if (typeof envName === "string" && envName.trim()) {
+    const token = process.env[envName.trim()];
+    if (typeof token === "string" && token.trim()) return token.trim();
+  }
+  return undefined;
+}
+
+async function telegramApi(api, method, body) {
+  const token = telegramBotToken(api);
+  if (!token) return undefined;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TELEGRAM_API_TIMEOUT_MS);
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify(body), signal: controller.signal,
+    });
+    if (!response.ok) return undefined;
+    return await response.json();
+  } finally { clearTimeout(timer); }
+}
+
+async function reactToInbound(api, chatId, messageId) {
+  const target = normalizeTelegramTarget(chatId);
+  if (!target || messageId === undefined || messageId === null) return;
+  const direct = await telegramApi(api, "setMessageReaction", {
+    chat_id: target, message_id: Number(messageId),
+    reaction: [{ type: "emoji", emoji: "👀" }],
+  });
+  if (!direct?.ok) await runTelegramMessageCommand(api, ["react", "--channel", "telegram", "--target", target, "--message-id", String(messageId), "--emoji", "👀"]);
+}
+
+async function sendPresence(api, chatId, text) {
+  const target = normalizeTelegramTarget(chatId);
+  if (!target) return undefined;
+  const direct = await telegramApi(api, "sendMessage", {
+    chat_id: target, text, disable_notification: true,
+  });
+  const directId = direct?.result?.message_id;
+  if (directId !== undefined && directId !== null) return String(directId);
+  const payload = await runTelegramMessageCommand(api, ["send", "--channel", "telegram", "--target", target, "--message", text, "--silent"]);
+  return platformMessageId(payload);
+}
+
+async function editPresence(api, chatId, messageId, text) {
+  const target = normalizeTelegramTarget(chatId);
+  if (!target || !messageId) return;
+  const direct = await telegramApi(api, "editMessageText", {
+    chat_id: target, message_id: Number(messageId), text,
+  });
+  if (direct?.ok) return;
+  await runTelegramMessageCommand(api, ["edit", "--channel", "telegram", "--target", target, "--message-id", String(messageId), "--message", text]);
+}
+
+async function deletePresence(api, { chatId, messageId }) {
+  const target = normalizeTelegramTarget(chatId);
+  if (!target || !messageId) return;
+  const direct = await telegramApi(api, "deleteMessage", {
+    chat_id: target, message_id: Number(messageId),
+  });
+  if (direct?.ok) return;
+  await deleteTelegramWorkflowProgress(api, { chatId: target, messageId });
 }
 
 function progressKey(sessionKey, chatId) {
@@ -50,7 +192,7 @@ export function createPluginHandlers({
   workflowProgressDelayMs,
   workflowProgressCleanupPollMs = DEFAULT_POLL_MS,
   workflowProgressCleanupMaxAttempts = 900,
-  deleteWorkflowProgress = (target) => deleteTelegramWorkflowProgress(api, target),
+  deleteWorkflowProgress = (target) => deletePresence(api, target),
   scheduleWorkflowCleanup = (task) => { void task; },
   realpathImpl,
   statImpl,
@@ -59,21 +201,100 @@ export function createPluginHandlers({
   const pending = new Map();
   const originalTurns = new Map();
   const pendingVisualDeliveries = new Map();
-  let lastAccepted;
+  const telegramTargets = new Map();
+  const workflowGateBypass = new Set();
+  const presence = new Map();
+  const presenceBySession = new Map();
+  const presenceByRun = new Map();
+  const presenceByTask = new Map();
+  const acceptedByPresence = new Map();
+  const cleanupScheduledRuns = new Set();
   let config;
   try { config = readCoreConfig(env); } catch { config = undefined; }
+
+  function resolvePresenceKey({ sessionKey, chatId } = {}) {
+    const directKey = progressKey(sessionKey, chatId);
+    if (directKey && presence.has(directKey)) return directKey;
+    if (typeof sessionKey === "string") {
+      const sessionMatch = presenceBySession.get(sessionKey);
+      if (sessionMatch && presence.has(sessionMatch)) return sessionMatch;
+      const mappedKey = progressKey(undefined, telegramTargets.get(sessionKey));
+      if (mappedKey && presence.has(mappedKey)) return mappedKey;
+    }
+    return undefined;
+  }
+
+  function clearPresenceBindings(pKey) {
+    if (!pKey) return;
+    for (const [sessionKey, boundKey] of presenceBySession) {
+      if (boundKey === pKey) presenceBySession.delete(sessionKey);
+    }
+    for (const [runId, boundKey] of presenceByRun) {
+      if (boundKey === pKey) presenceByRun.delete(runId);
+    }
+    for (const [taskId, boundKey] of presenceByTask) {
+      if (boundKey === pKey) presenceByTask.delete(taskId);
+    }
+    acceptedByPresence.delete(pKey);
+  }
+
+  function bindTaskPresence(taskId, pKey) {
+    if (typeof taskId === "string" && pKey && presence.has(pKey)) {
+      presenceByTask.set(taskId, pKey);
+    }
+  }
+
+  function bindRunPresence(runId, pKey) {
+    if (typeof runId === "string" && pKey && presence.has(pKey)) {
+      presenceByRun.set(runId, pKey);
+    }
+  }
+
+  function scheduleRunCleanup(accepted, pKey) {
+    if (!accepted?.runId || !pKey || cleanupScheduledRuns.has(accepted.runId)) return;
+    const item = presence.get(pKey);
+    if (!item) return;
+    cleanupScheduledRuns.add(accepted.runId);
+    scheduleWorkflowCleanup(monitor({ ...accepted, chatId: item.chatId, pKey }, String(item.messageId)));
+  }
+
   async function trackedFetch(url, init = {}) {
     const call = replyContext.getStore();
     const response = await fetchImpl(url, init);
-    if (call && String(url).endsWith("/api/async-tasks") && response?.ok) {
+    if (String(url).endsWith("/api/async-tasks") && response?.ok) {
       try {
         const accepted = await response.clone().json();
         const payload = typeof init.body === "string" ? JSON.parse(init.body) : {};
-        if (typeof accepted?.run_id === "string" && accepted.replayed !== true && accepted.status !== "blocked") {
-          call.accepted = { runId: accepted.run_id, requestId: payload.correlation_id };
-          lastAccepted = call.accepted;
+        if (typeof accepted?.run_id === "string" && typeof accepted?.task_id === "string") {
+          const acceptedBinding = {
+            runId: accepted.run_id,
+            taskId: accepted.task_id,
+            requestId: payload.correlation_id,
+            replayed: accepted.replayed === true,
+            status: accepted.status,
+          };
+          const payloadPresenceKey = resolvePresenceKey({
+            sessionKey: payload.source_session_id,
+            chatId: payload.source_chat_id,
+          });
+          const boundKey = payloadPresenceKey ?? call?.presenceKey;
+          if (boundKey) {
+            bindRunPresence(acceptedBinding.runId, boundKey);
+            bindTaskPresence(acceptedBinding.taskId, boundKey);
+            acceptedByPresence.set(boundKey, acceptedBinding);
+            safeLog(api?.logger, "info", {
+              event: "anh_duong_presence_async_bind",
+              outcome: "bound",
+              has_task_id: true,
+              has_run_id: true,
+              source: payloadPresenceKey ? "async_payload" : "reply_context",
+            });
+          }
+          if (call) call.accepted = acceptedBinding;
         }
-      } catch { /* Core response validation remains authoritative. */ }
+      } catch {
+        safeLog(api?.logger, "warn", { event: "anh_duong_presence_async_bind", outcome: "best_effort_failure" });
+      }
     }
     return response;
   }
@@ -89,11 +310,14 @@ export function createPluginHandlers({
       if (retained.length) originalTurns.set(key, retained); else originalTurns.delete(key);
     }
   }
-  function messageReceived(event, ctx) {
+  async function messageReceived(event, ctx) {
     const channel = String(ctx?.channelId ?? event?.metadata?.originatingChannel ?? event?.metadata?.provider ?? "").toLowerCase();
     const text = typeof event?.content === "string" ? event.content.trim() : "";
     const key = originalTurnKey(event?.sessionKey ?? ctx?.sessionKey, event?.senderId ?? ctx?.senderId);
     if (channel !== "telegram" || !key || !text) return;
+
+    // Capture trusted inbound context before the first await. Presence transport is
+    // best-effort and must never race original-turn/reply/visual state persistence.
     sweepOriginalTurns();
     const isReply = event?.replyToId !== undefined || ctx?.replyToId !== undefined;
     const metadata = event?.metadata ?? {};
@@ -143,6 +367,31 @@ export function createPluginHandlers({
       expiresAt: Date.now() + ORIGINAL_TURN_TTL_MS,
     });
     originalTurns.set(key, queue.slice(-8));
+
+    const inboundChatId = sourceChatId;
+    const turnSessionKey = ctx?.sessionKey ?? event?.sessionKey;
+    telegramTargets.set(turnSessionKey, inboundChatId);
+    const inboundMessageId = sourceMessageId;
+    const pKey = progressKey(turnSessionKey, inboundChatId);
+    const startedAt = Date.now();
+    if (pKey && !presence.has(pKey)) {
+      try {
+        const presenceMessageId = await sendPresence(api, inboundChatId, PRESENCE_THINKING);
+        if (presenceMessageId) {
+          presence.set(pKey, { chatId: inboundChatId, messageId: presenceMessageId, toolCount: 0, startedAt, phase: "thinking" });
+          if (typeof turnSessionKey === "string" && turnSessionKey) {
+            presenceBySession.set(turnSessionKey, pKey);
+          }
+        }
+        safeLog(api?.logger, "info", { event: "anh_duong_presence_start", outcome: presenceMessageId ? "sent" : "no_message_id", has_chat_id: Boolean(inboundChatId), channel });
+      } catch {
+        safeLog(api?.logger, "warn", { event: "anh_duong_presence_start", outcome: "best_effort_failure" });
+      }
+    }
+    const reactionTask = reactToInbound(api, inboundChatId, inboundMessageId).catch(() => {
+      safeLog(api?.logger, "warn", { event: "anh_duong_presence_reaction", outcome: "best_effort_failure" });
+    });
+    await Promise.allSettled([reactionTask]);
   }
   function resolveOriginalTurn({ sessionKey, senderId, rawPrompt }) {
     const key = originalTurnKey(sessionKey, senderId);
@@ -224,9 +473,9 @@ export function createPluginHandlers({
     }
   }
   function remember(ctx, accepted) {
-    const key = progressKey(ctx?.sessionKey, ctx?.chatId); if (!key) return;
+    const key = progressKey(ctx?.sessionKey, ctx?.chatId ?? telegramTargets.get(ctx?.sessionKey)); if (!key) return;
     sweep(); const queue = pending.get(key) ?? [];
-    queue.push({ ...accepted, chatId: ctx?.chatId, sessionKey: ctx?.sessionKey, expiresAt: Date.now() + WORKFLOW_PROGRESS_TTL_MS });
+    queue.push({ ...accepted, chatId: ctx?.chatId ?? telegramTargets.get(ctx?.sessionKey), sessionKey: ctx?.sessionKey, expiresAt: Date.now() + WORKFLOW_PROGRESS_TTL_MS });
     pending.set(key, queue);
   }
   function take(event, ctx) {
@@ -242,13 +491,44 @@ export function createPluginHandlers({
     return undefined;
   }
   async function trackedReply(event, ctx) {
-    const call = {};
+    const sessionKey = ctx?.sessionKey ?? event?.sessionKey;
+    const chatId = ctx?.chatId ?? ctx?.conversationId ?? event?.chatId ?? telegramTargets.get(sessionKey);
+    const pKey = resolvePresenceKey({ sessionKey, chatId }) ?? progressKey(sessionKey, chatId);
+    const call = { presenceKey: pKey, sessionKey, chatId };
     const result = await replyContext.run(call, () => hooks.beforeAgentReply(event, ctx));
-    const accepted = call.accepted ?? lastAccepted;
-    if (result?.reply?.text === WORKFLOW_ACKNOWLEDGMENT && accepted) remember(ctx, accepted);
+    const channel = String(ctx?.channelId ?? ctx?.channel ?? ctx?.messageProvider ?? "").toLowerCase();
+    if (result?.reply?.text === WORKFLOW_ACKNOWLEDGMENT && ctx?.runId) workflowGateBypass.add(ctx.runId);
+    if (channel === "telegram" && pKey && (result === undefined || result?.reply?.text === WORKFLOW_ACKNOWLEDGMENT) && !presence.has(pKey)) {
+      try {
+        const messageId = await sendPresence(api, chatId, PRESENCE_THINKING);
+        if (messageId) {
+          presence.set(pKey, { chatId, messageId, toolCount: 0, startedAt: Date.now(), phase: "thinking" });
+          if (typeof sessionKey === "string" && sessionKey) presenceBySession.set(sessionKey, pKey);
+        }
+        safeLog(api?.logger, "info", { event: "anh_duong_presence_start", outcome: messageId ? "sent" : "no_message_id", has_chat_id: Boolean(chatId), channel });
+      } catch {
+        safeLog(api?.logger, "warn", { event: "anh_duong_presence_start", outcome: "best_effort_failure" });
+      }
+    }
+    const accepted = (pKey ? acceptedByPresence.get(pKey) : undefined) ?? call.accepted;
+    if (accepted && pKey) {
+      bindRunPresence(accepted.runId, pKey);
+      if (accepted.taskId) bindTaskPresence(accepted.taskId, pKey);
+      scheduleRunCleanup(accepted, pKey);
+    }
+    if (result?.reply?.text === WORKFLOW_ACKNOWLEDGMENT) {
+      if (accepted) remember(ctx, accepted);
+      // Never emit the legacy workflow ACK. One transient presence message owns workflow progress.
+      return { ...result, reply: undefined, reason: "anh_duong_workflow_native_progress" };
+    }
     if (result?.reason === "anh_duong_workflow_completed_before_progress" && accepted) {
       remember(ctx, accepted);
-      return { ...result, reply: { text: WORKFLOW_ACKNOWLEDGMENT }, reason: "anh_duong_workflow_progress_after_threshold" };
+      const item = pKey ? presence.get(pKey) : undefined;
+      if (item) {
+        return { ...result, reply: undefined, reason: "anh_duong_workflow_presence_active" };
+      }
+      safeLog(api?.logger, "warn", { event: "anh_duong_workflow_native_progress", outcome: "terminal_before_progress" });
+      return { ...result, reply: undefined, reason: "anh_duong_workflow_native_progress" };
     }
     return result;
   }
@@ -261,12 +541,51 @@ export function createPluginHandlers({
       let run; try { run = await getAsyncTaskRun({ config, runId: progress.runId, requestId: progress.requestId, fetchImpl }); } catch { continue; }
       if (!TERMINAL_RUN_STATUSES.has(run.status)) continue;
       if (run.notification_status === "sent") {
-        try { await deleteWorkflowProgress({ chatId: progress.chatId, messageId }); safeLog(api?.logger, "info", { event: "anh_duong_core_workflow_progress_cleanup", outcome: "deleted", request_id: progress.requestId }); }
-        catch { safeLog(api?.logger, "warn", { event: "anh_duong_core_workflow_progress_cleanup", outcome: "failure", request_id: progress.requestId }); }
-        return;
+        try {
+          await deleteWorkflowProgress({ chatId: progress.chatId, messageId });
+          if (progress.pKey) {
+            presence.delete(progress.pKey);
+            clearPresenceBindings(progress.pKey);
+          }
+          cleanupScheduledRuns.delete(progress.runId);
+          safeLog(api?.logger, "info", { event: "anh_duong_core_workflow_progress_cleanup", outcome: "deleted", request_id: progress.requestId });
+          return;
+        } catch {
+          safeLog(api?.logger, "warn", { event: "anh_duong_core_workflow_progress_cleanup", outcome: "retry_delete", request_id: progress.requestId });
+        }
       }
     }
+    cleanupScheduledRuns.delete(progress.runId);
+    safeLog(api?.logger, "warn", { event: "anh_duong_core_workflow_progress_cleanup", outcome: "exhausted", request_id: progress.requestId });
   }
+  async function trackedToolCall(event, ctx) {
+    const decision = await hooks.beforeToolCall(event, ctx);
+    if (decision?.block === true) return decision;
+    const chatId = ctx?.chatId ?? telegramTargets.get(ctx?.sessionKey);
+    const asyncTaskId = coreTaskIdFromSessionKey(ctx?.sessionKey);
+    const asyncRunId = coreRunIdFromSessionKey(ctx?.sessionKey);
+    const directKey = resolvePresenceKey({ sessionKey: ctx?.sessionKey, chatId });
+    const pKey = directKey
+      ?? (asyncTaskId ? presenceByTask.get(asyncTaskId) : undefined)
+      ?? (asyncRunId ? presenceByRun.get(asyncRunId) : undefined);
+    const item = pKey ? presence.get(pKey) : undefined;
+    if (item) {
+      item.toolCount += 1;
+      const activity = toolActivityLabel(event);
+      if (item.lastActivity !== activity) {
+        item.phase = "tool";
+        item.lastActivity = activity;
+        try {
+          await editPresence(api, item.chatId, item.messageId, activity);
+          safeLog(api?.logger, "info", { event: "anh_duong_presence_tool", outcome: "updated", tool: String(event?.toolName ?? event?.name ?? event?.tool?.name ?? "unknown"), tool_count: item.toolCount });
+        } catch {
+          safeLog(api?.logger, "warn", { event: "anh_duong_presence_tool", outcome: "best_effort_failure" });
+        }
+      }
+    }
+    return decision;
+  }
+
   async function replyPayloadSending(event, ctx) {
     const sessionKey = event?.sessionKey ?? ctx?.sessionKey;
     const media = event?.payload?.mediaUrls?.find((item) => typeof item === "string" && item.length > 0) ?? event?.payload?.mediaUrl;
@@ -312,6 +631,27 @@ export function createPluginHandlers({
         }
       }
     }
+    const pKey = resolvePresenceKey({ sessionKey: message.sessionKey, chatId: message.to });
+    const activePresence = pKey ? presence.get(pKey) : undefined;
+    const isPresenceMessage = message.content === PRESENCE_THINKING
+      || message.content === "⚙️ Đang thực thi…"
+      || (typeof message.content === "string" && /^(🔎|🌐|🎨|🧠|✉️|🛠️) /.test(message.content));
+    const isFinalVisibleMessage = message.channelId === "telegram"
+      && message.success === true
+      && typeof message.content === "string"
+      && !isPresenceMessage
+      && message.content !== WORKFLOW_ACKNOWLEDGMENT
+      && message.content !== APPROVAL_ACKNOWLEDGMENT;
+    if (activePresence && isFinalVisibleMessage) {
+      try {
+        await deleteWorkflowProgress({ chatId: activePresence.chatId, messageId: activePresence.messageId });
+        presence.delete(pKey);
+        clearPresenceBindings(pKey);
+        safeLog(api?.logger, "info", { event: "anh_duong_presence_finish", outcome: "deleted" });
+      } catch {
+        safeLog(api?.logger, "warn", { event: "anh_duong_presence_finish", outcome: "best_effort_failure" });
+      }
+    }
     if (message.sessionKey) {
       const queue = pendingVisualDeliveries.get(message.sessionKey);
       const candidate = queue?.shift();
@@ -325,7 +665,8 @@ export function createPluginHandlers({
     const progress = take(event, ctx); if (!progress) return undefined;
     scheduleWorkflowCleanup(monitor(progress, String(message.messageId))); return undefined;
   }
-  return { messageReceived, beforeAgentReply: trackedReply, beforePromptBuild: hooks.beforePromptBuild, beforeAgentRun: hooks.beforeAgentRun, beforeToolCall: hooks.beforeToolCall, replyPayloadSending, messageSent, agentEnd: hooks.agentEnd };
+  async function trackedBeforeAgentRun(event, ctx) { if (ctx?.runId && workflowGateBypass.delete(ctx.runId)) return { outcome: 'pass' }; return hooks.beforeAgentRun(event, ctx); }
+  return { messageReceived, beforeAgentReply: trackedReply, beforePromptBuild: hooks.beforePromptBuild, beforeAgentRun: trackedBeforeAgentRun, beforeToolCall: trackedToolCall, replyPayloadSending, messageSent, agentEnd: hooks.agentEnd };
 }
 
 export function createPluginHandlersLegacy(options) { return createPluginHandlers(options); }

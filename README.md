@@ -20,9 +20,11 @@ Stable machine-level paths:
 - SQLite DB: `/home/thadc/.local/state/anh-duong-core/anh_duong.db`
 - Human-readable data mirror: `/mnt/f/AIOS/anh-duong-data`
 - Checkpoint evidence: `/mnt/f/AIOS/anh-duong-checkpoints`
+- Current production pointer: `/mnt/f/AIOS/anh-duong-checkpoints/CURRENT-GOLDEN.md`
 
 The active production release is a separate immutable release directory and must be
 discovered from runtime truth.
+
 ## Agent contract
 
 All coding agents must read `docs/AGENT_RUNTIME_CONTRACT.md`. Tool-specific entry
@@ -53,6 +55,7 @@ production truth value:
 source .venv/bin/activate
 uvicorn app.main:app --host 127.0.0.1 --port 8790
 ```
+
 ## Production health
 
 Use the runtime probe instead of copying a port from this README:

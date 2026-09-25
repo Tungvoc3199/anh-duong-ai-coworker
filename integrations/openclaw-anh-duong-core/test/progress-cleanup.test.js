@@ -14,7 +14,7 @@ test("Telegram progress cleanup uses the v2026.7.1 argv contract", async () => {
       system: {
         async runCommandWithTimeout(...args) {
           calls.push(args);
-          return { code: 0, stdout: "", stderr: "" };
+          return { code: 0, stdout: JSON.stringify({ payload: { ok: true } }), stderr: "" };
         },
       },
     },
@@ -38,14 +38,16 @@ test("Telegram progress cleanup uses the v2026.7.1 argv contract", async () => {
     "private-chat",
     "--message-id",
     "3170",
+    "--json",
   ]);
-  assert.deepEqual(calls[0][1], { timeoutMs: 10_000, cwd: "/app" });
+  assert.deepEqual(calls[0][1], { timeoutMs: 30_000, cwd: "/app" });
 });
 
 test("workflow progress ACK is deleted after final notification is sent", async () => {
   const deleted = [];
   const scheduled = [];
   const requests = [];
+  let runReads = 0;
   const env = {
     ANH_DUONG_CORE_ENABLED: "true",
     ANH_DUONG_CORE_BASE_URL: "http://core.local:8790",
@@ -131,18 +133,42 @@ test("workflow progress ACK is deleted after final notification is sent", async 
       );
     }
     if (String(url).endsWith("/api/async-tasks/run_wr1")) {
+      runReads += 1;
+      const snapshots = [
+        { status: "running", notification_status: "pending" },
+        { status: "completed", notification_status: "pending" },
+        { status: "completed", notification_status: "sent" },
+      ];
       return new Response(
-        JSON.stringify({ id: "run_wr1", status: "completed", notification_status: "sent" }),
+        JSON.stringify({ id: "run_wr1", ...snapshots[Math.min(runReads - 1, snapshots.length - 1)] }),
         { status: 200, headers: { "content-type": "application/json" } },
       );
     }
     throw new Error(`unexpected URL: ${url}`);
   };
+  const commandCalls = [];
+  let releaseCleanup;
+  const cleanupGate = new Promise((resolve) => { releaseCleanup = resolve; });
+  const api = {
+    runtime: {
+      system: {
+        async runCommandWithTimeout(argv) {
+          commandCalls.push(argv);
+          if (argv.includes("send")) {
+            return { code: 0, stdout: JSON.stringify({ payload: { messageId: "3202" } }), stderr: "" };
+          }
+          return { code: 0, stdout: JSON.stringify({ payload: { ok: true } }), stderr: "" };
+        },
+      },
+    },
+  };
   const handlers = createPluginHandlers({
+    api,
     env,
     fetchImpl,
     workflowProgressDelayMs: 0,
-    workflowProgressCleanupPollMs: 0,
+    workflowProgressCleanupPollMs: 1,
+    sleep: async () => cleanupGate,
     deleteWorkflowProgress: async (target) => {
       deleted.push(target);
     },
@@ -154,83 +180,132 @@ test("workflow progress ACK is deleted after final notification is sent", async 
     runId: "run-workflow",
     messageProvider: "telegram",
     channel: "telegram",
+    channelId: "telegram",
     senderId: "private-sender",
     chatId: "private-chat",
     sessionKey: "private-session",
   };
 
-  const reply = await handlers.beforeAgentReply({ cleanedBody: "create task" }, ctx);
-  assert.equal(reply.reply.text, WORKFLOW_ACKNOWLEDGMENT);
-  await handlers.messageSent(
+  await handlers.messageReceived(
     {
-      to: "private-chat",
-      content: WORKFLOW_ACKNOWLEDGMENT,
-      success: true,
-      messageId: "3202",
+      content: "create task",
       sessionKey: "private-session",
+      senderId: "private-sender",
+      chatId: "private-chat",
+      messageId: "run-workflow",
+      metadata: { originatingChannel: "telegram" },
     },
-    { channelId: "telegram", conversationId: "private-chat", sessionKey: "private-session" },
+    ctx,
   );
+  const reply = await handlers.beforeAgentReply({ cleanedBody: "create task" }, ctx);
+  assert.equal(reply.reply, undefined);
+  assert.equal(reply.reason, "anh_duong_workflow_native_progress");
+
+  await handlers.beforeToolCall(
+    { toolName: "web_search", params: { query: "AI news September 24 2026" } },
+    { sessionKey: "agent:main:openresponses-user:async:task_wr1" },
+  );
+  await handlers.beforeToolCall(
+    { toolName: "web_fetch", params: { url: "https://openai.com/index/example" } },
+    { sessionKey: "agent:main:openresponses-user:async:task_wr1" },
+  );
+  const editCalls = commandCalls.filter((argv) => argv.includes("edit"));
+  assert.equal(editCalls.length, 2);
+  assert.ok(editCalls[0].join(" ").includes("web_search"));
+  assert.ok(editCalls[0].join(" ").includes("AI news September 24 2026"));
+  assert.ok(editCalls[1].join(" ").includes("web_fetch"));
+  assert.ok(editCalls[1].join(" ").includes("openai.com"));
+
+  await handlers.beforeToolCall(
+    { toolName: "web_search", params: { query: "should not surface" } },
+    { sessionKey: "agent:main:openresponses-user:async:task_other" },
+  );
+  assert.equal(commandCalls.filter((argv) => argv.includes("edit")).length, 2);
+
+  assert.equal(scheduled.length, 1, "async submit schedules cleanup directly from payload correlation");
+  releaseCleanup();
   await Promise.all(scheduled);
 
   assert.deepEqual(deleted, [{ chatId: "private-chat", messageId: "3202" }]);
+  assert.ok(runReads >= 2);
   assert.ok(requests.includes("http://core.local:8790/api/async-tasks/run_wr1"));
+  assert.ok(commandCalls.some((argv) => argv.includes("send")));
+});
+
+test("direct Telegram final removes transient presence without tool activity", async () => {
+  const deleted = [];
+  const commandCalls = [];
+  const api = {
+    runtime: {
+      system: {
+        async runCommandWithTimeout(argv) {
+          commandCalls.push(argv);
+          if (argv.includes("send")) {
+            return { code: 0, stdout: JSON.stringify({ payload: { messageId: "4101" } }), stderr: "" };
+          }
+          return { code: 0, stdout: JSON.stringify({ payload: { ok: true } }), stderr: "" };
+        },
+      },
+    },
+  };
+  const handlers = createPluginHandlers({
+    api,
+    env: {},
+    deleteWorkflowProgress: async (target) => deleted.push(target),
+  });
+  const ctx = {
+    channelId: "telegram",
+    channel: "telegram",
+    messageProvider: "telegram",
+    sessionKey: "direct-session",
+    chatId: "direct-chat",
+    senderId: "direct-sender",
+  };
+  await handlers.messageReceived(
+    {
+      content: "xin chào",
+      sessionKey: "direct-session",
+      senderId: "direct-sender",
+      chatId: "direct-chat",
+      messageId: "4100",
+      metadata: { originatingChannel: "telegram" },
+    },
+    ctx,
+  );
+  await handlers.messageSent(
+    {
+      to: "direct-chat",
+      content: "Chào anh.",
+      success: true,
+      messageId: "4102",
+      sessionKey: "direct-session",
+    },
+    { channelId: "telegram", conversationId: "direct-chat", sessionKey: "direct-session" },
+  );
+  assert.deepEqual(deleted, [{ chatId: "direct-chat", messageId: "4101" }]);
+  assert.equal(commandCalls.filter((argv) => argv.includes("edit")).length, 0);
 });
 
 test("plugin adds message_sent cleanup without replacing existing hooks", () => {
   const registered = new Set();
   plugin.register({
     logger: {},
-    session: { state: { registerSessionExtension() {}, getSessionExtension: async () => undefined, patchSessionExtension: async () => ({ ok: true }) } },
     runtime: { system: { runCommandWithTimeout: async () => ({ code: 0 }) } },
+    session: { state: { registerSessionExtension() {} } },
     on(name) {
       registered.add(name);
     },
   });
 
   for (const name of [
+    "message_received",
     "before_agent_reply",
     "before_prompt_build",
     "before_agent_run",
+    "before_tool_call",
     "agent_end",
     "message_sent",
   ]) {
     assert.ok(registered.has(name), name);
   }
-});
-
-
-test("delivered image becomes active native visual only after successful delivery", async () => {
-  const states = new Map([
-    ["visual:session-a", { activeReference: "A" }],
-    ["visual:session-b", { activeReference: "X" }],
-  ]);
-  const stateKey = (namespace, sessionKey) => namespace + ":" + sessionKey;
-  const api = {
-    session: { state: {
-      async getSessionExtension({ sessionKey, namespace }) {
-        return states.get(stateKey(namespace, sessionKey));
-      },
-      async patchSessionExtension({ sessionKey, namespace, value }) {
-        states.set(stateKey(namespace, sessionKey), value);
-        return { ok: true };
-      },
-    } },
-  };
-  const handlers = createPluginHandlers({ api, env: {} });
-  const ctxA = { channelId: "telegram", conversationId: "chat-a", sessionKey: "session-a" };
-
-  await handlers.replyPayloadSending({ payload: { text: "done", mediaUrl: "B" }, kind: "final", channel: "telegram", sessionKey: "session-a", runId: "run-b" }, ctxA);
-  assert.equal(states.get("visual:session-a").activeReference, "A", "must not promote before delivery succeeds");
-  await handlers.messageSent({ to: "chat-a", content: "done", success: false, sessionKey: "session-a" }, ctxA);
-  assert.equal(states.get("visual:session-a").activeReference, "A", "failed delivery must not promote B");
-
-  await handlers.replyPayloadSending({ payload: { text: "done", mediaUrl: "B" }, kind: "final", channel: "telegram", sessionKey: "session-a", runId: "run-b2" }, ctxA);
-  await handlers.messageSent({ to: "chat-a", content: "done", success: true, messageId: "9001", sessionKey: "session-a" }, ctxA);
-  assert.equal(states.get("visual:session-a").activeReference, "B");
-  assert.equal(states.get("visual:session-b").activeReference, "X", "must not bleed across sessions");
-
-  await handlers.replyPayloadSending({ payload: { text: "text only" }, kind: "final", channel: "telegram", sessionKey: "session-a", runId: "run-text" }, ctxA);
-  await handlers.messageSent({ to: "chat-a", content: "text only", success: true, messageId: "9002", sessionKey: "session-a" }, ctxA);
-  assert.equal(states.get("visual:session-a").activeReference, "B", "text-only delivery must not replace visual state");
 });

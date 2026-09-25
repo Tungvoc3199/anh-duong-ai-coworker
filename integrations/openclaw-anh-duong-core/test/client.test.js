@@ -125,6 +125,25 @@ test("request mapping emits only the strict Core contract and pseudonymizes acto
   );
 });
 
+test("request mapping supports the managed zalouser channel contract", () => {
+  const request = buildCoreRequest({
+    prompt: "hello",
+    runId: "run-zalo",
+    senderId: "zalo-user",
+    chatId: "zalo-chat",
+    sessionKey: "zalo-session",
+    sourceOrigin: "zalouser_user",
+    channel: "zalouser",
+  });
+
+  assert.equal(request.request_id, "zlu-run-zalo");
+  assert.equal(request.channel, "zalouser");
+  assert.match(request.actor, /^zalouser:[0-9a-f]{64}$/);
+  assert.equal(request.source_origin, "zalouser_user");
+  assert.equal(request.source_chat_id, "zalo-chat");
+  assert.equal(request.source_session_id, "zalo-session");
+});
+
 test("oversized run IDs become bounded deterministic correlations", () => {
   const first = buildCoreRequest({ prompt: "hello", runId: "x".repeat(300), senderId: undefined });
   const second = buildCoreRequest({ prompt: "hello", runId: "x".repeat(300), senderId: undefined });
