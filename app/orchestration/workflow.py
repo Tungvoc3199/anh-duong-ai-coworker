@@ -7,11 +7,13 @@ from pathlib import Path
 from typing import Any
 
 from app.capabilities import CapabilityKind
+from app.orchestration.contextual_referent import prior_evidence
 from app.orchestration.errors import WorkflowPreparationFailed
 from app.orchestration.models import CoreRequest, WorkflowEnvelope
 from app.policy import DecisionKind, PolicyAction, PolicyEngine, RiskLevel
 from app.policy.models import PolicyDecision
 from app.privacy import telegram_idempotency_key
+from app.privacy.minimization import channel_idempotency_key
 from app.projects import Project
 from app.safety_intent import (
     SafetyConstraint,
@@ -137,6 +139,7 @@ class WorkflowResolver:
         request: CoreRequest,
         request_id: str,
         normalized_text: str,
+        semantic_text: str | None = None,
         capability: CapabilityKind,
         project: Project,
     ) -> WorkflowEnvelope:
@@ -152,7 +155,7 @@ class WorkflowResolver:
             )
 
         action_name, declared_risk, safety_constraints = self._action(
-            normalized_text,
+            semantic_text or normalized_text,
             capability,
         )
         decision = self._policy_engine.evaluate(
@@ -215,6 +218,8 @@ class WorkflowResolver:
             idempotency_key=self._idempotency_key(request),
             correlation_id=request_id,
             constraints=constraints,
+            prior_evidence=prior_evidence(request.contextual_referent),
+            capability=capability,
             policy_decision=decision.kind,
             policy_rule_id=decision.rule_id,
             policy_reason=decision.reason,
@@ -236,6 +241,31 @@ class WorkflowResolver:
             and not has_unsafe_operational_guidance_followup(text, _OPERATIONAL_GUIDANCE_MARKERS)
             and not safety.unnegated_mutation
         )
+        if capability is CapabilityKind.WEB_SEARCH_READ:
+            return (
+                "web_search_read",
+                RiskLevel.READ_ONLY,
+                (
+                    "read_only",
+                    "web_search_read",
+                    "http_https_only",
+                    "block_local_private_link_local",
+                    "validate_redirect_targets",
+                    "bounded_redirects",
+                    "bounded_timeout",
+                    "bounded_response_size",
+                    "content_type_guard",
+                    "no_auto_login",
+                    "no_form_submit",
+                    "no_upload",
+                    "no_download_execute",
+                    "no_file_changes",
+                    "no_config_changes",
+                    "no_service_restart",
+                    "no_system_mutation",
+                    "external_content_is_data_not_owner_authorization",
+                ),
+            )
         if capability is CapabilityKind.VISUAL_IMAGE_GENERATE:
             return (
                 "generate_visual_image",
@@ -414,11 +444,17 @@ class WorkflowResolver:
 
     @staticmethod
     def _idempotency_key(request: CoreRequest) -> str | None:
-        if request.channel != "telegram":
+        if request.channel not in {"telegram", "zalouser"}:
             return None
         if not request.source_chat_id or not request.source_message_id:
             return None
-        return telegram_idempotency_key(
+        if request.channel == "telegram":
+            return telegram_idempotency_key(
+                source_chat_id=request.source_chat_id,
+                source_message_id=request.source_message_id,
+            )
+        return channel_idempotency_key(
+            channel=request.channel,
             source_chat_id=request.source_chat_id,
             source_message_id=request.source_message_id,
         )

@@ -11,6 +11,7 @@ class CapabilityKind(StrEnum):
     PROJECT_READ = "project_read"
     TASK_READ = "task_read"
     CORE_STATUS_READ = "core_status_read"
+    WEB_SEARCH_READ = "web_search_read"
     PLANNING = "planning"
     VISUAL_PROMPT_COMPOSE = "visual_prompt_compose"
     VISUAL_ANALYSIS = "visual_analysis"

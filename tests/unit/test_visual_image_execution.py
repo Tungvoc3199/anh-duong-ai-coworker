@@ -425,9 +425,21 @@ class FakeImageGenerator:
         self.calls: list[dict[str, str]] = []
 
     async def generate(
-        self, *, prompt: str, run_id: str, aspect_ratio: str = ""
+        self,
+        *,
+        prompt: str,
+        run_id: str,
+        aspect_ratio: str = "",
+        reference_image: str | None = None,
     ) -> OpenClawImageArtifact:
-        self.calls.append({"prompt": prompt, "run_id": run_id, "aspect_ratio": aspect_ratio})
+        self.calls.append(
+            {
+                "prompt": prompt,
+                "run_id": run_id,
+                "aspect_ratio": aspect_ratio,
+                "reference_image": reference_image or "",
+            }
+        )
         return OpenClawImageArtifact(
             path=self.path,
             media_path="/home/node/.openclaw/media/anh-duong/run_img_exec.png",
@@ -442,6 +454,44 @@ class FakeImageGenerator:
             rendered_size="1024x1536",
             recovered=False,
         )
+
+
+@pytest.mark.asyncio
+async def test_contextual_visual_requirement_uses_native_image_path_and_reference_evidence(
+    tmp_path: Path,
+) -> None:
+    delegate = FakeDelegate()
+    composer = FakeComposer()
+    image_generator = FakeImageGenerator(tmp_path / "run_img_exec.png")
+    executor = VisualForgeRoutingExecutor(
+        delegate=delegate,
+        client=composer,
+        image_generator=image_generator,
+    )
+    request = _request("Sửa lỗi đó giúp a, giữ nguyên phần còn lại.").model_copy(
+        update={
+            "reference_image": (
+                "media://inbound/reply-source---11111111-1111-4111-8111-111111111111.jpg"
+            ),
+            "capability_requirements": ("visual_image_generate",),
+            "prior_evidence": (
+                "quoted_message:5974: Sai rõ nhất cần sửa là hai bàn tay, "
+                "nhất là bàn tay đang chạm má.",
+            ),
+        }
+    )
+
+    result = await executor.execute(request)
+
+    assert delegate.requests == []
+    assert len(image_generator.calls) == 1
+    call = image_generator.calls[0]
+    assert call["reference_image"] == request.reference_image
+    assert "Sửa lỗi đó giúp a" in call["prompt"]
+    assert "hai bàn tay" in call["prompt"]
+    assert "Reference data only" in call["prompt"]
+    assert result.outcome == "completed"
+    assert result.criterion_verification[0].status == "verified"
 
 
 @pytest.mark.asyncio

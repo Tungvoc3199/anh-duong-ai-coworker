@@ -1,3 +1,4 @@
+# HISTORICAL TG-1 verification helper. Do not use as current production runtime truth.
 [CmdletBinding()]
 param(
     [string]$ExpectedImageId = "sha256:86b8cffc648507e11bb7f8e4e1900b2534e4da5f496ecc927a3628c80bd016a7",

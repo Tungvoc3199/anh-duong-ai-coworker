@@ -5,7 +5,6 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any, Literal, Protocol
 
-import httpx
 from pydantic import ValidationError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -85,7 +84,7 @@ class AsyncTaskWorker:
         self.worker_id = worker_id
         self.lease_seconds = lease_seconds
         self.clock = clock or (lambda: datetime.now(UTC))
-        self.core_status_probe = core_status_probe or self._probe_local_core_status
+        self.core_status_probe = core_status_probe or self._unconfigured_core_status_probe
 
     async def run_once(self) -> bool:
         now = self._now()
@@ -196,6 +195,7 @@ class AsyncTaskWorker:
             workspace=request.workspace,
             reference_image=request.reference_image,
             constraints=self._execution_constraints(request),
+            prior_evidence=request.prior_evidence,
         )
 
         try:
@@ -565,7 +565,12 @@ class AsyncTaskWorker:
             verification_requirements=tuple(
                 item.description for item in running_plan.verification_requirements
             ),
-            prior_evidence=tuple(f"{item.id}: {item.summary}" for item in running_plan.evidence),
+            prior_evidence=tuple(
+                dict.fromkeys(
+                    request.prior_evidence
+                    + tuple(f"{item.id}: {item.summary}" for item in running_plan.evidence)
+                )
+            ),
             remaining_budget={
                 "actions": remaining_actions,
                 "replans": max(
@@ -1310,7 +1315,7 @@ class AsyncTaskWorker:
                 "service_restarts": "none",
             },
             verification={
-                "method": "core_internal_http_get",
+                "method": "core_internal_asgi_get",
                 "constraints_respected": [
                     "no_file_changes",
                     "no_config_changes",
@@ -1333,12 +1338,12 @@ class AsyncTaskWorker:
                         criterion=criterion,
                         status="verified",
                         evidence_refs=(
-                            "core:http:/health",
-                            "core:http:/ready",
+                            "core:asgi:/health",
+                            "core:asgi:/ready",
                             *(("core:db:quick_check",) if require_database_quick_check else ()),
                         ),
                         explanation=(
-                            "Core-owned read-only health/ready probes passed"
+                            "Core-owned in-process ASGI health/ready probes passed"
                             + (
                                 " and database quick_check returned ok."
                                 if require_database_quick_check
@@ -1360,49 +1365,16 @@ class AsyncTaskWorker:
             ),
         )
 
-    async def _probe_local_core_status(self) -> dict[str, Any]:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            health = await self._probe_http_endpoint(
-                client,
-                "http://127.0.0.1:8790/health",
-            )
-            ready = await self._probe_http_endpoint(
-                client,
-                "http://127.0.0.1:8790/ready",
-            )
-        if "http_status" in health:
-            service = {"status": "running", "evidence": "local_http:/health"}
-        elif "http_status" in ready:
-            service = {"status": "running", "evidence": "local_http:/ready"}
-        else:
-            service = {"status": "unavailable", "evidence": "local_http:no_response"}
-        return {
-            "service": service,
-            "health": health,
-            "ready": ready,
-        }
-
-    async def _probe_http_endpoint(
-        self,
-        client: Any,
-        url: str,
-    ) -> dict[str, Any]:
-        try:
-            response = await client.get(url)
-        except httpx.HTTPError:
-            return {"status": "unavailable"}
-        return self._http_status_artifact(response)
-
     @staticmethod
-    def _http_status_artifact(response: Any) -> dict[str, Any]:
-        try:
-            payload = response.json()
-        except (TypeError, ValueError):
-            payload = {}
-        artifact = dict(payload) if isinstance(payload, dict) else {}
-        artifact["http_status"] = response.status_code
-        artifact.setdefault("status", "unknown")
-        return artifact
+    async def _unconfigured_core_status_probe() -> dict[str, Any]:
+        return {
+            "service": {
+                "status": "unavailable",
+                "evidence": "core_asgi:probe_not_configured",
+            },
+            "health": {"status": "unavailable"},
+            "ready": {"status": "unavailable"},
+        }
 
     def _probe_database_quick_check(self) -> str | None:
         with self.session_factory() as session:

@@ -10,6 +10,7 @@ from app.orchestration.workflow import WorkflowResolver
 from app.persona import load_persona
 from app.projects import ProjectRepository, ProjectService
 from app.routing import FastRouter
+from app.semantic_intent_resolver import SemanticIntentResolver
 from app.tasks import TaskRepository, TaskService
 
 
@@ -19,6 +20,8 @@ def create_core_request_pipeline(
     audit_writer: AuditWriter,
     persona_root: Path,
     owner_telegram_id: str | None = None,
+    semantic_intent_resolver: SemanticIntentResolver | None = None,
+    semantic_confidence_threshold: float = 0.72,
 ) -> CoreRequestPipeline:
     """Compose OR-1 dependencies without preparing or executing a request."""
 
@@ -37,5 +40,7 @@ def create_core_request_pipeline(
         ),
         audit_writer=audit_writer,
         workflow_resolver=WorkflowResolver(owner_telegram_id=owner_telegram_id),
+        semantic_intent_resolver=semantic_intent_resolver,
+        semantic_confidence_threshold=semantic_confidence_threshold,
     )
 

@@ -685,3 +685,41 @@ def test_idempotent_replay_survives_identity_hmac_secret_rotation(
         replay = rotated_service.create(request)
         assert replay.replayed is True
         assert replay.run_id == accepted.run_id
+
+def test_zalouser_service_replay_creates_one_task_and_run(session_factory, tmp_path):
+    from app.privacy.minimization import channel_idempotency_key
+    workspace = tmp_path / "workspace-zalo"
+    workspace.mkdir()
+    with session_factory() as session:
+        project_id = _seed_project(session)
+        service = _service(session, tmp_path)
+        key = channel_idempotency_key(channel="zalouser", source_chat_id="chat-42", source_message_id="message-99")
+        request = _request(project_id, tmp_path).model_copy(update={"workspace":str(workspace),"source_channel":"zalouser","source_chat_id":"chat-42","source_message_id":"message-99","source_session_id":"session-7","requested_by":"zalouser:actor-hash","idempotency_key":key})
+        first = service.create(request)
+        replay = service.create(request)
+        session.commit()
+        tasks = list(session.scalars(select(TaskRow)))
+        runs = list(session.scalars(select(AsyncTaskRunRow)))
+    assert first.replayed is False
+    assert replay.replayed is True
+    assert replay.task_id == first.task_id
+    assert replay.run_id == first.run_id
+    assert len(tasks) == 1
+    assert len(runs) == 1
+
+def test_same_routing_ids_do_not_collide_between_telegram_and_zalouser(session_factory, tmp_path):
+    from app.privacy.minimization import channel_idempotency_key
+    workspace = tmp_path / "workspace-cross-channel"
+    workspace.mkdir()
+    with session_factory() as session:
+        project_id = _seed_project(session)
+        service = _service(session, tmp_path)
+        base = _request(project_id, tmp_path).model_copy(update={"workspace":str(workspace),"source_chat_id":"42","source_message_id":"99"})
+        tg = base.model_copy(update={"idempotency_key":"telegram:42:99"})
+        zl = base.model_copy(update={"source_channel":"zalouser","requested_by":"zalouser:actor-hash","idempotency_key":channel_idempotency_key(channel="zalouser",source_chat_id="42",source_message_id="99")})
+        first = service.create(tg)
+        second = service.create(zl)
+        session.commit()
+        runs = list(session.scalars(select(AsyncTaskRunRow)))
+    assert first.run_id != second.run_id
+    assert len(runs) == 2

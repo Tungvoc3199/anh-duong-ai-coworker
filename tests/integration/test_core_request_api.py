@@ -23,6 +23,7 @@ def _settings(tmp_path: Path, *, token: str | None = TOKEN) -> Settings:
         audit_path=tmp_path / "or1-audit.jsonl",
         internal_api_token=token,
         async_worker_enabled=False,
+        semantic_intent_enabled=False,
     )
 
 

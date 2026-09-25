@@ -391,7 +391,7 @@ class ContextBuilder:
                 memories,
                 memory_bodies,
             ),
-            ContextSectionKind.CURRENT_REQUEST: self._text(request.current_request),
+            ContextSectionKind.CURRENT_REQUEST: self._render_current_request(request),
         }
         source_refs = self._source_refs(
             request,
@@ -449,7 +449,10 @@ class ContextBuilder:
             ContextSectionKind.PROJECT_CONTEXT: project_refs,
             ContextSectionKind.ACTIVE_TASK: task_refs,
             ContextSectionKind.RELEVANT_MEMORY: self._memory_source_refs(memories),
-            ContextSectionKind.CURRENT_REQUEST: ("request:current",),
+            ContextSectionKind.CURRENT_REQUEST: (
+                "request:current",
+                *(("request:contextual_referent",) if request.contextual_referent else ()),
+            ),
         }
 
     def _prepare_memories(
@@ -862,8 +865,20 @@ class ContextBuilder:
             truncated=truncated,
         )
 
+    def _render_current_request(self, request: ContextBuildRequest) -> str:
+        lines = [self._text(request.current_request)]
+        if request.contextual_referent:
+            lines.extend((
+                "",
+                "[CONTEXTUAL_REFERENT]",
+                self._text(request.contextual_referent),
+            ))
+        return "\n".join(lines)
+
     def _build_retrieval_query(self, request: ContextBuildRequest) -> str:
         lines = [f"current_request: {self._text(request.current_request)}"]
+        if request.contextual_referent:
+            lines.append(f"contextual_referent: {self._text(request.contextual_referent)}")
         if request.task_context is not None:
             lines.append(f"active_task_goal: {self._text(request.task_context.active_goal)}")
         if request.project_context is not None:

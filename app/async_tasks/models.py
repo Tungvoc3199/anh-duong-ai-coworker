@@ -13,6 +13,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.capabilities import CapabilityKind
 from app.image_reference import validate_managed_image_reference
 from app.tasks.models import TaskPriority
 from app.timeutil import format_display
@@ -126,6 +127,8 @@ class AsyncTaskCreate(BaseModel):
     )
     deadline: datetime | None = None
     constraints: tuple[str, ...] = ()
+    prior_evidence: tuple[str, ...] = ()
+    capability: CapabilityKind | None = None
     governed_coding: dict[str, Any] | None = None
 
     @field_validator(

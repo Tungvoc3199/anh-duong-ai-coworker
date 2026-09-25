@@ -1076,7 +1076,7 @@ def test_pretool_rejects_remote_api_mutation_commands(tmp_path: Path) -> None:
         assert "WORKSPACE_SCOPE_FAILURE" in output["permissionDecisionReason"], command
 
 
-def test_pretool_allows_exact_local_health_get_without_checkpoint(tmp_path: Path) -> None:
+def test_pretool_rejects_direct_health_curl_without_checkpoint(tmp_path: Path) -> None:
     env = {**os.environ, "HOME": str(tmp_path / "home")}
     for command in (
         "curl -fsS http://127.0.0.1:8790/health",
@@ -1090,7 +1090,22 @@ def test_pretool_allows_exact_local_health_get_without_checkpoint(tmp_path: Path
             },
             env=env,
         )
-        assert output["permissionDecision"] == "allow", command
+        assert output["permissionDecision"] == "deny", command
+
+
+def test_pretool_allows_canonical_runtime_truth_without_checkpoint(tmp_path: Path) -> None:
+    env = {**os.environ, "HOME": str(tmp_path / "home")}
+    output = run_guard(
+        {
+            "cwd": str(ROOT),
+            "tool_name": "run_in_terminal",
+            "tool_input": {
+                "command": "/usr/local/libexec/anh-duong/runtime-truth",
+            },
+        },
+        env=env,
+    )
+    assert output["permissionDecision"] == "allow"
 
 
 def test_pretool_rejects_inline_interpreter_eval_variants(tmp_path: Path) -> None:

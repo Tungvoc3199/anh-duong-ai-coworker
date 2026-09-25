@@ -135,6 +135,7 @@ def test_cancel_rejects_active_and_completed_without_state_change(
 ) -> None:
     app = _app(engine, tmp_path)
     with TestClient(app) as client:
+        app.state.async_runtime_ready = True
         created = client.post(
             "/api/async-tasks",
             headers=_headers(),
@@ -183,6 +184,7 @@ def test_cancel_immediately_cancels_only_safe_waiting_states(
 ) -> None:
     app = _app(engine, tmp_path)
     with TestClient(app) as client:
+        app.state.async_runtime_ready = True
         created = client.post(
             "/api/async-tasks",
             headers=_headers(),
@@ -218,6 +220,7 @@ def test_cancelled_run_is_idempotent_and_audited_once(
 ) -> None:
     app = _app(engine, tmp_path)
     with TestClient(app) as client:
+        app.state.async_runtime_ready = True
         created = client.post(
             "/api/async-tasks",
             headers=_headers(),

@@ -1,11 +1,13 @@
 # Ánh Dương Core — Agent Rules
 
 ## Runtime truth
-- Canonical production pointer: `/mnt/f/AIOS/anh-duong-checkpoints/CURRENT-GOLDEN.md`. Read it before every bot-impacting checkpoint.
-- Active source workspace: `/home/thadc/AIOS/anh-duong-core`; runtime DB: `/home/thadc/.local/state/anh-duong-core/anh_duong.db`.
-- Source/dev default API bind is `127.0.0.1:8790`. Never assume the production port from source defaults; verify fresh from systemd and the OpenClaw `ANH_DUONG_CORE_BASE_URL`.
-- Artifacts: `/mnt/f/AIOS/anh-duong-checkpoints`.
-- `main`, a release branch, or a chat transcript is never production truth by itself. Fresh systemd/Docker/runtime evidence wins; if it disagrees with `CURRENT-GOLDEN.md`, treat the pointer as stale and reconcile it only after evidence.
+- Canonical cross-agent contract: `docs/AGENT_RUNTIME_CONTRACT.md`.
+- First action for every Ánh Dương task: run `/usr/local/libexec/anh-duong/runtime-truth`. A non-zero exit blocks mutation until diagnosed.
+- Repository anchor: `/home/thadc/AIOS/anh-duong-core`; this is not proof that the root checkout is the active production source.
+- Discover the active production release and Core port from the running process/effective systemd `ExecStart`; never hardcode a production port from README or a base unit.
+- Runtime DB: `/home/thadc/.local/state/anh-duong-core/anh_duong.db`.
+- Human-readable data mirror: `/mnt/f/AIOS/anh-duong-data`; checkpoints: `/mnt/f/AIOS/anh-duong-checkpoints`.
+- Frozen release trees are immutable rollback/comparison anchors. Do not edit them to reconcile documentation.
 - `/mnt/f/AIOS/anh-duong-core` is not an active runtime dependency.
 
 ## Evidence and safety

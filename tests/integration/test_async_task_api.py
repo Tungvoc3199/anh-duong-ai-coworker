@@ -81,6 +81,7 @@ def test_create_returns_202_and_duplicate_returns_same_run(
         engine=engine,
     )
     with TestClient(app) as client:
+        app.state.async_runtime_ready = True
         first = client.post(
             "/api/async-tasks",
             headers=_headers(),
@@ -113,6 +114,7 @@ def test_get_and_list_require_valid_bearer_auth(
         engine=engine,
     )
     with TestClient(app) as client:
+        app.state.async_runtime_ready = True
         created = client.post(
             "/api/async-tasks",
             headers=_headers(),
@@ -153,6 +155,7 @@ def test_missing_internal_auth_config_fails_closed(
         engine=engine,
     )
     with TestClient(app) as client:
+        app.state.async_runtime_ready = True
         response = client.get(
             "/api/async-tasks",
             headers=_headers(),
@@ -173,6 +176,7 @@ def test_retry_failed_run_and_cancel_pending_run(
         engine=engine,
     )
     with TestClient(app) as client:
+        app.state.async_runtime_ready = True
         failed = client.post(
             "/api/async-tasks",
             headers=_headers(),
@@ -224,6 +228,7 @@ def test_cancel_completed_returns_conflict(
         engine=engine,
     )
     with TestClient(app) as client:
+        app.state.async_runtime_ready = True
         created = client.post(
             "/api/async-tasks",
             headers=_headers(),
@@ -269,6 +274,7 @@ def test_resolve_latest_approval_is_scoped_and_resumes_same_run(
         "idempotency_key": "telegram:message-api",
     })
     with TestClient(app) as client:
+        app.state.async_runtime_ready = True
         created = client.post("/api/async-tasks", headers=_headers(), json=payload)
         resolved = client.post(
             "/api/async-tasks/approvals/resolve-latest",
@@ -319,6 +325,7 @@ def test_non_owner_cannot_resolve_latest_telegram_approval(
         "idempotency_key": "telegram:message-owner",
     })
     with TestClient(app) as client:
+        app.state.async_runtime_ready = True
         created = client.post("/api/async-tasks", headers=_headers(), json=payload)
         response = client.post(
             "/api/async-tasks/approvals/resolve-latest",
@@ -346,6 +353,7 @@ def test_telegram_replay_with_changed_reference_returns_409(
         "reference_image": "media://inbound/one---11111111-1111-4111-8111-111111111111.jpg",
     }
     with TestClient(app) as client:
+        app.state.async_runtime_ready = True
         first = client.post("/api/async-tasks", headers=_headers(), json=payload)
         second_payload = payload | {"reference_image": "media://inbound/two---22222222-2222-4222-8222-222222222222.jpg"}
         second = client.post("/api/async-tasks", headers=_headers(), json=second_payload)

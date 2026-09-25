@@ -43,7 +43,7 @@ print(decision.rule_id)
 ## Kiểm tra
 
 ```bash
-cd /home/thadc/AIOS/anh-duong-core
+cd "$(git rev-parse --show-toplevel)"
 source .venv/bin/activate
 
 pytest \

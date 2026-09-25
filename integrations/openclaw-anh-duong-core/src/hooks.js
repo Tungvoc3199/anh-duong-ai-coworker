@@ -63,6 +63,7 @@ export async function deleteTelegramWorkflowProgress(api, { chatId, messageId })
   }
 }
 const STATE_TTL_MS = 5 * 60 * 1_000;
+const RECENT_VISUAL_TTL_MS = 6 * 60 * 60 * 1_000;
 const WORKFLOW_PROGRESS_DELAY_MS = 1_500;
 const TERMINAL_RUN_STATUSES = new Set([
   "completed",
@@ -158,6 +159,28 @@ function failureClassOf(error) {
   return error instanceof CoreIntegrationError ? error.failureClass : "internal";
 }
 
+function contextualReferentFromOriginalTurn(originalTurn) {
+  const text =
+    typeof originalTurn?.replyToBody === "string"
+      ? originalTurn.replyToBody.trim()
+      : "";
+  const messageId =
+    typeof originalTurn?.replyToId === "string" ||
+    typeof originalTurn?.replyToId === "number"
+      ? String(originalTurn.replyToId)
+      : "";
+  if (!text || !messageId) return undefined;
+  return {
+    source: "quoted_message",
+    message_id: messageId,
+    text: text.slice(0, 12_000),
+    ...(typeof originalTurn?.replyToSender === "string" &&
+    originalTurn.replyToSender.trim()
+      ? { sender: originalTurn.replyToSender.trim().slice(0, 256) }
+      : {}),
+  };
+}
+
 function corePromptForTelegramReply(cleanedBody) {
   if (typeof cleanedBody !== "string") {
     return cleanedBody;
@@ -211,6 +234,9 @@ export function createAnhDuongCoreHooks({
   realpathImpl = realpathSync,
   statImpl = statSync,
   resolveOriginalTurn,
+  loadActiveVisualReference = async () => undefined,
+  storeActiveVisualReference = async () => undefined,
+  loadRecentAssistantReferent = async () => undefined,
 } = {}) {
   let config;
   let configFailure;
@@ -731,13 +757,19 @@ export function createAnhDuongCoreHooks({
         sessionKey: ctx?.sessionKey ?? ctx?.sessionId,
         imageSource: visualReference.imageSource,
         referenceImage: visualReference.referenceImage,
+        recentImageCandidate: visualReference.referenceImage === undefined ? await loadActiveVisualReference(ctx) : undefined,
         ...(directUserTurn ? { sourceOrigin: "telegram_user" } : {}),
         ...(trustedInboundTurn ? { sourceMessageId: originalTurn.sourceMessageId } : {}),
         recentReferent: recentUserUrl(event?.messages, corePrompt),
+        contextualReferent: contextualReferentFromOriginalTurn(originalTurn),
+        recentAssistantCandidate: await loadRecentAssistantReferent(ctx),
       });
       requestId = request.request_id;
       const prepared = await prepareCoreRequest({ config, request, fetchImpl });
       const preparedContext = appendCapabilityPolicy(prepared, buildPreparedContext(prepared));
+      if (typeof visualReference.referenceImage === "string") {
+        await storeActiveVisualReference(ctx, visualReference.referenceImage);
+      }
       states.set(runId, {
         status: "prepared",
         requestId,
@@ -749,6 +781,8 @@ export function createAnhDuongCoreHooks({
         chatId: ctx?.chatId,
         senderId: ctx?.senderId,
         provisionalSource,
+        visualReference,
+        preparedAt: now(),
         expiresAt: now() + STATE_TTL_MS,
       });
       safeLog(logger, "info", {
@@ -758,6 +792,11 @@ export function createAnhDuongCoreHooks({
         route: prepared.route_decision.route,
         capability: prepared.capability_decision.capability,
         execution_required: prepared.execution_required,
+        ...(prepared.visual_interaction ? {
+          visual_operation: prepared.visual_interaction.operation,
+          image_source: prepared.visual_interaction.image_source,
+          evidence_available: typeof prepared.visual_interaction.reference_image === "string",
+        } : {}),
       });
       return { prependContext: preparedContext };
     } catch (error) {

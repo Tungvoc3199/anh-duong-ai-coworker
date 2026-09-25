@@ -146,7 +146,7 @@ task = service.transition(
 ## Kiểm tra
 
 ```bash
-cd /home/thadc/AIOS/anh-duong-core
+cd "$(git rev-parse --show-toplevel)"
 source .venv/bin/activate
 
 ./scripts/check_tasks.sh

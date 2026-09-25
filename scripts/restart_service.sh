@@ -2,8 +2,14 @@
 set -euo pipefail
 
 SERVICE_NAME="anh-duong-core.service"
-BASE_URL="http://127.0.0.1:8790"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MAX_WAIT_SECONDS=30
+
+effective_port() {
+  systemctl show "${SERVICE_NAME}" --property=ExecStart --value 2>/dev/null |
+    sed -nE 's/.*--port[= ]+([0-9]+).*/\1/p' |
+    head -n 1
+}
 
 echo "Restarting ${SERVICE_NAME}..."
 sudo systemctl restart "${SERVICE_NAME}"
@@ -16,20 +22,11 @@ for ((second = 1; second <= MAX_WAIT_SECONDS; second++)); do
     journalctl -u "${SERVICE_NAME}" -n 50 --no-pager || true
     exit 1
   fi
-
-  if curl -fsS "${BASE_URL}/ready" >/tmp/anh-duong-core-ready.json 2>/dev/null; then
+  port="$(effective_port)"
+  if [[ -n "${port}" ]] && curl -fsS "http://127.0.0.1:${port}/ready" >/dev/null 2>&1; then
     echo
-    echo "Service đã sẵn sàng sau ${second} giây."
-
-    echo "HEALTH:"
-    curl -fsS "${BASE_URL}/health"
-    echo
-
-    echo "READY:"
-    cat /tmp/anh-duong-core-ready.json
-    echo
-
-    rm -f /tmp/anh-duong-core-ready.json
+    echo "Service đã sẵn sàng sau ${second} giây trên port ${port}."
+    "${SCRIPT_DIR}/runtime_truth.sh"
     exit 0
   fi
 

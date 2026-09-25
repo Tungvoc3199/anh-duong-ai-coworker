@@ -11,12 +11,32 @@ from pydantic import (
     model_validator,
 )
 
-from app.capabilities.models import CapabilityDecision
+from app.capabilities.models import CapabilityDecision, CapabilityKind
 from app.context_builder.models import ContextBundle
 from app.image_reference import validate_managed_image_reference
 from app.policy import DecisionKind, RiskLevel
 from app.routing.models import RouteDecision
+from app.semantic_intent import SemanticIntentFrame
 from app.visual_interaction import VisualImageSource, VisualInteractionContract
+
+
+class ContextualReferent(BaseModel):
+    """Trusted turn-local reference data, never authorization by itself."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    source: Literal["quoted_message", "previous_assistant_result", "session_state"]
+    message_id: str | None = Field(default=None, max_length=128)
+    text: str = Field(min_length=1, max_length=12_000)
+    sender: str | None = Field(default=None, max_length=256)
+
+    @field_validator("text")
+    @classmethod
+    def normalize_text(cls, value: str) -> str:
+        normalized = " ".join(value.split())
+        if not normalized:
+            raise ValueError("contextual referent text cannot be blank")
+        return normalized
 
 
 class CoreRequest(BaseModel):
@@ -28,7 +48,7 @@ class CoreRequest(BaseModel):
     request_id: str | None = Field(default=None, max_length=128)
     channel: str = Field(default="internal", max_length=64)
     actor: str = Field(default="internal", max_length=128)
-    source_origin: Literal["unknown", "telegram_user"] = "unknown"
+    source_origin: Literal["unknown", "telegram_user", "zalouser_user"] = "unknown"
     project_id: str | None = Field(default=None, max_length=64)
     task_id: str | None = Field(default=None, max_length=64)
     memory_scope_id: str | None = Field(default=None, max_length=128)
@@ -37,6 +57,9 @@ class CoreRequest(BaseModel):
     source_message_id: str | None = Field(default=None, max_length=128)
     image_source: VisualImageSource = VisualImageSource.NONE
     reference_image: str | None = Field(default=None, max_length=2048)
+    recent_image_candidate: str | None = Field(default=None, max_length=2048)
+    contextual_referent: ContextualReferent | None = None
+    recent_assistant_candidate: ContextualReferent | None = None
 
     @field_validator("text")
     @classmethod
@@ -64,7 +87,7 @@ class CoreRequest(BaseModel):
             raise ValueError("identifier cannot be blank")
         return normalized
 
-    @field_validator("reference_image")
+    @field_validator("reference_image", "recent_image_candidate")
     @classmethod
     def normalize_reference_image(cls, value: str | None) -> str | None:
         return validate_managed_image_reference(value)
@@ -140,6 +163,8 @@ class WorkflowEnvelope(BaseModel):
     idempotency_key: str | None = Field(default=None, max_length=255)
     correlation_id: str = Field(min_length=1, max_length=128)
     constraints: tuple[str, ...] = ()
+    prior_evidence: tuple[str, ...] = ()
+    capability: CapabilityKind | None = None
     policy_decision: DecisionKind
     policy_rule_id: str = Field(min_length=1, max_length=128)
     policy_reason: str = Field(min_length=1, max_length=2000)
@@ -155,6 +180,7 @@ class PreparedRequest(BaseModel):
     persona: PersonaReference
     route_decision: RouteDecision
     capability_decision: CapabilityDecision
+    semantic_intent: SemanticIntentFrame | None = None
     visual_interaction: VisualInteractionContract | None = None
     context: ContextBundle
     project_id: str | None = None

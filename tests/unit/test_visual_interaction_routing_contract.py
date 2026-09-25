@@ -103,3 +103,23 @@ def test_visual_turn_capability_is_recomputed_from_current_contract() -> None:
         analyze_text,
         visual_interaction=analyze,
     ).capability is CapabilityKind.VISUAL_ANALYSIS
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "e xem ảnh này của e tạo ra với ảnh a gửi cái nào đẹp hơn?",
+        "a dang hỏi e so sánh giữa 2 ảnh của e tạo lại và ảnh a gửi mà",
+    ],
+)
+def test_compare_existing_images_is_read_only_even_when_text_mentions_generated_image(
+    text: str,
+) -> None:
+    visual = _contract(text, VisualImageSource.REPLIED_IMAGE, REF)
+    route = FastRouter().route(text, visual_interaction=visual)
+    capability = CapabilityRouter().route(route, text, visual_interaction=visual)
+
+    assert visual.operation is VisualOperation.COMPARE
+    assert route.route is FastRoute.DIRECT
+    assert route.rule_id == "routing.direct.visual_analysis"
+    assert capability.capability is CapabilityKind.VISUAL_ANALYSIS

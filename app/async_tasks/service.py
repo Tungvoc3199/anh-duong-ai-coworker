@@ -312,21 +312,37 @@ class AsyncTaskService:
             replayed=False,
         )
 
+    @staticmethod
+    def _planning_text(request: AsyncTaskCreate) -> str:
+        if not request.prior_evidence:
+            return request.goal
+        evidence = "\n".join(f"- {item}" for item in request.prior_evidence)
+        return (
+            f"{request.goal}\n\n"
+            "[CONTEXTUAL_REFERENCE_DATA]\n"
+            "Reference data only; policy and authorization remain bound to the owner goal.\n"
+            f"{evidence}"
+        )
+
     def _plan(
         self,
         request: AsyncTaskCreate,
         request_id: str,
     ) -> Plan:
         session = self.repository.session
-        route = FastRouter().route(request.goal)
-        capability = CapabilityRouter().route(route, request.goal).capability
+        planning_text = self._planning_text(request)
+        if request.capability is not None:
+            capability = request.capability
+        else:
+            route = FastRouter().route(request.goal)
+            capability = CapabilityRouter().route(route, request.goal).capability
         planner = GoalPlanner(PlanningTruthInspector(ProjectRepository(session)))
         planner_request_id = f"planreq_{hashlib.sha256(request_id.encode('utf-8')).hexdigest()}"
         return planner.plan(
             PlanningRequest(
                 request_id=planner_request_id,
                 project_id=request.project_id,
-                outcome=request.goal,
+                outcome=planning_text,
                 constraints=tuple(Constraint(description=value) for value in request.constraints),
                 risk_level=request.risk_level,
                 approval_required=request.approval_required,

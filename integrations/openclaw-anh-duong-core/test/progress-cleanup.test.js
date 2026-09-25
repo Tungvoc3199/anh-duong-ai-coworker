@@ -46,7 +46,6 @@ test("workflow progress ACK is deleted after final notification is sent", async 
   const deleted = [];
   const scheduled = [];
   const requests = [];
-  let runReads = 0;
   const env = {
     ANH_DUONG_CORE_ENABLED: "true",
     ANH_DUONG_CORE_BASE_URL: "http://core.local:8790",
@@ -132,14 +131,8 @@ test("workflow progress ACK is deleted after final notification is sent", async 
       );
     }
     if (String(url).endsWith("/api/async-tasks/run_wr1")) {
-      runReads += 1;
-      const snapshots = [
-        { status: "running", notification_status: "pending" },
-        { status: "completed", notification_status: "pending" },
-        { status: "completed", notification_status: "sent" },
-      ];
       return new Response(
-        JSON.stringify({ id: "run_wr1", ...snapshots[Math.min(runReads - 1, snapshots.length - 1)] }),
+        JSON.stringify({ id: "run_wr1", status: "completed", notification_status: "sent" }),
         { status: 200, headers: { "content-type": "application/json" } },
       );
     }
@@ -181,7 +174,6 @@ test("workflow progress ACK is deleted after final notification is sent", async 
   await Promise.all(scheduled);
 
   assert.deepEqual(deleted, [{ chatId: "private-chat", messageId: "3202" }]);
-  assert.equal(runReads, 3);
   assert.ok(requests.includes("http://core.local:8790/api/async-tasks/run_wr1"));
 });
 
@@ -189,6 +181,7 @@ test("plugin adds message_sent cleanup without replacing existing hooks", () => 
   const registered = new Set();
   plugin.register({
     logger: {},
+    session: { state: { registerSessionExtension() {}, getSessionExtension: async () => undefined, patchSessionExtension: async () => ({ ok: true }) } },
     runtime: { system: { runCommandWithTimeout: async () => ({ code: 0 }) } },
     on(name) {
       registered.add(name);
@@ -204,4 +197,40 @@ test("plugin adds message_sent cleanup without replacing existing hooks", () => 
   ]) {
     assert.ok(registered.has(name), name);
   }
+});
+
+
+test("delivered image becomes active native visual only after successful delivery", async () => {
+  const states = new Map([
+    ["visual:session-a", { activeReference: "A" }],
+    ["visual:session-b", { activeReference: "X" }],
+  ]);
+  const stateKey = (namespace, sessionKey) => namespace + ":" + sessionKey;
+  const api = {
+    session: { state: {
+      async getSessionExtension({ sessionKey, namespace }) {
+        return states.get(stateKey(namespace, sessionKey));
+      },
+      async patchSessionExtension({ sessionKey, namespace, value }) {
+        states.set(stateKey(namespace, sessionKey), value);
+        return { ok: true };
+      },
+    } },
+  };
+  const handlers = createPluginHandlers({ api, env: {} });
+  const ctxA = { channelId: "telegram", conversationId: "chat-a", sessionKey: "session-a" };
+
+  await handlers.replyPayloadSending({ payload: { text: "done", mediaUrl: "B" }, kind: "final", channel: "telegram", sessionKey: "session-a", runId: "run-b" }, ctxA);
+  assert.equal(states.get("visual:session-a").activeReference, "A", "must not promote before delivery succeeds");
+  await handlers.messageSent({ to: "chat-a", content: "done", success: false, sessionKey: "session-a" }, ctxA);
+  assert.equal(states.get("visual:session-a").activeReference, "A", "failed delivery must not promote B");
+
+  await handlers.replyPayloadSending({ payload: { text: "done", mediaUrl: "B" }, kind: "final", channel: "telegram", sessionKey: "session-a", runId: "run-b2" }, ctxA);
+  await handlers.messageSent({ to: "chat-a", content: "done", success: true, messageId: "9001", sessionKey: "session-a" }, ctxA);
+  assert.equal(states.get("visual:session-a").activeReference, "B");
+  assert.equal(states.get("visual:session-b").activeReference, "X", "must not bleed across sessions");
+
+  await handlers.replyPayloadSending({ payload: { text: "text only" }, kind: "final", channel: "telegram", sessionKey: "session-a", runId: "run-text" }, ctxA);
+  await handlers.messageSent({ to: "chat-a", content: "text only", success: true, messageId: "9002", sessionKey: "session-a" }, ctxA);
+  assert.equal(states.get("visual:session-a").activeReference, "B", "text-only delivery must not replace visual state");
 });

@@ -90,6 +90,7 @@ def test_list_filters_by_task_id(
 ) -> None:
     app = _app(engine, tmp_path)
     with TestClient(app) as client:
+        app.state.async_runtime_ready = True
         first = client.post(
             "/api/async-tasks",
             headers=_headers(),
@@ -137,4 +138,21 @@ def test_post_rejects_when_runtime_is_not_accepting_tasks(
     assert response.json()["detail"] == (
         "Async task runtime is not accepting new tasks."
     )
+    assert before == after == (0, 0)
+
+def test_post_rejects_when_worker_runtime_is_disabled(
+    engine: Engine,
+    tmp_path: Path,
+) -> None:
+    app = _app(engine, tmp_path)
+    with TestClient(app) as client:
+        assert app.state.async_runtime_ready is False
+        before = _counts(engine)
+        response = client.post(
+            "/api/async-tasks",
+            headers=_headers(),
+            json=_payload(tmp_path, "worker-disabled"),
+        )
+        after = _counts(engine)
+    assert response.status_code == 503
     assert before == after == (0, 0)

@@ -33,6 +33,16 @@ from app.projects import (
     ProjectStatus,
 )
 from app.routing import FastRoute, FastRouter
+from app.semantic_intent import (
+    IntentAction,
+    IntentAuthorization,
+    IntentDomain,
+    IntentSpeechAct,
+    IntentTarget,
+    SemanticIntentFrame,
+    VisualCompilerType,
+)
+from app.semantic_intent_resolver import SemanticIntentResolutionError
 from app.tasks import Task, TaskNotFound, TaskPriority, TaskStatus
 from app.visual_interaction import VisualImageSource, VisualOperation
 
@@ -60,6 +70,25 @@ class FailingRetriever:
         **kwargs: Any,
     ) -> list[HybridMemorySearchResult]:
         raise MemoryRepositoryError("memory unavailable")
+
+
+class StaticSemanticResolver:
+    def __init__(
+        self,
+        frame: SemanticIntentFrame | None = None,
+        *,
+        fail: bool = False,
+    ) -> None:
+        self.frame = frame
+        self.fail = fail
+        self.calls: list[dict[str, Any]] = []
+
+    def resolve(self, **kwargs: Any) -> SemanticIntentFrame:
+        self.calls.append(kwargs)
+        if self.fail:
+            raise SemanticIntentResolutionError("synthetic semantic failure")
+        assert self.frame is not None
+        return self.frame
 
 
 class ProjectReader:
@@ -195,6 +224,8 @@ def _pipeline(
     project_reader: ProjectReader | None = None,
     task_reader: TaskReader | None = None,
     audit_writer: RecordingAuditWriter | None = None,
+    semantic_resolver: StaticSemanticResolver | None = None,
+    semantic_confidence_threshold: float = 0.72,
 ) -> CoreRequestPipeline:
     return CoreRequestPipeline(
         persona_loader=_persona,
@@ -206,6 +237,8 @@ def _pipeline(
         audit_writer=audit_writer or RecordingAuditWriter(),
         clock=lambda: NOW,
         id_factory=lambda: "req_fixed",
+        semantic_intent_resolver=semantic_resolver,
+        semantic_confidence_threshold=semantic_confidence_threshold,
     )
 
 
@@ -1256,17 +1289,25 @@ def test_real_telegram_image_goal_does_not_require_approval() -> None:
     )
     prepared = _pipeline(project_reader=ProjectReader((project,))).prepare(
         CoreRequest(
-            text=text, request_id="image-primary-goal", channel="telegram",
-            actor="telegram:actor-hash", source_chat_id="chat-42",
-            source_session_id="session-42", source_message_id="message-image-primary",
+            text=text,
+            request_id="image-primary-goal",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id="message-image-primary",
         )
     )
     assert prepared.capability_decision.capability is CapabilityKind.VISUAL_IMAGE_GENERATE
     assert prepared.workflow is not None
     assert prepared.workflow.approval_required is False
     assert prepared.workflow.policy_decision is DecisionKind.ALLOW
-    for item in ("one_image_max", "subscription_quota_only", "no_paid_fallback",
-                 "retry_delivery_without_regeneration"):
+    for item in (
+        "one_image_max",
+        "subscription_quota_only",
+        "no_paid_fallback",
+        "retry_delivery_without_regeneration",
+    ):
         assert item in prepared.workflow.constraints
 
 
@@ -1288,3 +1329,644 @@ def test_visual_analysis_pipeline_builds_and_exposes_current_turn_contract() -> 
     assert prepared.capability_decision.capability is CapabilityKind.VISUAL_ANALYSIS
     assert prepared.execution_required is False
     assert prepared.workflow is None
+
+
+def test_recent_visual_candidate_binds_for_reconstruction_continuation() -> None:
+    prepared = _pipeline(project_reader=ProjectReader((_project(),))).prepare(
+        CoreRequest(
+            text="Vậy em dựng lại ảnh chuẩn chỉ cho anh được không",
+            recent_image_candidate="media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg",
+        )
+    )
+    assert prepared.visual_interaction is not None
+    assert prepared.visual_interaction.operation is VisualOperation.GENERATE
+    assert prepared.visual_interaction.image_source is VisualImageSource.RECENT_ARTIFACT
+    assert (
+        prepared.visual_interaction.reference_image
+        == "media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg"
+    )
+    assert prepared.capability_decision.capability is CapabilityKind.VISUAL_IMAGE_GENERATE
+
+
+def test_recent_visual_candidate_binds_for_implicit_edit_target() -> None:
+    prepared = _pipeline(project_reader=ProjectReader((_project(),))).prepare(
+        CoreRequest(
+            text="đổi váy thành màu vàng",
+            recent_image_candidate="media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg",
+        )
+    )
+    assert prepared.visual_interaction is not None
+    assert prepared.visual_interaction.operation is VisualOperation.EDIT
+    assert prepared.visual_interaction.image_source is VisualImageSource.RECENT_ARTIFACT
+    assert prepared.visual_interaction.clarification_required is False
+
+
+def test_recent_visual_candidate_does_not_bleed_into_unrelated_or_fresh_generation() -> None:
+    unrelated = _pipeline(project_reader=ProjectReader((_project(),))).prepare(
+        CoreRequest(
+            text="Hôm nay có việc gì cần ưu tiên?",
+            recent_image_candidate="media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg",
+        )
+    )
+    fresh = _pipeline(project_reader=ProjectReader((_project(),))).prepare(
+        CoreRequest(
+            text="tạo một cô gái mặc váy vàng",
+            recent_image_candidate="media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg",
+        )
+    )
+    assert unrelated.visual_interaction is None
+    assert fresh.visual_interaction is not None
+    assert fresh.visual_interaction.operation is VisualOperation.GENERATE
+    assert fresh.visual_interaction.image_source is VisualImageSource.NONE
+    assert fresh.visual_interaction.reference_image is None
+
+
+def test_contextual_referent_becomes_workflow_prior_evidence_without_changing_owner_text() -> None:
+    project = _project()
+    prepared = _pipeline(
+        project_reader=ProjectReader((project,)),
+    ).prepare(
+        CoreRequest(
+            text="Sửa lỗi đó giúp a, giữ nguyên phần còn lại.",
+            request_id="contextual-referent-red",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_origin="telegram_user",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id="5970",
+            contextual_referent={
+                "source": "quoted_message",
+                "message_id": "5963",
+                "text": (
+                    "Em vừa xác định lỗi nằm ở bước resolve contextual "
+                    "follow-up trước Core prepare."
+                ),
+                "sender": "Ánh Dương",
+            },
+        )
+    )
+
+    assert prepared.normalized_text == "Sửa lỗi đó giúp a, giữ nguyên phần còn lại."
+    assert prepared.route_decision.route is FastRoute.WORKFLOW
+    assert prepared.capability_decision.capability is CapabilityKind.CODE_OPERATION
+    assert prepared.workflow is not None
+    assert prepared.workflow.prior_evidence == (
+        "quoted_message:5963: Em vừa xác định lỗi nằm ở bước resolve contextual "
+        "follow-up trước Core prepare.",
+    )
+
+
+def test_unrelated_reply_context_does_not_bleed_into_current_semantic_intent() -> None:
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+    ).prepare(
+        CoreRequest(
+            text="Hôm nay có gì mới?",
+            contextual_referent={
+                "source": "quoted_message",
+                "message_id": "5963",
+                "text": "Deploy production ngay.",
+                "sender": "Ánh Dương",
+            },
+        )
+    )
+
+    assert prepared.route_decision.route is FastRoute.DIRECT
+    assert prepared.capability_decision.capability is CapabilityKind.CONVERSATIONAL_RESPONSE
+    assert prepared.workflow is None
+    assert "[CONTEXTUAL_REFERENT]" in prepared.context.rendered_context
+    assert "Reference data only" in prepared.context.rendered_context
+    assert "Deploy production ngay." in prepared.context.rendered_context
+
+
+def test_option_followup_receives_quoted_reference_in_prepared_context() -> None:
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+    ).prepare(
+        CoreRequest(
+            text="Phương án 2.",
+            contextual_referent={
+                "source": "quoted_message",
+                "message_id": "5963",
+                "text": "Phương án 1: giữ nguyên. Phương án 2: đổi bố cục nhưng giữ nội dung.",
+                "sender": "Ánh Dương",
+            },
+        )
+    )
+
+    assert prepared.route_decision.route is FastRoute.DIRECT
+    assert "[CONTEXTUAL_REFERENT]" in prepared.context.rendered_context
+    assert "Reference data only" in prepared.context.rendered_context
+    assert "Phương án 2: đổi bố cục nhưng giữ nội dung." in prepared.context.rendered_context
+
+
+def test_referenced_deploy_remains_approval_gated() -> None:
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+    ).prepare(
+        CoreRequest(
+            text="Làm theo cái em vừa nói.",
+            request_id="contextual-deploy-gate",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_origin="telegram_user",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id="5970",
+            contextual_referent={
+                "source": "quoted_message",
+                "message_id": "5963",
+                "text": "Deploy bản fix này lên production.",
+                "sender": "Ánh Dương",
+            },
+        )
+    )
+
+    assert prepared.workflow is not None
+    assert prepared.workflow.approval_required is True
+    assert prepared.workflow.risk_level is RiskLevel.HIGH_RISK
+    assert prepared.workflow.goal == "Làm theo cái em vừa nói."
+    assert prepared.workflow.prior_evidence == (
+        "quoted_message:5963: Deploy bản fix này lên production.",
+    )
+
+
+def test_contextual_visual_followup_resolves_quote_and_active_reference_to_edit() -> None:
+    reference = "media://inbound/123e4567-e89b-42d3-a456-426614174000.jpg"
+    quoted = (
+        "Ảnh này sai ở bàn tay bên phải: có sáu ngón. "
+        "Cần sửa bàn tay và giữ nguyên khuôn mặt, trang phục, nền."
+    )
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+    ).prepare(
+        CoreRequest(
+            text="Sửa lỗi đó giúp a, giữ nguyên phần còn lại.",
+            request_id="contextual-visual-edit",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_origin="telegram_user",
+            source_chat_id="chat-42",
+            source_session_id="session-42",
+            source_message_id="5970",
+            recent_image_candidate=reference,
+            contextual_referent={
+                "source": "quoted_message",
+                "message_id": "5963",
+                "text": quoted,
+                "sender": "Ánh Dương",
+            },
+        )
+    )
+
+    assert prepared.visual_interaction is not None
+    assert prepared.visual_interaction.operation is VisualOperation.EDIT
+    assert prepared.visual_interaction.image_source is VisualImageSource.RECENT_ARTIFACT
+    assert prepared.visual_interaction.reference_image == reference
+    assert prepared.route_decision.route is FastRoute.WORKFLOW
+    assert prepared.capability_decision.capability is CapabilityKind.VISUAL_IMAGE_GENERATE
+    assert prepared.workflow is not None
+    assert prepared.workflow.goal == "Sửa lỗi đó giúp a, giữ nguyên phần còn lại."
+    assert prepared.workflow.reference_image == reference
+    assert prepared.workflow.prior_evidence == (f"quoted_message:5963: {quoted}",)
+
+
+def test_contextual_question_does_not_inherit_quoted_side_effect_for_routing() -> None:
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+    ).prepare(
+        CoreRequest(
+            text="Cái trên có nguy hiểm không?",
+            contextual_referent={
+                "source": "quoted_message",
+                "message_id": "5963",
+                "text": "Deploy bản fix này lên production ngay.",
+                "sender": "Ánh Dương",
+            },
+        )
+    )
+
+    assert prepared.route_decision.route is FastRoute.DIRECT
+    assert prepared.capability_decision.capability is CapabilityKind.CONVERSATIONAL_RESPONSE
+    assert prepared.workflow is None
+    assert "[CONTEXTUAL_REFERENT]" in prepared.context.rendered_context
+    assert "Deploy bản fix này lên production ngay." in prepared.context.rendered_context
+
+
+def test_semantic_intent_overrides_legacy_external_false_positive() -> None:
+    resolver = StaticSemanticResolver(
+        SemanticIntentFrame(
+            speech_act=IntentSpeechAct.ASK,
+            domain=IntentDomain.VISUAL,
+            action=IntentAction.DISCUSS_EDIT,
+            target=IntentTarget.IMAGE,
+            requested_execution=False,
+            authorization=IntentAuthorization.NONE,
+            uses_contextual_visual=True,
+            confidence=0.98,
+            rationale=("Asks which details should be edited for a more elegant look."),
+        )
+    )
+    reference = "media://inbound/11111111-1111-4111-8111-111111111111.jpg"
+    prepared = _pipeline(semantic_resolver=resolver).prepare(
+        CoreRequest(
+            text=(
+                "Ok. Vậy với ý kiến của e như trên thì e tính sửa chi tiết nào "
+                "ảnh a gửi cho sang choảnh hơn k"
+            ),
+            image_source=VisualImageSource.RECENT_ARTIFACT,
+            reference_image=reference,
+        )
+    )
+
+    assert prepared.route_decision.route is FastRoute.DIRECT
+    assert prepared.capability_decision.capability is CapabilityKind.VISUAL_ANALYSIS
+    assert prepared.execution_required is False
+    assert prepared.workflow is None
+    assert prepared.visual_interaction is not None
+    assert prepared.visual_interaction.operation is VisualOperation.ANALYZE
+    assert prepared.visual_interaction.side_effect.value == "none"
+    assert prepared.semantic_intent == resolver.frame
+
+
+def test_semantic_explicit_send_is_workflow_external_communication() -> None:
+    resolver = StaticSemanticResolver(
+        SemanticIntentFrame(
+            speech_act=IntentSpeechAct.ACTION_REQUEST,
+            domain=IntentDomain.EXTERNAL_COMMUNICATION,
+            action=IntentAction.SEND,
+            target=IntentTarget.EXTERNAL_RECIPIENT,
+            requested_execution=True,
+            authorization=IntentAuthorization.EXPLICIT,
+            recipient="Sang",
+            confidence=0.99,
+            rationale="Explicit command to send the current image to Sang.",
+        )
+    )
+    reference = "media://inbound/11111111-1111-4111-8111-111111111111.jpg"
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+        semantic_resolver=resolver,
+    ).prepare(
+        CoreRequest(
+            text="Gửi ảnh này cho Sang",
+            source_origin="telegram_user",
+            image_source=VisualImageSource.REPLIED_IMAGE,
+            reference_image=reference,
+        )
+    )
+
+    assert prepared.route_decision.route is FastRoute.WORKFLOW
+    assert prepared.capability_decision.capability is CapabilityKind.EXTERNAL_COMMUNICATION
+    assert prepared.execution_required is True
+    assert prepared.workflow is not None
+
+
+def test_semantic_failure_cannot_promote_legacy_regex_to_execution() -> None:
+    resolver = StaticSemanticResolver(fail=True)
+    reference = "media://inbound/11111111-1111-4111-8111-111111111111.jpg"
+    prepared = _pipeline(semantic_resolver=resolver).prepare(
+        CoreRequest(
+            text="ảnh a gửi cho sang choảnh hơn k",
+            image_source=VisualImageSource.RECENT_ARTIFACT,
+            reference_image=reference,
+        )
+    )
+
+    assert prepared.route_decision.route is FastRoute.DIRECT
+    assert prepared.capability_decision.capability is CapabilityKind.VISUAL_ANALYSIS
+    assert prepared.execution_required is False
+    assert "semantic_intent_unavailable_execution_suppressed" in prepared.warnings
+
+
+def test_low_confidence_semantic_execution_is_suppressed() -> None:
+    resolver = StaticSemanticResolver(
+        SemanticIntentFrame(
+            speech_act=IntentSpeechAct.ACTION_REQUEST,
+            domain=IntentDomain.EXTERNAL_COMMUNICATION,
+            action=IntentAction.SEND,
+            target=IntentTarget.EXTERNAL_RECIPIENT,
+            requested_execution=True,
+            authorization=IntentAuthorization.EXPLICIT,
+            recipient="Sang",
+            confidence=0.40,
+        )
+    )
+    reference = "media://inbound/11111111-1111-4111-8111-111111111111.jpg"
+    prepared = _pipeline(
+        semantic_resolver=resolver,
+        semantic_confidence_threshold=0.72,
+    ).prepare(
+        CoreRequest(
+            text="Gửi ảnh này cho Sang",
+            image_source=VisualImageSource.REPLIED_IMAGE,
+            reference_image=reference,
+        )
+    )
+
+    assert prepared.route_decision.route is FastRoute.DIRECT
+    assert prepared.capability_decision.capability is CapabilityKind.CONVERSATIONAL_RESPONSE
+    assert prepared.execution_required is False
+    assert "semantic_intent_low_confidence_execution_suppressed" in prepared.warnings
+
+
+def test_elliptical_contextual_generate_binds_resolved_assistant_visual() -> None:
+    resolver = StaticSemanticResolver(
+        SemanticIntentFrame(
+            speech_act=IntentSpeechAct.ACTION_REQUEST,
+            domain=IntentDomain.UNKNOWN,
+            action=IntentAction.GENERATE,
+            target=IntentTarget.NONE,
+            requested_execution=True,
+            authorization=IntentAuthorization.EXPLICIT,
+            uses_contextual_referent=True,
+            uses_contextual_visual=False,
+            confidence=0.99,
+            rationale="Generate using the resolved prior referent.",
+        )
+    )
+    recent = "media://inbound/44444444-4444-4444-8444-444444444444.jpg"
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+        semantic_resolver=resolver,
+    ).prepare(
+        CoreRequest(
+            text="E tự tạo đi",
+            source_origin="telegram_user",
+            recent_assistant_candidate={
+                "source": "previous_assistant_result",
+                "message_id": "7001",
+                "text": "Em sẽ tạo lại phương án này theo ảnh vừa rồi.",
+                "sender": "Ánh Dương",
+            },
+            recent_image_candidate=recent,
+        )
+    )
+
+    assert prepared.semantic_intent is not None
+    assert prepared.semantic_intent.domain is IntentDomain.VISUAL
+    assert prepared.semantic_intent.target is IntentTarget.IMAGE
+    assert prepared.semantic_intent.uses_contextual_visual is True
+    assert prepared.capability_decision.capability is CapabilityKind.VISUAL_IMAGE_GENERATE
+    assert prepared.visual_interaction is not None
+    assert prepared.visual_interaction.image_source is VisualImageSource.RECENT_ARTIFACT
+    assert prepared.visual_interaction.reference_image == recent
+
+
+def test_elliptical_generate_without_recent_context_does_not_invent_visual_referent() -> None:
+    resolver = StaticSemanticResolver(
+        SemanticIntentFrame(
+            speech_act=IntentSpeechAct.ACTION_REQUEST,
+            domain=IntentDomain.UNKNOWN,
+            action=IntentAction.GENERATE,
+            target=IntentTarget.NONE,
+            requested_execution=True,
+            authorization=IntentAuthorization.EXPLICIT,
+            confidence=0.99,
+        )
+    )
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+        semantic_resolver=resolver,
+    ).prepare(CoreRequest(text="E tự tạo đi", source_origin="telegram_user"))
+
+    assert prepared.semantic_intent == resolver.frame
+    assert prepared.visual_interaction is None
+
+
+def test_contextual_normalizer_never_overrides_prohibition() -> None:
+    resolver = StaticSemanticResolver(
+        SemanticIntentFrame(
+            speech_act=IntentSpeechAct.PROHIBITION,
+            domain=IntentDomain.UNKNOWN,
+            action=IntentAction.GENERATE,
+            target=IntentTarget.NONE,
+            requested_execution=False,
+            authorization=IntentAuthorization.PROHIBITED,
+            confidence=0.99,
+        )
+    )
+    prepared = _pipeline(semantic_resolver=resolver).prepare(
+        CoreRequest(
+            text="Đừng làm đi",
+            recent_assistant_candidate={
+                "source": "previous_assistant_result",
+                "message_id": "7002",
+                "text": "Em có thể tạo lại ảnh.",
+            },
+            recent_image_candidate="media://inbound/55555555-5555-4555-8555-555555555555.jpg",
+        )
+    )
+
+    assert prepared.semantic_intent == resolver.frame
+    assert prepared.execution_required is False
+
+
+def test_semantic_contextual_generate_binds_recent_visual_without_keyword_router() -> None:
+    resolver = StaticSemanticResolver(
+        SemanticIntentFrame(
+            speech_act=IntentSpeechAct.ACTION_REQUEST,
+            domain=IntentDomain.VISUAL,
+            action=IntentAction.GENERATE,
+            target=IntentTarget.IMAGE,
+            requested_execution=True,
+            authorization=IntentAuthorization.EXPLICIT,
+            uses_contextual_visual=True,
+            confidence=0.99,
+            rationale="Recreate the prior image using it as the reference.",
+        )
+    )
+    recent = "media://inbound/22222222-2222-4222-8222-222222222222.jpg"
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+        semantic_resolver=resolver,
+    ).prepare(
+        CoreRequest(
+            text="Làm lại ảnh đó cho a",
+            source_origin="telegram_user",
+            recent_image_candidate=recent,
+        )
+    )
+
+    assert prepared.route_decision.route is FastRoute.WORKFLOW
+    assert prepared.capability_decision.capability is CapabilityKind.VISUAL_IMAGE_GENERATE
+    assert prepared.visual_interaction is not None
+    assert prepared.visual_interaction.reference_image == recent
+    assert prepared.visual_interaction.image_source is VisualImageSource.RECENT_ARTIFACT
+
+
+def test_semantic_explicit_send_binds_recent_visual_by_semantic_flag() -> None:
+    resolver = StaticSemanticResolver(
+        SemanticIntentFrame(
+            speech_act=IntentSpeechAct.ACTION_REQUEST,
+            domain=IntentDomain.EXTERNAL_COMMUNICATION,
+            action=IntentAction.SEND,
+            target=IntentTarget.EXTERNAL_RECIPIENT,
+            requested_execution=True,
+            authorization=IntentAuthorization.EXPLICIT,
+            recipient="Sang",
+            uses_contextual_visual=True,
+            confidence=0.99,
+            rationale="Send the referenced recent image to Sang.",
+        )
+    )
+    recent = "media://inbound/33333333-3333-4333-8333-333333333333.jpg"
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+        semantic_resolver=resolver,
+    ).prepare(
+        CoreRequest(
+            text="Gửi ảnh đó cho Sang",
+            source_origin="telegram_user",
+            recent_image_candidate=recent,
+        )
+    )
+
+    assert prepared.route_decision.route is FastRoute.WORKFLOW
+    assert prepared.visual_interaction is not None
+    assert prepared.visual_interaction.reference_image == recent
+    assert prepared.visual_interaction.image_source is VisualImageSource.RECENT_ARTIFACT
+
+
+def test_explicit_url_anchor_corrects_semantic_conversation_frame_in_pipeline() -> None:
+    resolver = StaticSemanticResolver(
+        SemanticIntentFrame(
+            speech_act=IntentSpeechAct.ASK,
+            domain=IntentDomain.CONVERSATION,
+            action=IntentAction.NONE,
+            target=IntentTarget.NONE,
+            requested_execution=False,
+            authorization=IntentAuthorization.NONE,
+            confidence=0.91,
+            rationale="Generic conversational request.",
+        )
+    )
+    prompt = "https://github.com/magnitudedev/magnitude\nKiểm tra bài viết trên cho a."
+    assert len(prompt) == 71
+
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+        semantic_resolver=resolver,
+    ).prepare(
+        CoreRequest(
+            text=prompt,
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-web-anchor",
+            source_session_id="session-web-anchor",
+            source_message_id="message-web-anchor",
+        )
+    )
+
+    assert prepared.semantic_intent == resolver.frame
+    assert prepared.route_decision.route is FastRoute.WORKFLOW
+    assert prepared.route_decision.rule_id == "routing.semantic.web_read"
+    assert prepared.capability_decision.capability is CapabilityKind.WEB_SEARCH_READ
+    assert prepared.execution_required is True
+    assert prepared.workflow is not None
+    assert prepared.workflow.risk_level is RiskLevel.READ_ONLY
+    assert prepared.workflow.approval_required is False
+
+
+def test_semantic_contextual_url_builds_read_only_web_workflow() -> None:
+    resolver = StaticSemanticResolver(
+        SemanticIntentFrame(
+            speech_act=IntentSpeechAct.ASK,
+            domain=IntentDomain.WEB,
+            action=IntentAction.READ,
+            target=IntentTarget.URL,
+            requested_execution=False,
+            authorization=IntentAuthorization.NONE,
+            confidence=0.99,
+            rationale="Read and analyze the URL resolved from quoted context.",
+        )
+    )
+    url = "https://github.com/magnitudedev/magnitude"
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+        semantic_resolver=resolver,
+    ).prepare(
+        CoreRequest(
+            text="Kiem tra bai viet tren cho a.",
+            channel="telegram",
+            actor="telegram:actor-hash",
+            source_chat_id="chat-web",
+            source_session_id="session-web",
+            source_message_id="message-web",
+            contextual_referent={
+                "source": "quoted_message",
+                "message_id": "quoted-web",
+                "text": url,
+                "sender": "user",
+            },
+        )
+    )
+
+    assert prepared.route_decision.route is FastRoute.WORKFLOW
+    assert prepared.capability_decision.capability is CapabilityKind.WEB_SEARCH_READ
+    assert prepared.execution_required is True
+    assert prepared.workflow is not None
+    assert prepared.workflow.risk_level is RiskLevel.READ_ONLY
+    assert prepared.workflow.approval_required is False
+    assert "web_search_read" in prepared.workflow.constraints
+    assert "http_https_only" in prepared.workflow.constraints
+    assert prepared.workflow.prior_evidence == (f"quoted_message:quoted-web: {url}",)
+
+
+def test_semantic_visual_compiler_contract_is_propagated_to_workflow_constraints() -> None:
+    resolver = StaticSemanticResolver(
+        SemanticIntentFrame(
+            speech_act=IntentSpeechAct.ACTION_REQUEST,
+            domain=IntentDomain.VISUAL,
+            action=IntentAction.EDIT,
+            target=IntentTarget.IMAGE,
+            requested_execution=True,
+            authorization=IntentAuthorization.EXPLICIT,
+            uses_contextual_visual=True,
+            visual_compiler_type=VisualCompilerType.REFERENCE_EDIT,
+            visual_identity_lock=True,
+            visual_preserve_unmentioned=True,
+            confidence=0.99,
+            rationale="Reference edit with identity and preservation requirements.",
+        )
+    )
+    reference = "media://inbound/11111111-1111-4111-8111-111111111111.jpg"
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)),
+        semantic_resolver=resolver,
+    ).prepare(
+        CoreRequest(
+            text="Change the dress to yellow and preserve everything else",
+            source_origin="telegram_user",
+            image_source=VisualImageSource.REPLIED_IMAGE,
+            reference_image=reference,
+        )
+    )
+
+    assert prepared.workflow is not None
+    assert "visual_compiler:type=reference_edit" in prepared.workflow.constraints
+    assert "visual_compiler:identity_lock=true" in prepared.workflow.constraints
+    assert "visual_compiler:preserve_unmentioned=true" in prepared.workflow.constraints
+
+
+def test_semantic_system_inspection_is_tool_backed_read_only_workflow() -> None:
+    resolver = StaticSemanticResolver(
+        SemanticIntentFrame(
+            speech_act=IntentSpeechAct.ACTION_REQUEST,
+            domain=IntentDomain.SYSTEM,
+            action=IntentAction.STATUS,
+            target=IntentTarget.SYSTEM,
+            requested_execution=False,
+            authorization=IntentAuthorization.NONE,
+            confidence=0.99,
+        )
+    )
+    prepared = _pipeline(
+        project_reader=ProjectReader((_project(),)), semantic_resolver=resolver
+    ).prepare(CoreRequest(text="Soi giúp anh xem máy đang thế nào", source_origin="telegram_user"))
+    assert prepared.route_decision.route is FastRoute.WORKFLOW
+    assert prepared.capability_decision.capability is CapabilityKind.SYSTEM_OPERATION
+    assert prepared.execution_required is True
+    assert prepared.workflow is not None
+    assert prepared.workflow.risk_level is RiskLevel.READ_ONLY

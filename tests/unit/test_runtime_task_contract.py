@@ -79,3 +79,23 @@ def test_dod_request_requires_json_and_explicit_runtime_scope():
     assert "ANH_DUONG_CORE_BASE_URL" in text
     assert "container-local" in text
     assert "Do not send Telegram messages" in text
+
+
+def test_image_subscription_route_instruction_attests_pinned_9router_codex_route():
+    image_request = OpenClawExecutionRequest(
+        task_id="task_image_route",
+        run_id="run_image_route",
+        attempt=1,
+        idempotency_key="run_image_route:1",
+        project_id="proj_1",
+        goal="Sửa ảnh theo lỗi vừa nêu",
+        mode="quick",
+        workspace="/home/thadc/AIOS/anh-duong-core",
+        constraints=("subscription_quota_only", "no_paid_fallback"),
+    )
+    text = OpenClawExecutor(base_url="http://gateway")._instructions(image_request)
+    assert "openai/cx/gpt-5.5-image" in text
+    assert "local 9Router transport" in text
+    assert "explicit 'cx/' model prefix" in text
+    assert "must not trigger the paid-route block" in text
+    assert "Do not substitute another model/provider" in text

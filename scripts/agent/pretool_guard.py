@@ -222,36 +222,10 @@ def is_read_only_terminal_command(payload: dict[str, Any]) -> bool:
         return False
     if tokens == ["pwd"]:
         return True
+    if tokens == ["/usr/local/libexec/anh-duong/runtime-truth"]:
+        return True
     current = workspace_root(payload).resolve(strict=False)
     trusted_executable = _trusted_executable_from_token(tokens[0], current) if tokens else None
-    if tokens and trusted_executable is not None and trusted_executable.name == "curl":
-        safe_urls = {
-            "http://127.0.0.1:8790/health",
-            "http://127.0.0.1:8790/ready",
-        }
-        urls: list[str] = []
-        index = 1
-        while index < len(tokens):
-            token = tokens[index]
-            if token in {"--fail", "--silent", "--show-error"}:
-                index += 1
-                continue
-            if token == "--max-time":
-                if index + 1 >= len(tokens) or not re.fullmatch(
-                    r"\d+(?:\.\d+)?", tokens[index + 1]
-                ):
-                    return False
-                index += 2
-                continue
-            if re.fullmatch(r"-[fsS]+", token):
-                index += 1
-                continue
-            if token.startswith("http://") or token.startswith("https://"):
-                urls.append(token)
-                index += 1
-                continue
-            return False
-        return len(urls) == 1 and urls[0] in safe_urls
     safe_status_args = {
         "--short",
         "-s",
