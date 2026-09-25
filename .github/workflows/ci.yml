@@ -57,6 +57,8 @@ jobs:
         run: |
           set -euo pipefail
           python -m venv --copies "$CI_PRIMARY/.venv"
+          ln -sf python "$CI_PRIMARY/.venv/bin/python3"
+          ln -sf python "$CI_PRIMARY/.venv/bin/python3.12"
           PY="$CI_PRIMARY/.venv/bin/python"
           "$PY" -m pip install "pip==26.2.1"
           "$PY" -m pip install -c "$CI_WORKTREE/ci/constraints-py312.txt" -e "$CI_WORKTREE[dev]"
